@@ -21,6 +21,9 @@ function createWindow() {
     }
   });
 
+  // Maximize window on startup
+  win.maximize();
+
   // Load the index.html
   win.loadFile('index.html');
 

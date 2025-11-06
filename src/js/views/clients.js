@@ -473,38 +473,40 @@ window.ClientsView = {
     const sortedClients = [...clients].reverse();
 
     return `
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Όνομα</th>
-            <th>Τηλέφωνο</th>
-            <th>Email</th>
-            <th>Πόλη</th>
-            <th>Ενέργειες</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${sortedClients.map(client => `
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
             <tr>
-              <td title="${client.name}">${client.name}</td>
-              <td title="${client.phone || '-'}">${client.phone || '-'}</td>
-              <td title="${client.email || '-'}">${client.email || '-'}</td>
-              <td title="${client.city || '-'}">${client.city || '-'}</td>
-              <td class="actions">
-                <button class="btn-icon view-client-btn" data-client-id="${client.id}" title="Προβολή">
-                  <i class="fas fa-eye"></i>
-                </button>
-                <button class="btn-icon edit-client-btn" data-client-id="${client.id}" title="Επεξεργασία">
-                  <i class="fas fa-edit"></i>
-                </button>
-                <button class="btn-icon btn-danger delete-client-btn" data-client-id="${client.id}" title="Διαγραφή">
-                  <i class="fas fa-trash"></i>
-                </button>
-              </td>
+              <th>Όνομα</th>
+              <th>Τηλέφωνο</th>
+              <th>Email</th>
+              <th>Πόλη</th>
+              <th>Ενέργειες</th>
             </tr>
-          `).join('')}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            ${sortedClients.map(client => `
+              <tr>
+                <td title="${client.name}">${client.name}</td>
+                <td title="${client.phone || '-'}">${client.phone || '-'}</td>
+                <td title="${client.email || '-'}">${client.email || '-'}</td>
+                <td title="${client.city || '-'}">${client.city || '-'}</td>
+                <td class="actions">
+                  <button class="btn-icon view-client-btn" data-client-id="${client.id}" title="Προβολή">
+                    <i class="fas fa-eye"></i>
+                  </button>
+                  <button class="btn-icon edit-client-btn" data-client-id="${client.id}" title="Επεξεργασία">
+                    <i class="fas fa-edit"></i>
+                  </button>
+                  <button class="btn-icon btn-danger delete-client-btn" data-client-id="${client.id}" title="Διαγραφή">
+                    <i class="fas fa-trash"></i>
+                  </button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
     `;
   },
 

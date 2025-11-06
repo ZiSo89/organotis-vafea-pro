@@ -51,11 +51,23 @@
   color: var(--color-text);
   padding: var(--spacing-sm);
   font-size: 1.25rem;
+  cursor: pointer;
+  border: none;
+  display: none; /* Hide on desktop */
+  align-items: center;
+  justify-content: center;
 }
 
 .sidebar-toggle:hover {
   background: var(--color-hover);
   transform: none;
+}
+
+/* Show toggle only on mobile */
+@media (max-width: 768px) {
+  .sidebar-toggle {
+    display: flex;
+  }
 }
 
 .sidebar-nav {
@@ -96,10 +108,21 @@
 /* Mobile */
 @media (max-width: 768px) {
   .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    z-index: var(--z-fixed);
     transform: translateX(-100%);
+    transition: transform var(--transition-base);
+    box-shadow: var(--shadow-xl);
   }
   
-  .sidebar.active {
+  .sidebar.open {
     transform: translateX(0);
+  }
+  
+  .main-content {
+    margin-left: 0;
   }
 }

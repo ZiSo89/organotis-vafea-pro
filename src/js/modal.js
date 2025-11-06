@@ -53,7 +53,7 @@ const Modal = {
 
     this.container.innerHTML = '';
     this.container.appendChild(modal);
-    this.container.classList.add('show');
+    this.container.classList.add('active');
     this.currentModal = modal;
 
     // Focus management
@@ -67,7 +67,7 @@ const Modal = {
 
   close() {
     if (this.container) {
-      this.container.classList.remove('show');
+      this.container.classList.remove('active');
       setTimeout(() => {
         this.container.innerHTML = '';
         this.currentModal = null;

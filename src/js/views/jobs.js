@@ -411,19 +411,20 @@ window.JobsView = {
     const sortedJobs = [...jobs].reverse();
 
     return `
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Ημερομηνία</th>
-            <th>Πελάτης</th>
-            <th>Τύπος</th>
-            <th>Κατάσταση</th>
-            <th>Επόμενη Επίσκεψη</th>
-            <th>Σύνολο</th>
-            <th>Ενέργειες</th>
-          </tr>
-        </thead>
-        <tbody>
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Ημερομηνία</th>
+              <th>Πελάτης</th>
+              <th>Τύπος</th>
+              <th>Κατάσταση</th>
+              <th>Επόμενη Επίσκεψη</th>
+              <th>Σύνολο</th>
+              <th>Ενέργειες</th>
+            </tr>
+          </thead>
+          <tbody>
           ${sortedJobs.map(job => {
             const clientName = this.getClientName(job.clientId);
             return `
@@ -450,6 +451,7 @@ window.JobsView = {
           }).join('')}
         </tbody>
       </table>
+      </div>
     `;
   },
 
@@ -895,6 +897,13 @@ window.JobsView = {
     if (statusFilter) {
       jobs = jobs.filter(job => job.status === statusFilter);
     }
+
+    // Sort by date - newest first (πιο πρόσφατες πρώτα)
+    jobs = jobs.sort((a, b) => {
+      const dateA = new Date(a.startDate || a.createdAt || 0);
+      const dateB = new Date(b.startDate || b.createdAt || 0);
+      return dateB - dateA; // Descending order (νεότερες πρώτα)
+    });
 
     document.getElementById('jobsTableContainer').innerHTML = this.renderTable(jobs);
   },

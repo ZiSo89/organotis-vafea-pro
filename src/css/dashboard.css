@@ -25,6 +25,8 @@
   color: var(--color-text);
   padding: var(--spacing-sm);
   font-size: 1.5rem;
+  cursor: pointer;
+  border: none;
 }
 
 .content-area {
@@ -311,6 +313,13 @@
   }
 }
 
+/* Settings Grid - 2 columns */
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--spacing-xl);
+}
+
 @media (max-width: 768px) {
   .main-content {
     margin-left: 0;
@@ -330,7 +339,8 @@
   
   .grid-2,
   .grid-3,
-  .grid-4 {
+  .grid-4,
+  .settings-grid {
     grid-template-columns: 1fr;
   }
   

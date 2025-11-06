@@ -334,7 +334,7 @@ window.MapView = {
           <p style="margin: 0 0 12px 0;"><strong>📍 Διεύθυνση:</strong><br>${address}</p>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
             <button onclick="DashboardView.viewJob('${job.id}')" 
-                    style="flex: 1; min-width: 100px; padding: 8px 12px; background: var(--accent-primary); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;">
+                    style="flex: 1; min-width: 100px; padding: 8px 12px; background: var(--color-primary); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;">
               <i class="fas fa-eye"></i> Προβολή
             </button>
             <button onclick="window.open('${mapsUrl}', '_blank')" 

@@ -104,33 +104,6 @@ window.DashboardView = {
             </div>
           </div>
         </div>
-
-        <!-- Quick Actions -->
-        <div class="card">
-          <div class="card-header">
-            <h2 class="card-title">Γρήγορες Ενέργειες</h2>
-          </div>
-          <div class="card-body">
-            <div style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; justify-content: space-between;">
-              <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
-                <button class="btn btn-primary" onclick="Router.navigate('jobs')">
-                  <i class="fas fa-plus"></i> Νέα Εργασία
-                </button>
-                <button class="btn btn-primary" onclick="Router.navigate('clients')">
-                  <i class="fas fa-user-plus"></i> Νέος Πελάτης
-                </button>
-              </div>
-              
-              <label class="toggle-switch" title="Εναλλαγή Dark/Light Mode" style="margin: 0;">
-                <input type="checkbox" id="darkModeToggle">
-                <span class="toggle-slider"></span>
-                <span class="toggle-label" style="font-size: 1.2rem;">
-                  <i class="fas fa-moon"></i>
-                </span>
-              </label>
-            </div>
-          </div>
-        </div>
       </div>
     `;
 
@@ -140,6 +113,9 @@ window.DashboardView = {
     // Setup dark mode toggle
     this.setupDarkModeToggle();
     
+    // Setup event delegation for activity items
+    this.setupActivityListeners(container);
+    
     // Listen for theme changes
     window.addEventListener('themeChanged', () => {
       this.renderCharts(this.calculateStats());
@@ -147,6 +123,26 @@ window.DashboardView = {
     
     // Initialize dashboard map
     this.initDashboardMap();
+  },
+
+  setupActivityListeners(container) {
+    console.log('🔧 Setting up activity listeners on container:', container);
+    
+    // Event delegation για τα activity items
+    container.addEventListener('click', (e) => {
+      console.log('👆 Click detected on dashboard, target:', e.target);
+      
+      const activityItem = e.target.closest('.activity-item[data-job-id]');
+      console.log('🎯 Activity item found:', activityItem);
+      
+      if (activityItem) {
+        const jobId = activityItem.dataset.jobId;
+        console.log('📋 Opening job with ID:', jobId);
+        this.viewJob(jobId);
+      } else {
+        console.log('❌ No activity item found');
+      }
+    });
   },
 
   calculateStats() {
@@ -211,7 +207,7 @@ window.DashboardView = {
           const clientName = client ? client.name : 'Άγνωστος πελάτης';
           
           return `
-            <li class="activity-item" onclick="DashboardView.viewJob('${job.id}')" style="cursor: pointer;">
+            <li class="activity-item" data-job-id="${job.id}" style="cursor: pointer;">
               <div class="activity-icon">
                 <i class="fas fa-briefcase"></i>
               </div>
@@ -272,7 +268,7 @@ window.DashboardView = {
           }
           
           return `
-            <li class="activity-item ${urgencyClass}" onclick="DashboardView.viewJob('${job.id}')" style="cursor: pointer;">
+            <li class="activity-item ${urgencyClass}" data-job-id="${job.id}" style="cursor: pointer;">
               <div class="activity-icon ${urgencyClass}">
                 <i class="fas fa-calendar-day"></i>
               </div>
@@ -368,11 +364,21 @@ window.DashboardView = {
   },
 
   viewJob(id) {
+    console.log('🔍 viewJob called with ID:', id);
+    
     const job = State.data.jobs.find(j => j.id === id);
-    if (!job) return;
+    console.log('📦 Job found:', job);
+    
+    if (!job) {
+      console.error('❌ Job not found!');
+      return;
+    }
 
     const client = State.data.clients.find(c => c.id === job.clientId);
     const clientName = client ? client.name : 'Άγνωστος';
+    
+    console.log('👤 Client:', client);
+    console.log('📱 About to open modal...');
 
     const content = `
       <div class="job-details">
@@ -537,6 +543,9 @@ window.DashboardView = {
       </button>
     `;
 
+    console.log('🪟 Opening modal with title:', clientName);
+    console.log('🪟 Modal object:', Modal);
+    
     Modal.open({
       title: `${clientName}`,
       content: content,

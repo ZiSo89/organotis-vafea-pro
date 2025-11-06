@@ -6,7 +6,7 @@
   background: var(--color-card);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
-  overflow: hidden;
+  overflow: visible; /* Changed from hidden to allow scrolling */
 }
 
 .table-header {
@@ -17,6 +17,8 @@
   align-items: center;
   flex-wrap: wrap;
   gap: var(--spacing-md);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  background: var(--color-card);
 }
 
 .table-title {
@@ -49,7 +51,8 @@
 }
 
 .table-wrapper {
-  overflow-x: auto;
+  overflow-x: visible; /* Desktop: no scroll needed */
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
 }
 
 table {
@@ -270,10 +273,59 @@ th:not(:last-child) {
   }
   
   .table-wrapper {
-    overflow-x: scroll;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+    position: relative;
+    /* Add visible scrollbar */
+    padding-bottom: var(--spacing-sm);
+  }
+  
+  /* Custom scrollbar για mobile */
+  .table-wrapper::-webkit-scrollbar {
+    height: 10px;
+  }
+  
+  .table-wrapper::-webkit-scrollbar-track {
+    background: var(--color-bg);
+    border-radius: var(--radius-md);
+    margin: 0 var(--spacing-md);
+  }
+  
+  .table-wrapper::-webkit-scrollbar-thumb {
+    background: var(--color-primary);
+    border-radius: var(--radius-md);
+    border: 2px solid var(--color-bg);
+  }
+  
+  .table-wrapper::-webkit-scrollbar-thumb:hover {
+    background: var(--color-primary-dark);
+  }
+  
+  /* Scroll indicator shadow */
+  .table-wrapper::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 10px;
+    width: 30px;
+    background: linear-gradient(to left, var(--color-card), transparent);
+    pointer-events: none;
   }
   
   table {
-    min-width: 600px;
+    min-width: 900px; /* Force horizontal scroll */
+    white-space: nowrap;
+  }
+  
+  /* Compact padding on mobile */
+  th, td {
+    padding: var(--spacing-md) var(--spacing-sm);
+    font-size: var(--font-size-sm);
+  }
+  
+  .btn-icon {
+    width: 32px;
+    height: 32px;
   }
 }
