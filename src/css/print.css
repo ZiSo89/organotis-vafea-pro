@@ -1,0 +1,71 @@
+/* ========================================
+   Print Styles
+   ======================================== */
+
+@media print {
+  /* Hide UI elements */
+  .sidebar,
+  .header,
+  .mobile-menu-btn,
+  .table-actions,
+  .action-btn,
+  .pagination,
+  .modal-container,
+  .toast-container,
+  .offline-indicator,
+  button,
+  .btn {
+    display: none !important;
+  }
+  
+  /* Reset layout */
+  .main-content {
+    margin-left: 0;
+  }
+  
+  .content-area {
+    padding: 0;
+  }
+  
+  /* Optimize for print */
+  body {
+    background: white;
+    color: black;
+  }
+  
+  .card,
+  .table-container {
+    box-shadow: none;
+    border: 1px solid #ddd;
+    page-break-inside: avoid;
+  }
+  
+  table {
+    page-break-inside: auto;
+  }
+  
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+  
+  thead {
+    display: table-header-group;
+  }
+  
+  /* Typography */
+  h1, h2, h3 {
+    page-break-after: avoid;
+  }
+  
+  /* Links */
+  a {
+    color: black;
+    text-decoration: underline;
+  }
+  
+  /* Charts - hide canvas, show data tables instead */
+  canvas {
+    display: none;
+  }
+}

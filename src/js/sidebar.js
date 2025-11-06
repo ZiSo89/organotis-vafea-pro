@@ -1,0 +1,101 @@
+/* ========================================
+   Sidebar Navigation
+   ======================================== */
+
+const Sidebar = {
+  element: null,
+  isCollapsed: false,
+  isMobile: window.innerWidth < 768,
+
+  init() {
+    this.element = document.getElementById('sidebar');
+    this.setupToggle();
+    this.setupNavigation();
+    this.setupMobileMenu();
+    this.handleResize();
+  },
+
+  setupToggle() {
+    const toggleBtn = document.getElementById('sidebarToggle');
+    if (toggleBtn) {
+      toggleBtn.addEventListener('click', () => this.toggle());
+    }
+  },
+
+  toggle() {
+    if (this.isMobile) {
+      this.element.classList.toggle('open');
+    } else {
+      this.isCollapsed = !this.isCollapsed;
+      this.element.classList.toggle('collapsed');
+    }
+  },
+
+  close() {
+    if (this.isMobile) {
+      this.element.classList.remove('open');
+    }
+  },
+
+  setupNavigation() {
+    const navItems = document.querySelectorAll('.nav-item');
+    navItems.forEach(item => {
+      item.addEventListener('click', (e) => {
+        e.preventDefault();
+        const section = item.getAttribute('data-section');
+        
+        // Update active state
+        navItems.forEach(nav => nav.classList.remove('active'));
+        item.classList.add('active');
+        
+        // Navigate
+        Router.navigate(section);
+        
+        // Close sidebar on mobile
+        if (this.isMobile) {
+          this.close();
+        }
+      });
+    });
+  },
+
+  setupMobileMenu() {
+    const mobileBtn = document.getElementById('mobileMenuBtn');
+    if (mobileBtn) {
+      mobileBtn.addEventListener('click', () => this.toggle());
+    }
+
+    // Close on backdrop click (mobile)
+    document.addEventListener('click', (e) => {
+      if (this.isMobile && this.element.classList.contains('open')) {
+        if (!this.element.contains(e.target) && !e.target.closest('#mobileMenuBtn')) {
+          this.close();
+        }
+      }
+    });
+  },
+
+  handleResize() {
+    window.addEventListener('resize', () => {
+      const wasMobile = this.isMobile;
+      this.isMobile = window.innerWidth < 768;
+
+      if (wasMobile !== this.isMobile) {
+        // Reset states on breakpoint change
+        this.element.classList.remove('open', 'collapsed');
+        this.isCollapsed = false;
+      }
+    });
+  },
+
+  setActive(section) {
+    const navItems = document.querySelectorAll('.nav-item');
+    navItems.forEach(item => {
+      if (item.getAttribute('data-section') === section) {
+        item.classList.add('active');
+      } else {
+        item.classList.remove('active');
+      }
+    });
+  }
+};

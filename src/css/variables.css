@@ -1,0 +1,251 @@
+/* ========================================
+   CSS Variables - Θέμα & Χρώματα
+   Paint-Themed Professional Design
+   ======================================== */
+
+:root {
+  /* Paint-Inspired Primary Colors */
+  --color-primary: #4A90E2;
+  --color-primary-dark: #357ABD;
+  --color-primary-light: #6BA3E8;
+  --color-primary-gradient: linear-gradient(135deg, #4A90E2 0%, #357ABD 100%);
+  
+  /* Professional Accent Colors */
+  --color-paint-blue: #4A90E2;
+  --color-paint-teal: #26C6DA;
+  --color-paint-purple: #7B68EE;
+  --color-paint-orange: #FF9800;
+  
+  /* Status Colors - Paint Palette Theme */
+  --color-success: #4CAF50;
+  --color-success-light: #81C784;
+  --color-warning: #FF9800;
+  --color-warning-light: #FFB74D;
+  --color-danger: #F44336;
+  --color-danger-light: #E57373;
+  --color-info: #2196F3;
+  --color-info-light: #64B5F6;
+  
+  /* Light Theme Colors */
+  --color-bg: #F8F9FA;
+  --color-surface: #FFFFFF;
+  --color-card: #FFFFFF;
+  
+  --color-text: #1A202C;
+  --color-text-light: #4A5568;
+  --color-text-muted: #A0AEC0;
+  
+  --color-border: #E2E8F0;
+  --color-divider: #EDF2F7;
+  
+  --color-hover: #F7FAFC;
+  --color-active: #EDF2F7;
+  
+  /* Enhanced Shadows - More Depth */
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-sm: 0 2px 4px 0 rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 8px 0 rgba(0, 0, 0, 0.12);
+  --shadow-lg: 0 8px 16px 0 rgba(0, 0, 0, 0.15);
+  --shadow-xl: 0 12px 24px 0 rgba(0, 0, 0, 0.18);
+  --shadow-2xl: 0 16px 32px 0 rgba(0, 0, 0, 0.22);
+  
+  /* Colored Shadows for Paint Theme */
+  --shadow-primary: 0 4px 12px rgba(74, 144, 226, 0.25);
+  --shadow-success: 0 4px 12px rgba(76, 175, 80, 0.25);
+  --shadow-warning: 0 4px 12px rgba(255, 152, 0, 0.25);
+  --shadow-danger: 0 4px 12px rgba(244, 67, 54, 0.25);
+  
+  /* Chart Colors - Light Theme */
+  --chart-gray: #6b7280;
+  --chart-blue: #3b82f6;
+  --chart-orange: #f59e0b;
+  --chart-yellow: #eab308;
+  --chart-green: #22c55e;
+  --chart-pink: #ec4899;
+  --chart-red: #ef4444;
+  
+  /* Spacing System - 8px base */
+  --spacing-xs: 0.25rem;   /* 4px */
+  --spacing-sm: 0.5rem;    /* 8px */
+  --spacing-md: 1rem;      /* 16px */
+  --spacing-lg: 1.5rem;    /* 24px */
+  --spacing-xl: 2rem;      /* 32px */
+  --spacing-2xl: 3rem;     /* 48px */
+  --spacing-3xl: 4rem;     /* 64px */
+  
+  /* Border Radius - Modern & Smooth */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-2xl: 24px;
+  --radius-full: 9999px;
+  
+  /* Typography Scale */
+  --font-size-xs: 0.75rem;    /* 12px */
+  --font-size-sm: 0.875rem;   /* 14px */
+  --font-size-base: 1rem;     /* 16px */
+  --font-size-lg: 1.125rem;   /* 18px */
+  --font-size-xl: 1.25rem;    /* 20px */
+  --font-size-2xl: 1.5rem;    /* 24px */
+  --font-size-3xl: 1.875rem;  /* 30px */
+  --font-size-4xl: 2.25rem;   /* 36px */
+  
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  
+  /* Line Heights */
+  --line-height-tight: 1.25;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.75;
+  
+  /* Smooth Transitions */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 350ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-bounce: 500ms cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  
+  /* Z-Index Scale */
+  --z-base: 0;
+  --z-dropdown: 1000;
+  --z-sticky: 1020;
+  --z-fixed: 1030;
+  --z-modal-backdrop: 1040;
+  --z-modal: 1050;
+  --z-popover: 1060;
+  --z-tooltip: 1070;
+}
+
+/* Dark Theme - Professional Paint Pro */
+[data-theme="dark"] {
+  --color-bg: #0F1419;
+  --color-surface: #1A1F2E;
+  --color-card: #242B3D;
+  
+  --color-text: #F7FAFC;
+  --color-text-light: #CBD5E0;
+  --color-text-muted: #A0AEC0;
+  
+  --color-border: #2D3748;
+  --color-divider: #252D3D;
+  
+  --color-hover: #2A3244;
+  --color-active: #323B52;
+  
+  /* Enhanced Dark Mode Shadows */
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --shadow-sm: 0 2px 4px 0 rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 8px 0 rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 8px 16px 0 rgba(0, 0, 0, 0.6);
+  --shadow-xl: 0 12px 24px 0 rgba(0, 0, 0, 0.7);
+  --shadow-2xl: 0 16px 32px 0 rgba(0, 0, 0, 0.8);
+  
+  /* Glowing effects for dark mode */
+  --glow-primary: 0 0 20px rgba(74, 144, 226, 0.4);
+  --glow-success: 0 0 20px rgba(76, 175, 80, 0.4);
+  --glow-warning: 0 0 20px rgba(255, 152, 0, 0.4);
+  --glow-danger: 0 0 20px rgba(244, 67, 54, 0.4);
+  
+  /* Chart Colors - Dark Theme (brighter for visibility) */
+  --chart-gray: #9ca3af;
+  --chart-blue: #60a5fa;
+  --chart-orange: #fb923c;
+  --chart-yellow: #fbbf24;
+  --chart-green: #4ade80;
+  --chart-pink: #f472b6;
+  --chart-red: #f87171;
+}
+
+/* Paint Status Colors - For Job/Project Status */
+.status-candidate { 
+  color: var(--color-info-light);
+  background: rgba(33, 150, 243, 0.1);
+  border-left: 3px solid var(--color-info);
+}
+
+.status-scheduled { 
+  color: var(--color-warning-light);
+  background: rgba(255, 152, 0, 0.1);
+  border-left: 3px solid var(--color-warning);
+}
+
+.status-inprogress { 
+  color: var(--color-paint-purple);
+  background: rgba(123, 104, 238, 0.1);
+  border-left: 3px solid var(--color-paint-purple);
+}
+
+.status-completed { 
+  color: var(--color-success-light);
+  background: rgba(76, 175, 80, 0.1);
+  border-left: 3px solid var(--color-success);
+}
+
+.status-cancelled { 
+  color: var(--color-danger-light);
+  background: rgba(244, 67, 54, 0.1);
+  border-left: 3px solid var(--color-danger);
+}
+
+/* Status Badges - Modern Pills */
+.status-badge-candidate { 
+  background: linear-gradient(135deg, rgba(33, 150, 243, 0.15), rgba(33, 150, 243, 0.25));
+  color: var(--color-info-light);
+  border: 1px solid rgba(33, 150, 243, 0.3);
+  padding: 0.375rem 0.875rem;
+  border-radius: var(--radius-full);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-badge-scheduled { 
+  background: linear-gradient(135deg, rgba(255, 152, 0, 0.15), rgba(255, 152, 0, 0.25));
+  color: var(--color-warning-light);
+  border: 1px solid rgba(255, 152, 0, 0.3);
+  padding: 0.375rem 0.875rem;
+  border-radius: var(--radius-full);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-badge-inprogress { 
+  background: linear-gradient(135deg, rgba(123, 104, 238, 0.15), rgba(123, 104, 238, 0.25));
+  color: var(--color-paint-purple);
+  border: 1px solid rgba(123, 104, 238, 0.3);
+  padding: 0.375rem 0.875rem;
+  border-radius: var(--radius-full);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-badge-completed { 
+  background: linear-gradient(135deg, rgba(76, 175, 80, 0.15), rgba(76, 175, 80, 0.25));
+  color: var(--color-success-light);
+  border: 1px solid rgba(76, 175, 80, 0.3);
+  padding: 0.375rem 0.875rem;
+  border-radius: var(--radius-full);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-badge-cancelled { 
+  background: linear-gradient(135deg, rgba(244, 67, 54, 0.15), rgba(244, 67, 54, 0.25));
+  color: var(--color-danger-light);
+  border: 1px solid rgba(244, 67, 54, 0.3);
+  padding: 0.375rem 0.875rem;
+  border-radius: var(--radius-full);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
