@@ -25,6 +25,7 @@ const Router = {
     this.routes = {
       dashboard: window.DashboardView,
       clients: window.ClientsView,
+      workers: window.WorkersView,
       inventory: window.InventoryView,
       jobs: window.JobsView,
       calendar: window.CalendarView,

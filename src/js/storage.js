@@ -5,6 +5,8 @@
 // Δομή Δεδομένων - όλες οι οντότητες
 const DB_STRUCTURE = {
   clients: [],    // Πελάτες
+  workers: [],    // Εργάτες/Προσωπικό
+  timesheets: [], // Ώρες εργασίας εργατών
   paints: [],     // Χρώματα/Αποθήκη
   jobs: [],       // Εργασίες
   offers: [],     // Προσφορές
@@ -321,6 +323,41 @@ const Storage = {
     ];
 
     DB_STRUCTURE.templates = [];
+    
+    DB_STRUCTURE.workers = [
+      {
+        id: 'W-0001',
+        name: 'Γιώργος Μαστρογιάννης',
+        phone: '6977123456',
+        specialty: 'Ελαιοχρωματιστής',
+        hourlyRate: 15.00,
+        status: 'active',
+        hireDate: '2024-01-15',
+        notes: 'Έμπειρος επαγγελματίας, 10 χρόνια εμπειρία'
+      },
+      {
+        id: 'W-0002',
+        name: 'Νίκος Παπαδόπουλος',
+        phone: '6988654321',
+        specialty: 'Βοηθός',
+        hourlyRate: 10.00,
+        status: 'active',
+        hireDate: '2024-06-01',
+        notes: ''
+      },
+      {
+        id: 'W-0003',
+        name: 'Κώστας Ιωάννου',
+        phone: '6955111222',
+        specialty: 'Γυψαδόρος',
+        hourlyRate: 18.00,
+        status: 'active',
+        hireDate: '2023-09-10',
+        notes: 'Εξειδικευμένος σε ταβάνια και γυψοσανίδες'
+      }
+    ];
+
+    DB_STRUCTURE.timesheets = [];
     
     DB_STRUCTURE.settings = {
       defaultVAT: 24,

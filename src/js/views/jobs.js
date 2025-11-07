@@ -6,6 +6,7 @@ console.log('💼 Loading JobsView...');
 
 window.JobsView = {
   currentEdit: null,
+  assignedWorkers: [], // Array to hold workers assigned to current job
   tableClickHandler: null,
   // Store all event handlers to prevent duplicates
   formSubmitHandler: null,
@@ -172,52 +173,101 @@ window.JobsView = {
             <input type="text" id="jobNextVisit" placeholder="ΗΗ/ΜΜ/ΕΕΕΕ" pattern="\\d{2}/\\d{2}/\\d{4}">
           </div>
 
+          <!-- Εργάτες -->
+          <div class="form-section span-2">
+            <h3><i class="fas fa-users"></i> Εργάτες</h3>
+          </div>
+
+          <div class="form-group span-2">
+            <button type="button" class="btn btn-secondary" id="addWorkerToJobBtn">
+              <i class="fas fa-user-plus"></i> Προσθήκη Εργάτη
+            </button>
+            <div id="assignedWorkersContainer" style="margin-top: 15px;">
+              <!-- Workers table will appear here -->
+            </div>
+          </div>
+
           <!-- Κοστολόγηση -->
           <div class="form-section span-2">
-            <h3><i class="fas fa-euro-sign"></i> Κοστολόγηση</h3>
+            <h3><i class="fas fa-euro-sign"></i> Κοστολόγηση & Χρέωση</h3>
           </div>
 
           <div class="form-group">
-            <label>Κόστος Υλικών (€)</label>
-            <input type="number" id="jobMaterialsCost" step="0.01" min="0" value="0">
+            <label title="Το κόστος των υλικών που χρησιμοποιήθηκαν">
+              Κόστος Υλικών (€) <i class="fas fa-info-circle" style="font-size: 0.8em; color: var(--text-muted);"></i>
+            </label>
+            <input type="number" id="jobMaterialsCost" step="0.01" min="0" value="0" 
+                   title="Το κόστος των υλικών που χρησιμοποιήθηκαν (έξοδα)">
           </div>
 
           <div class="form-group">
-            <label>Ώρες Εργασίας</label>
-            <input type="number" id="jobHours" step="0.5" min="0" value="0">
+            <label title="Χιλιόμετρα μετακίνησης για την εργασία">
+              Χιλιόμετρα <i class="fas fa-info-circle" style="font-size: 0.8em; color: var(--text-muted);"></i>
+            </label>
+            <input type="number" id="jobKilometers" step="1" min="0" value="0"
+                   title="Χιλιόμετρα μετακίνησης για την εργασία (έξοδα)">
           </div>
 
           <div class="form-group">
-            <label>Χιλιόμετρα</label>
-            <input type="number" id="jobKilometers" step="1" min="0" value="0">
+            <label title="Οι ώρες που χρεώνεις τον πελάτη (δικές σου ώρες)">
+              Ώρες Χρέωσης <i class="fas fa-info-circle" style="font-size: 0.8em; color: var(--text-muted);"></i>
+            </label>
+            <input type="number" id="jobBillingHours" step="0.5" min="0" value="0"
+                   title="Οι ώρες που χρεώνεις τον πελάτη - δικές σου ώρες εργασίας (έσοδα)">
+          </div>
+
+          <div class="form-group">
+            <label title="Η τιμή ανά ώρα που χρεώνεις τον πελάτη">
+              Τιμή Χρέωσης/Ώρα (€) <i class="fas fa-info-circle" style="font-size: 0.8em; color: var(--text-muted);"></i>
+            </label>
+            <input type="number" id="jobBillingRate" step="0.01" min="0" value="50"
+                   title="Η τιμή ανά ώρα που χρεώνεις τον πελάτη (έσοδα)">
           </div>
 
           <!-- Cost Summary -->
           <div class="form-group span-2">
             <div class="cost-summary">
-              <div class="cost-row">
-                <span>Κόστος Εργασίας:</span>
-                <strong id="laborCostDisplay">0.00 €</strong>
+              <div style="margin-bottom: 10px; padding: 10px; background: var(--bg-secondary); border-radius: 4px;">
+                <strong style="color: var(--error);">📊 ΕΞΟΔΑ</strong>
               </div>
               <div class="cost-row">
-                <span>Υλικά:</span>
-                <strong id="materialsCostDisplay">0.00 €</strong>
+                <span title="Συνολικό κόστος εργατών (αυτό που πληρώνεις)">Κόστος Εργατών:</span>
+                <strong id="laborCostDisplay" style="color: var(--error);">0.00 €</strong>
               </div>
               <div class="cost-row">
-                <span>Μετακίνηση:</span>
-                <strong id="travelCostDisplay">0.00 €</strong>
+                <span title="Κόστος υλικών">Υλικά:</span>
+                <strong id="materialsCostDisplay" style="color: var(--error);">0.00 €</strong>
               </div>
               <div class="cost-row">
-                <span>Καθαρό:</span>
-                <strong id="netCostDisplay">0.00 €</strong>
+                <span title="Κόστος μετακίνησης">Μετακίνηση:</span>
+                <strong id="travelCostDisplay" style="color: var(--error);">0.00 €</strong>
+              </div>
+              <div class="cost-row" style="border-top: 1px solid var(--border); padding-top: 5px; margin-top: 5px;">
+                <span><strong>Σύνολο Εξόδων:</strong></span>
+                <strong id="totalExpensesDisplay" style="color: var(--error);">0.00 €</strong>
+              </div>
+
+              <div style="margin: 15px 0 10px 0; padding: 10px; background: var(--bg-secondary); border-radius: 4px;">
+                <strong style="color: var(--success);">💰 ΕΣΟΔΑ</strong>
               </div>
               <div class="cost-row">
-                <span>ΦΠΑ:</span>
-                <strong id="vatCostDisplay">0.00 €</strong>
+                <span title="Οι ώρες σου × τιμή χρέωσης">Χρέωση Εργασίας:</span>
+                <strong id="billingAmountDisplay" style="color: var(--success);">0.00 €</strong>
               </div>
-              <div class="cost-row total">
-                <span>ΣΥΝΟΛΟ:</span>
-                <strong id="totalCostDisplay">0.00 €</strong>
+              <div class="cost-row">
+                <span title="ΦΠΑ επί της χρέωσης">ΦΠΑ (24%):</span>
+                <strong id="vatCostDisplay" style="color: var(--success);">0.00 €</strong>
+              </div>
+              <div class="cost-row total" style="border-top: 1px solid var(--border); padding-top: 5px; margin-top: 5px;">
+                <span title="Συνολικό ποσό που χρεώνεις τον πελάτη"><strong>ΣΥΝΟΛΟ ΧΡΕΩΣΗΣ:</strong></span>
+                <strong id="totalCostDisplay" style="color: var(--success);">0.00 €</strong>
+              </div>
+
+              <div style="margin-top: 15px; padding: 10px; background: var(--accent-primary); border-radius: 4px; text-align: center;">
+                <div class="cost-row" style="justify-content: center;">
+                  <span style="color: white;" title="Έσοδα - Έξοδα = Κέρδος"><strong>📈 ΚΑΘΑΡΟ ΚΕΡΔΟΣ:</strong></span>
+                  <strong id="profitDisplay" style="color: white; font-size: 1.2em; margin-left: 10px;">0.00 €</strong>
+                </div>
               </div>
             </div>
           </div>
@@ -350,8 +400,14 @@ window.JobsView = {
       clientSelect.addEventListener('change', this.clientSelectHandler);
     }
 
+    // Add Worker button
+    const addWorkerBtn = document.getElementById('addWorkerToJobBtn');
+    if (addWorkerBtn) {
+      addWorkerBtn.addEventListener('click', () => this.openWorkerAssignmentModal());
+    }
+
     // Cost calculation fields - real-time updates
-    const costFields = ['jobMaterialsCost', 'jobHours', 'jobKilometers'];
+    const costFields = ['jobMaterialsCost', 'jobKilometers', 'jobBillingHours', 'jobBillingRate'];
     costFields.forEach(fieldId => {
       const field = document.getElementById(fieldId);
       if (field) {
@@ -380,12 +436,18 @@ window.JobsView = {
         const deleteBtn = e.target.closest('.delete-job-btn');
         
         if (viewBtn) {
+          e.preventDefault();
+          e.stopPropagation();
           const jobId = viewBtn.dataset.jobId;
           this.viewJob(jobId);
         } else if (editBtn) {
+          e.preventDefault();
+          e.stopPropagation();
           const jobId = editBtn.dataset.jobId;
           this.editJob(jobId);
         } else if (deleteBtn) {
+          e.preventDefault();
+          e.stopPropagation();
           const jobId = deleteBtn.dataset.jobId;
           this.deleteJob(jobId);
         }
@@ -483,6 +545,11 @@ window.JobsView = {
     const yyyy = today.getFullYear();
     jobDate.value = `${dd}/${mm}/${yyyy}`;
     jobStatus.value = 'Υποψήφιος';
+    
+    // Clear assigned workers
+    this.assignedWorkers = [];
+    this.renderAssignedWorkers();
+    
     this.calculateCost();
     jobForm.scrollIntoView({ behavior: 'smooth' });
   },
@@ -509,34 +576,64 @@ window.JobsView = {
   calculateCost() {
     // Get pricing settings from localStorage
     const pricingSettings = JSON.parse(localStorage.getItem('pricing_settings') || '{}');
-    const hourlyRate = pricingSettings.hourlyRate || 25;
     const vatPercent = pricingSettings.vat || 24;
     const costPerKm = pricingSettings.travelCost || 0.5;
     
     const materials = parseFloat(document.getElementById('jobMaterialsCost')?.value || 0);
-    const hours = parseFloat(document.getElementById('jobHours')?.value || 0);
     const kilometers = parseFloat(document.getElementById('jobKilometers')?.value || 0);
+    const billingHours = parseFloat(document.getElementById('jobBillingHours')?.value || 0);
+    const billingRate = parseFloat(document.getElementById('jobBillingRate')?.value || 50);
 
-    const laborCost = hours * hourlyRate;
-    const travelCost = kilometers * costPerKm;
-    const netCost = materials + laborCost + travelCost;
-    const vatAmount = netCost * (vatPercent / 100);
-    const totalCost = netCost + vatAmount;
+    // ΕΞΟΔΑ
+    const laborCost = this.assignedWorkers.reduce((sum, w) => sum + w.laborCost, 0); // Κόστος εργατών
+    const travelCost = kilometers * costPerKm; // Κόστος μετακίνησης
+    const totalExpenses = materials + laborCost + travelCost; // Συνολικά έξοδα
+
+    // ΕΣΟΔΑ
+    const billingAmount = billingHours * billingRate; // Χρέωση εργασίας (δικές σου ώρες)
+    const vatAmount = billingAmount * (vatPercent / 100); // ΦΠΑ
+    const totalCharge = billingAmount + vatAmount; // Συνολική χρέωση
+
+    // ΚΕΡΔΟΣ
+    const profit = billingAmount - totalExpenses; // Κέρδος (χωρίς ΦΠΑ)
 
     // Update displays
     const laborDisplay = document.getElementById('laborCostDisplay');
     const materialsDisplay = document.getElementById('materialsCostDisplay');
     const travelDisplay = document.getElementById('travelCostDisplay');
-    const netDisplay = document.getElementById('netCostDisplay');
+    const totalExpensesDisplay = document.getElementById('totalExpensesDisplay');
+    const billingAmountDisplay = document.getElementById('billingAmountDisplay');
     const vatDisplay = document.getElementById('vatCostDisplay');
     const totalDisplay = document.getElementById('totalCostDisplay');
+    const profitDisplay = document.getElementById('profitDisplay');
     
     if (laborDisplay) laborDisplay.textContent = Utils.formatCurrency(laborCost);
     if (materialsDisplay) materialsDisplay.textContent = Utils.formatCurrency(materials);
     if (travelDisplay) travelDisplay.textContent = Utils.formatCurrency(travelCost);
-    if (netDisplay) netDisplay.textContent = Utils.formatCurrency(netCost);
+    if (totalExpensesDisplay) totalExpensesDisplay.textContent = Utils.formatCurrency(totalExpenses);
+    if (billingAmountDisplay) billingAmountDisplay.textContent = Utils.formatCurrency(billingAmount);
     if (vatDisplay) vatDisplay.textContent = Utils.formatCurrency(vatAmount);
-    if (totalDisplay) totalDisplay.textContent = Utils.formatCurrency(totalCost);
+    if (totalDisplay) totalDisplay.textContent = Utils.formatCurrency(totalCharge);
+    
+    if (profitDisplay) {
+      // Format profit with sign
+      const profitText = profit >= 0 
+        ? `+${Utils.formatCurrency(profit)}` 
+        : Utils.formatCurrency(profit);
+      profitDisplay.textContent = profitText;
+      
+      // Change color based on profit/loss
+      const profitContainer = profitDisplay.parentElement.parentElement;
+      if (profit < 0) {
+        // Loss - red background, white text
+        profitDisplay.style.color = 'white';
+        profitContainer.style.background = '#ff4444';
+      } else {
+        // Profit - green background, white text
+        profitDisplay.style.color = 'white';
+        profitContainer.style.background = '#28a745';
+      }
+    }
   },
 
   saveJob(e) {
@@ -544,9 +641,11 @@ window.JobsView = {
 
     // Get pricing settings
     const pricingSettings = JSON.parse(localStorage.getItem('pricing_settings') || '{}');
-    const hourlyRate = pricingSettings.hourlyRate || 25;
     const vatPercent = pricingSettings.vat || 24;
     const costPerKm = pricingSettings.travelCost || 0.5;
+
+    const billingHours = parseFloat(document.getElementById('jobBillingHours').value) || 0;
+    const billingRate = parseFloat(document.getElementById('jobBillingRate').value) || 50;
 
     const jobData = {
       date: Utils.greekToDate(document.getElementById('jobDate').value),
@@ -563,12 +662,14 @@ window.JobsView = {
       coats: parseInt(document.getElementById('jobCoats').value) || 2,
       nextVisit: Utils.greekToDate(document.getElementById('jobNextVisit').value),
       materialsCost: parseFloat(document.getElementById('jobMaterialsCost').value) || 0,
-      hours: parseFloat(document.getElementById('jobHours').value) || 0,
       kilometers: parseFloat(document.getElementById('jobKilometers').value) || 0,
-      hourlyRate: hourlyRate,
+      billingHours: billingHours,
+      billingRate: billingRate,
       vat: vatPercent,
       costPerKm: costPerKm,
-      notes: document.getElementById('jobNotes').value
+      notes: document.getElementById('jobNotes').value,
+      // Add assigned workers
+      assignedWorkers: [...this.assignedWorkers]
     };
 
     // Auto-generate ID if new job
@@ -582,17 +683,29 @@ window.JobsView = {
       jobData.id = this.currentEdit;
     }
 
-    // Calculate costs
-    const laborCost = jobData.hours * jobData.hourlyRate;
+    // ΕΞΟΔΑ
+    const laborCost = this.assignedWorkers.reduce((sum, w) => sum + w.laborCost, 0); // Κόστος εργατών
+    const totalWorkerHours = this.assignedWorkers.reduce((sum, w) => sum + w.hoursAllocated, 0);
     const travelCost = jobData.kilometers * jobData.costPerKm;
-    const netCost = jobData.materialsCost + laborCost + travelCost;
-    const vatAmount = netCost * (jobData.vat / 100);
+    const totalExpenses = jobData.materialsCost + laborCost + travelCost;
+
+    // ΕΣΟΔΑ
+    const billingAmount = billingHours * billingRate; // Χρέωση εργασίας
+    const vatAmount = billingAmount * (jobData.vat / 100);
+    const totalCharge = billingAmount + vatAmount;
+
+    // ΚΕΡΔΟΣ
+    const profit = billingAmount - totalExpenses;
     
-    jobData.laborCost = laborCost;
+    jobData.hours = billingHours; // Billing hours (owner's hours)
+    jobData.workerHours = totalWorkerHours; // Total worker hours
+    jobData.laborCost = laborCost; // Cost of workers (expense)
     jobData.travelCost = travelCost;
-    jobData.netCost = netCost;
+    jobData.totalExpenses = totalExpenses;
+    jobData.billingAmount = billingAmount; // Billing amount (revenue)
     jobData.vatAmount = vatAmount;
-    jobData.totalCost = netCost + vatAmount;
+    jobData.totalCost = totalCharge; // Total charge to client
+    jobData.profit = profit; // Net profit
 
     // Validate
     const validation = Validation.validateJob(jobData);
@@ -837,9 +950,14 @@ window.JobsView = {
     document.getElementById('jobCoats').value = job.coats || 2;
     document.getElementById('jobNextVisit').value = Utils.dateToGreek(job.nextVisit);
     document.getElementById('jobMaterialsCost').value = job.materialsCost || 0;
-    document.getElementById('jobHours').value = job.hours || 0;
     document.getElementById('jobKilometers').value = job.kilometers || 0;
+    document.getElementById('jobBillingHours').value = job.billingHours || 0;
+    document.getElementById('jobBillingRate').value = job.billingRate || 50;
     document.getElementById('jobNotes').value = job.notes || '';
+
+    // Load assigned workers
+    this.assignedWorkers = job.assignedWorkers ? [...job.assignedWorkers] : [];
+    this.renderAssignedWorkers();
 
     this.autoFillClientData();
     this.calculateCost();
@@ -863,6 +981,8 @@ window.JobsView = {
     document.getElementById('jobForm').style.display = 'none';
     document.getElementById('jobFormElement').reset();
     this.currentEdit = null;
+    this.assignedWorkers = []; // Clear assigned workers
+    this.renderAssignedWorkers();
     this.calculateCost();
   },
 
@@ -873,6 +993,8 @@ window.JobsView = {
     document.getElementById('jobStatus').value = 'Υποψήφιος';
     document.getElementById('jobCoats').value = 2;
     this.currentEdit = null;
+    this.assignedWorkers = []; // Clear assigned workers
+    this.renderAssignedWorkers();
     this.calculateCost();
     Toast.info('Η φόρμα καθαρίστηκε');
   },
@@ -911,6 +1033,298 @@ window.JobsView = {
   openInMaps(address) {
     const url = `https://www.google.com/maps/search/?api=1&query=${address}`;
     window.open(url, '_blank');
+  },
+
+  // ==================== Worker Assignment Methods ====================
+
+  openWorkerAssignmentModal() {
+    const workers = State.read('workers') || [];
+    const activeWorkers = workers.filter(w => w.status === 'active');
+
+    if (activeWorkers.length === 0) {
+      Toast.warning('Δεν υπάρχουν διαθέσιμοι εργάτες. Προσθέστε εργάτες πρώτα.');
+      return;
+    }
+
+    const content = `
+      <div class="form-grid">
+        <div class="form-group span-2">
+          <label>Επιλέξτε Εργάτη <span class="required">*</span></label>
+          <select id="modalWorkerSelect" required>
+            <option value="">Επιλέξτε εργάτη...</option>
+            ${activeWorkers.map(w => `
+              <option value="${w.id}" data-rate="${w.hourlyRate}">
+                ${w.name} - ${w.specialty} (${Utils.formatCurrency(w.hourlyRate)}/ώρα)
+              </option>
+            `).join('')}
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Ώρες Εργασίας <span class="required">*</span></label>
+          <input type="number" id="modalWorkerHours" step="0.5" min="0.5" value="1" required>
+        </div>
+
+        <div class="form-group">
+          <label>Ωρομίσθιο</label>
+          <input type="text" id="modalWorkerRate" readonly value="0.00 €">
+        </div>
+
+        <div class="form-group span-2">
+          <label>Κόστος Εργασίας</label>
+          <input type="text" id="modalWorkerCost" readonly value="0.00 €" style="font-weight: bold; color: var(--accent-primary);">
+        </div>
+      </div>
+    `;
+
+    const footer = `
+      <button class="btn-ghost" onclick="Modal.close()">Ακύρωση</button>
+      <button class="btn-primary" id="confirmAddWorkerBtn">
+        <i class="fas fa-check"></i> Προσθήκη
+      </button>
+    `;
+
+    Modal.open({
+      title: '<i class="fas fa-user-plus"></i> Προσθήκη Εργάτη στην Εργασία',
+      content: content,
+      footer: footer,
+      size: 'md'
+    });
+
+    // Event listeners for modal
+    setTimeout(() => {
+      const workerSelect = document.getElementById('modalWorkerSelect');
+      const hoursInput = document.getElementById('modalWorkerHours');
+      const rateInput = document.getElementById('modalWorkerRate');
+      const costInput = document.getElementById('modalWorkerCost');
+
+      const updateCost = () => {
+        const selectedOption = workerSelect.options[workerSelect.selectedIndex];
+        const rate = parseFloat(selectedOption.dataset.rate || 0);
+        const hours = parseFloat(hoursInput.value || 0);
+        const cost = rate * hours;
+
+        rateInput.value = Utils.formatCurrency(rate);
+        costInput.value = Utils.formatCurrency(cost);
+      };
+
+      workerSelect.addEventListener('change', updateCost);
+      hoursInput.addEventListener('input', updateCost);
+
+      // Confirm button
+      document.getElementById('confirmAddWorkerBtn').addEventListener('click', () => {
+        const workerId = workerSelect.value;
+        const hours = parseFloat(hoursInput.value);
+
+        if (!workerId) {
+          Toast.error('Επιλέξτε εργάτη');
+          return;
+        }
+
+        if (!hours || hours <= 0) {
+          Toast.error('Εισάγετε έγκυρες ώρες εργασίας');
+          return;
+        }
+
+        this.addWorkerToJob(workerId, hours);
+        Modal.close();
+      });
+    }, 100);
+  },
+
+  addWorkerToJob(workerId, hours) {
+    const workers = State.read('workers') || [];
+    const worker = workers.find(w => w.id === workerId);
+
+    if (!worker) {
+      Toast.error('Ο εργάτης δεν βρέθηκε');
+      return;
+    }
+
+    // Check if worker already assigned
+    const existingIndex = this.assignedWorkers.findIndex(w => w.workerId === workerId);
+    
+    if (existingIndex !== -1) {
+      Toast.warning(`Ο ${worker.name} είναι ήδη ανατεθειμένος. Επεξεργαστείτε τις ώρες του.`);
+      return;
+    }
+
+    const laborCost = hours * worker.hourlyRate;
+
+    this.assignedWorkers.push({
+      workerId: worker.id,
+      workerName: worker.name,
+      specialty: worker.specialty,
+      hourlyRate: worker.hourlyRate,
+      hoursAllocated: hours,
+      laborCost: laborCost
+    });
+
+    this.renderAssignedWorkers();
+    this.calculateCost(); // Recalculate total cost
+    Toast.success(`Ο ${worker.name} προστέθηκε στην εργασία`);
+  },
+
+  renderAssignedWorkers() {
+    const container = document.getElementById('assignedWorkersContainer');
+    
+    if (this.assignedWorkers.length === 0) {
+      container.innerHTML = '<p class="text-muted" style="font-style: italic;">Δεν έχουν ανατεθεί εργάτες ακόμα</p>';
+      return;
+    }
+
+    const totalHours = this.assignedWorkers.reduce((sum, w) => sum + w.hoursAllocated, 0);
+    const totalCost = this.assignedWorkers.reduce((sum, w) => sum + w.laborCost, 0);
+
+    container.innerHTML = `
+      <div class="table-wrapper">
+        <table class="data-table" style="margin-top: 10px;">
+          <thead>
+            <tr>
+              <th>Εργάτης</th>
+              <th>Ειδικότητα</th>
+              <th>Ωρομίσθιο</th>
+              <th>Ώρες</th>
+              <th>Κόστος</th>
+              <th style="width: 100px;">Ενέργειες</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${this.assignedWorkers.map((w, index) => `
+              <tr>
+                <td><strong>${w.workerName}</strong></td>
+                <td>${w.specialty}</td>
+                <td>${Utils.formatCurrency(w.hourlyRate)}/ώρα</td>
+                <td>${w.hoursAllocated}h</td>
+                <td><strong style="color: var(--accent-primary);">${Utils.formatCurrency(w.laborCost)}</strong></td>
+                <td>
+                  <button class="btn-icon edit-assigned-worker-btn" data-worker-index="${index}" title="Επεξεργασία">
+                    <i class="fas fa-edit"></i>
+                  </button>
+                  <button class="btn-icon remove-assigned-worker-btn" data-worker-index="${index}" title="Αφαίρεση">
+                    <i class="fas fa-trash"></i>
+                  </button>
+                </td>
+              </tr>
+            `).join('')}
+            <tr style="background: var(--bg-secondary); font-weight: bold;">
+              <td colspan="3" style="text-align: right;">ΣΥΝΟΛΟ:</td>
+              <td>${totalHours.toFixed(1)}h</td>
+              <td><strong style="color: var(--accent-primary);">${Utils.formatCurrency(totalCost)}</strong></td>
+              <td></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    `;
+
+    // Add event listeners for edit/remove buttons
+    setTimeout(() => {
+      const editButtons = container.querySelectorAll('.edit-assigned-worker-btn');
+      const removeButtons = container.querySelectorAll('.remove-assigned-worker-btn');
+
+      editButtons.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          const index = parseInt(btn.dataset.workerIndex);
+          this.editWorkerAssignment(index);
+        });
+      });
+
+      removeButtons.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          const index = parseInt(btn.dataset.workerIndex);
+          this.removeWorkerAssignment(index);
+        });
+      });
+    }, 0);
+  },
+
+  editWorkerAssignment(index) {
+    const worker = this.assignedWorkers[index];
+    
+    const content = `
+      <div class="form-grid">
+        <div class="form-group span-2">
+          <label>Εργάτης</label>
+          <input type="text" value="${worker.workerName} - ${worker.specialty}" readonly>
+        </div>
+
+        <div class="form-group">
+          <label>Ώρες Εργασίας <span class="required">*</span></label>
+          <input type="number" id="editWorkerHours" step="0.5" min="0.5" value="${worker.hoursAllocated}" required>
+        </div>
+
+        <div class="form-group">
+          <label>Ωρομίσθιο</label>
+          <input type="text" value="${Utils.formatCurrency(worker.hourlyRate)}/ώρα" readonly>
+        </div>
+
+        <div class="form-group span-2">
+          <label>Κόστος Εργασίας</label>
+          <input type="text" id="editWorkerCost" readonly value="${Utils.formatCurrency(worker.laborCost)}" style="font-weight: bold; color: var(--accent-primary);">
+        </div>
+      </div>
+    `;
+
+    const footer = `
+      <button class="btn-ghost" onclick="Modal.close()">Ακύρωση</button>
+      <button class="btn-primary" id="confirmEditWorkerBtn">
+        <i class="fas fa-save"></i> Αποθήκευση
+      </button>
+    `;
+
+    Modal.open({
+      title: '<i class="fas fa-edit"></i> Επεξεργασία Εργάτη',
+      content: content,
+      footer: footer,
+      size: 'md'
+    });
+
+    setTimeout(() => {
+      const hoursInput = document.getElementById('editWorkerHours');
+      const costInput = document.getElementById('editWorkerCost');
+
+      hoursInput.addEventListener('input', () => {
+        const hours = parseFloat(hoursInput.value || 0);
+        const cost = hours * worker.hourlyRate;
+        costInput.value = Utils.formatCurrency(cost);
+      });
+
+      document.getElementById('confirmEditWorkerBtn').addEventListener('click', () => {
+        const newHours = parseFloat(hoursInput.value);
+
+        if (!newHours || newHours <= 0) {
+          Toast.error('Εισάγετε έγκυρες ώρες εργασίας');
+          return;
+        }
+
+        this.assignedWorkers[index].hoursAllocated = newHours;
+        this.assignedWorkers[index].laborCost = newHours * worker.hourlyRate;
+
+        this.renderAssignedWorkers();
+        this.calculateCost();
+        Modal.close();
+        Toast.success('Οι ώρες ενημερώθηκαν');
+      });
+    }, 100);
+  },
+
+  removeWorkerAssignment(index) {
+    const worker = this.assignedWorkers[index];
+    
+    Modal.confirm({
+      title: 'Αφαίρεση Εργάτη',
+      message: `Είστε σίγουροι ότι θέλετε να αφαιρέσετε τον <strong>${worker.workerName}</strong> από την εργασία;`,
+      onConfirm: () => {
+        this.assignedWorkers.splice(index, 1);
+        this.renderAssignedWorkers();
+        this.calculateCost();
+        Toast.success(`Ο ${worker.workerName} αφαιρέθηκε`);
+      }
+    });
   }
 };
+
 

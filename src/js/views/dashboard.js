@@ -12,49 +12,60 @@ window.DashboardView = {
       <div class="dashboard">
         <h1>Αρχική Σελίδα</h1>
         
-        <!-- Widgets -->
-        <div class="dashboard-widgets">
-          <div class="widget">
+        <!-- Widgets - Single Row -->
+        <div class="dashboard-widgets-single-row">
+          <div class="widget-compact">
             <div class="widget-icon primary">
               <i class="fas fa-briefcase"></i>
             </div>
-            <div class="widget-title">Συνολικές Εργασίες</div>
-            <div class="widget-value">${stats.totalJobs}</div>
-            <div class="widget-footer">
-              ${stats.activeJobs} ενεργές
+            <div class="widget-content">
+              <div class="widget-title">Εργασίες</div>
+              <div class="widget-value">${stats.totalJobs}</div>
+              <div class="widget-footer">${stats.activeJobs} ενεργές</div>
             </div>
           </div>
 
-          <div class="widget">
+          <div class="widget-compact">
             <div class="widget-icon info">
               <i class="fas fa-users"></i>
             </div>
-            <div class="widget-title">Πελάτες</div>
-            <div class="widget-value">${stats.totalClients}</div>
-            <div class="widget-footer">
-              ${stats.newClientsThisMonth} νέοι αυτόν το μήνα
+            <div class="widget-content">
+              <div class="widget-title">Πελάτες</div>
+              <div class="widget-value">${stats.totalClients}</div>
+              <div class="widget-footer">${stats.newClientsThisMonth} νέοι</div>
             </div>
           </div>
 
-          <div class="widget">
+          <div class="widget-compact clickable" onclick="Router.navigate('workers')">
+            <div class="widget-icon success">
+              <i class="fas fa-hard-hat"></i>
+            </div>
+            <div class="widget-content">
+              <div class="widget-title">Προσωπικό</div>
+              <div class="widget-value">${stats.totalWorkers}</div>
+              <div class="widget-footer">${stats.totalWorkers} εργάτες</div>
+            </div>
+          </div>
+
+          <div class="widget-compact">
             <div class="widget-icon warning">
               <i class="fas fa-calendar-check"></i>
             </div>
-            <div class="widget-title">Προγραμματισμένες</div>
-            <div class="widget-value">${stats.scheduledJobs}</div>
-            <div class="widget-footer">
-              επόμενες 7 ημέρες
+            <div class="widget-content">
+              <div class="widget-title">Προγραμματισμένες</div>
+              <div class="widget-value">${stats.scheduledJobs}</div>
+              <div class="widget-footer">7 ημέρες</div>
             </div>
           </div>
 
-          <div class="widget">
+          <div class="widget-compact">
             <div class="widget-icon primary">
               <i class="fas fa-euro-sign"></i>
             </div>
-            <div class="widget-title">Έσοδα Μήνα</div>
-            <div class="widget-value">${Utils.formatCurrency(stats.monthlyRevenue)}</div>
-            <div class="widget-footer">
-              ${stats.completedThisMonth} ολοκληρωμένες
+            <div class="widget-content">
+              <div class="widget-title">Έσοδα Μήνα</div>
+              <div class="widget-value">${Utils.formatCurrency(stats.monthlyRevenue)}</div>
+              <div class="widget-footer">${stats.completedThisMonth} ολοκληρωμένες</div>
             </div>
           </div>
         </div>
@@ -148,6 +159,7 @@ window.DashboardView = {
   calculateStats() {
     const jobs = State.data.jobs;
     const clients = State.data.clients;
+    const workers = State.data.workers || [];
     
     const now = new Date();
     const thisMonth = now.getMonth();
@@ -157,6 +169,7 @@ window.DashboardView = {
     return {
       totalJobs: jobs.length,
       totalClients: clients.length,
+      totalWorkers: workers.length,
       activeJobs: jobs.filter(j => 
         j.status === 'Σε εξέλιξη' || j.status === 'Προγραμματισμένη'
       ).length,
