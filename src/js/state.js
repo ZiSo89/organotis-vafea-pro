@@ -33,10 +33,11 @@ const State = {
    * Initialize application state
    * Loads data from storage and sets up auto-save
    */
-  init() {
-    this.data = Storage.load();
+  async init() {
+    this.data = await Storage.load();
     this.setupAutoSave();
     this.detectOffline();
+    console.log('✅ State initialized with data:', this.data);
   },
 
   // Auto-save κάθε 30 δευτερόλεπτα

@@ -3,14 +3,14 @@
    ======================================== */
 
 // Αναμονή για DOM ready
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   // Enable transitions after page load
   setTimeout(() => {
     document.documentElement.classList.add('transitions-enabled');
   }, 100);
 
   // Initialize all systems
-  State.init();
+  await State.init(); // Wait for data to load
   Theme.init();
   i18n.init();
   Sidebar.init();

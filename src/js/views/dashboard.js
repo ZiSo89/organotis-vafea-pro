@@ -150,9 +150,9 @@ window.DashboardView = {
   },
 
   calculateStats() {
-    const jobs = State.data.jobs;
-    const clients = State.data.clients;
-    const workers = State.data.workers || [];
+    const jobs = State.data?.jobs || [];
+    const clients = State.data?.clients || [];
+    const workers = State.data?.workers || [];
     
     const now = new Date();
     const thisMonth = now.getMonth();

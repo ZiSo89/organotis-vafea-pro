@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow, noarchive">
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self'; 
+    script-src 'self' 'unsafe-inline'; 
+    style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; 
+    font-src 'self' https://cdnjs.cloudflare.com;
+  ">
+  <title>Σύνδεση - Οργανωτής Βαφέα Pro</title>
+  
+  <!-- Favicon -->
+  <link rel="icon" type="image/x-icon" href="assets/icons/favicon.ico">
+  
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --primary-color: #007bff;
+      --primary-hover: #0056b3;
+      --danger-color: #dc3545;
+      --bg-dark: #1a1a1a;
+      --bg-card: #2a2a2a;
+      --bg-input: #3a3a3a;
+      --border-color: #4a4a4a;
+      --text-primary: #ffffff;
+      --text-secondary: #b0b0b0;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: var(--text-primary);
+    }
+
+    .login-container {
+      width: 100%;
+      max-width: 400px;
+      padding: 20px;
+    }
+
+    .login-card {
+      background: var(--bg-card);
+      padding: 2.5rem;
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+      animation: fadeInUp 0.5s ease;
+    }
+
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(30px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .logo-section {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    .logo-icon {
+      font-size: 3rem;
+      color: var(--primary-color);
+      margin-bottom: 0.5rem;
+    }
+
+    .logo-title {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+
+    .logo-subtitle {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+    }
+
+    .form-group {
+      margin-bottom: 1.5rem;
+    }
+
+    .form-label {
+      display: block;
+      margin-bottom: 0.5rem;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+    }
+
+    .input-group {
+      position: relative;
+    }
+
+    .input-icon {
+      position: absolute;
+      left: 1rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-secondary);
+      pointer-events: none;
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 0.875rem 1rem 0.875rem 2.75rem;
+      background: var(--bg-input);
+      border: 2px solid var(--border-color);
+      border-radius: 8px;
+      color: var(--text-primary);
+      font-size: 1rem;
+      transition: all 0.3s ease;
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: var(--primary-color);
+      background: var(--bg-dark);
+    }
+
+    .password-toggle {
+      position: absolute;
+      right: 1rem;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      cursor: pointer;
+      padding: 0.5rem;
+      transition: color 0.2s ease;
+    }
+
+    .password-toggle:hover {
+      color: var(--primary-color);
+    }
+
+    .btn-login {
+      width: 100%;
+      padding: 1rem;
+      background: var(--primary-color);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+
+    .btn-login:hover {
+      background: var(--primary-hover);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+    }
+
+    .btn-login:active {
+      transform: translateY(0);
+    }
+
+    .btn-login:disabled {
+      background: var(--border-color);
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .error-message {
+      background: rgba(220, 53, 69, 0.1);
+      border: 1px solid var(--danger-color);
+      color: var(--danger-color);
+      padding: 0.875rem;
+      border-radius: 8px;
+      margin-top: 1rem;
+      display: none;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.875rem;
+      animation: shake 0.5s ease;
+    }
+
+    .error-message.show {
+      display: flex;
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+      20%, 40%, 60%, 80% { transform: translateX(5px); }
+    }
+
+    .footer-text {
+      text-align: center;
+      margin-top: 2rem;
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+    }
+
+    .spinner {
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    /* Responsive */
+    @media (max-width: 480px) {
+      .login-card {
+        padding: 2rem 1.5rem;
+      }
+
+      .logo-title {
+        font-size: 1.25rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  
+  <div class="login-container">
+    <div class="login-card">
+      <div class="logo-section">
+        <div class="logo-icon">
+          <i class="fas fa-paint-roller"></i>
+        </div>
+        <h1 class="logo-title">Οργανωτής Βαφέα Pro</h1>
+        <p class="logo-subtitle">Συνδεθείτε για πρόσβαση</p>
+      </div>
+
+      <form id="loginForm">
+        <div class="form-group">
+          <label for="username" class="form-label">Όνομα Χρήστη</label>
+          <div class="input-group">
+            <i class="fas fa-user input-icon"></i>
+            <input 
+              type="text" 
+              id="username" 
+              class="form-input" 
+              placeholder="Εισάγετε το όνομα χρήστη"
+              required
+              autocomplete="username"
+              autofocus
+            >
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="password" class="form-label">Κωδικός Πρόσβασης</label>
+          <div class="input-group">
+            <i class="fas fa-lock input-icon"></i>
+            <input 
+              type="password" 
+              id="password" 
+              class="form-input" 
+              placeholder="Εισάγετε τον κωδικό"
+              required
+              autocomplete="current-password"
+            >
+            <button type="button" class="password-toggle" id="togglePassword">
+              <i class="fas fa-eye"></i>
+            </button>
+          </div>
+        </div>
+
+        <button type="submit" class="btn-login" id="loginBtn">
+          <i class="fas fa-sign-in-alt"></i>
+          <span>Σύνδεση</span>
+        </button>
+
+        <div id="errorMessage" class="error-message">
+          <i class="fas fa-exclamation-circle"></i>
+          <span id="errorText">Λάθος όνομα χρήστη ή κωδικός</span>
+        </div>
+      </form>
+
+      <div class="footer-text">
+        &copy; 2024 Οργανωτής Βαφέα Pro. Όλα τα δικαιώματα διατηρούνται.
+      </div>
+    </div>
+  </div>
+
+  <!-- Authentication Script -->
+  <script src="src/js/auth.js"></script>
+
+  <script>
+    // Password toggle
+    const togglePassword = document.getElementById('togglePassword');
+    const passwordInput = document.getElementById('password');
+    const toggleIcon = togglePassword.querySelector('i');
+
+    togglePassword.addEventListener('click', () => {
+      const type = passwordInput.type === 'password' ? 'text' : 'password';
+      passwordInput.type = type;
+      toggleIcon.classList.toggle('fa-eye');
+      toggleIcon.classList.toggle('fa-eye-slash');
+    });
+
+    // Login form submission
+    const loginForm = document.getElementById('loginForm');
+    const loginBtn = document.getElementById('loginBtn');
+    const errorMessage = document.getElementById('errorMessage');
+    const errorText = document.getElementById('errorText');
+
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+
+      // Hide error message
+      errorMessage.classList.remove('show');
+
+      // Disable button and show loading
+      loginBtn.disabled = true;
+      const btnIcon = loginBtn.querySelector('i');
+      const btnText = loginBtn.querySelector('span');
+      btnIcon.className = 'fas fa-spinner spinner';
+      btnText.textContent = 'Σύνδεση...';
+
+      // Simulate network delay
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Attempt login
+      const result = authManager.login(username, password);
+
+      if (result.success) {
+        // Success - redirect to main app
+        btnIcon.className = 'fas fa-check';
+        btnText.textContent = 'Επιτυχής σύνδεση!';
+        
+        setTimeout(() => {
+          window.location.href = '/index.html';
+        }, 500);
+      } else {
+        // Failed - show error
+        errorText.textContent = result.error || 'Λάθος όνομα χρήστη ή κωδικός';
+        errorMessage.classList.add('show');
+        
+        // Re-enable button
+        loginBtn.disabled = false;
+        btnIcon.className = 'fas fa-sign-in-alt';
+        btnText.textContent = 'Σύνδεση';
+        
+        // Clear password field
+        passwordInput.value = '';
+        passwordInput.focus();
+      }
+    });
+
+    // Check if already authenticated
+    if (authManager.isAuthenticated()) {
+      window.location.href = '/index.html';
+    }
+
+    // Enter key on username field
+    document.getElementById('username').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        document.getElementById('password').focus();
+      }
+    });
+  </script>
+
+</body>
+</html>

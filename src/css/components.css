@@ -73,6 +73,43 @@
 .badge-success { background: rgba(39, 174, 96, 0.1); color: var(--color-success); }
 .badge-warning { background: rgba(243, 156, 18, 0.1); color: var(--color-warning); }
 .badge-danger { background: rgba(231, 76, 60, 0.1); color: var(--color-danger); }
+.badge-secondary { background: rgba(127, 140, 141, 0.1); color: var(--color-text-secondary); }
+
+/* Sync Status Grid */
+.sync-status-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+  padding: var(--spacing-md);
+  background: var(--color-bg-alt);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+}
+
+.status-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-sm) 0;
+}
+
+.status-item:not(:last-child) {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.status-label {
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+.status-value {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
 
 /* Loading Spinner */
 .spinner {

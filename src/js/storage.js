@@ -16,9 +16,34 @@ const DB_STRUCTURE = {
 };
 
 const Storage = {
-  // Φόρτωση δεδομένων από LocalStorage
-  load() {
+  // Φόρτωση δεδομένων - χρησιμοποιεί dataService αν υπάρχει
+  async load() {
     try {
+      // Check if dataService is available and online
+      if (typeof dataService !== 'undefined' && dataService.isOnline) {
+        // Try to load from server
+        try {
+          const collections = ['clients', 'workers', 'timesheets', 'paints', 'jobs', 'offers', 'invoices', 'templates'];
+          
+          for (const collection of collections) {
+            const data = await dataService.operate(collection, 'GET');
+            DB_STRUCTURE[collection] = data || [];
+          }
+          
+          // Load settings separately
+          const settings = localStorage.getItem('app_settings');
+          if (settings) {
+            DB_STRUCTURE.settings = JSON.parse(settings);
+          }
+          
+          console.log('✅ Data loaded from server via dataService');
+          return DB_STRUCTURE;
+        } catch (error) {
+          console.warn('⚠️ Server load failed, falling back to localStorage:', error);
+        }
+      }
+      
+      // Fallback to localStorage
       const raw = localStorage.getItem(CONFIG.STORAGE_KEY);
       if (raw) {
         const data = JSON.parse(raw);
@@ -35,25 +60,41 @@ const Storage = {
     }
   },
 
-  // Αποθήκευση στο LocalStorage
-  save() {
+  // Αποθήκευση - χρησιμοποιεί dataService αν υπάρχει
+  async save() {
     try {
+      // Always save to localStorage as backup
       const json = JSON.stringify(DB_STRUCTURE);
       localStorage.setItem(CONFIG.STORAGE_KEY, json);
+      
+      // If dataService is available, sync to server
+      if (typeof dataService !== 'undefined') {
+        // Let dataService handle the sync queue
+        console.log('💾 Data saved locally (will sync when online)');
+      }
+      
       return true;
     } catch (error) {
       console.error('Σφάλμα αποθήκευσης:', error);
       if (error.name === 'QuotaExceededError') {
-        Toast.error('Ο χώρος αποθήκευσης έχει γεμίσει!');
+        if (typeof toast !== 'undefined') {
+          toast.show('Ο χώρος αποθήκευσης έχει γεμίσει!', 'error');
+        }
       }
       return false;
     }
   },
 
   // Καθαρισμός όλων των δεδομένων
-  clear() {
+  async clear() {
     if (confirm('ΠΡΟΣΟΧΗ: Θα διαγραφούν ΟΛΑ τα δεδομένα! Είστε σίγουροι;')) {
       localStorage.removeItem(CONFIG.STORAGE_KEY);
+      
+      // Clear dataService local data if available
+      if (typeof dataService !== 'undefined') {
+        dataService.clearLocalData();
+      }
+      
       Object.keys(DB_STRUCTURE).forEach(key => {
         if (Array.isArray(DB_STRUCTURE[key])) {
           DB_STRUCTURE[key] = [];
@@ -62,57 +103,76 @@ const Storage = {
         }
       });
       this.save();
-      Toast.success('Όλα τα δεδομένα διαγράφηκαν');
+      
+      if (typeof toast !== 'undefined') {
+        toast.show('Όλα τα δεδομένα διαγράφηκαν', 'success');
+      }
       setTimeout(() => location.reload(), 1000);
     }
   },
 
-  // Εξαγωγή JSON
+  // Εξαγωγή JSON - χρησιμοποιεί dataService αν υπάρχει
   export() {
-    const json = JSON.stringify(DB_STRUCTURE, null, 2);
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `painter_backup_${new Date().toISOString().split('T')[0]}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    Toast.success('Τα δεδομένα εξήχθησαν επιτυχώς');
+    if (typeof dataService !== 'undefined') {
+      dataService.exportLocalDatabase();
+    } else {
+      const json = JSON.stringify(DB_STRUCTURE, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `painter_backup_${new Date().toISOString().split('T')[0]}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      
+      if (typeof toast !== 'undefined') {
+        toast.show('Τα δεδομένα εξήχθησαν επιτυχώς', 'success');
+      }
+    }
   },
 
-  // Εισαγωγή JSON
-  import(file) {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const data = JSON.parse(e.target.result);
-        
-        // Validation - έλεγχος δομής
-        if (typeof data !== 'object') {
-          throw new Error('Μη έγκυρο format');
+  // Εισαγωγή JSON - χρησιμοποιεί dataService αν υπάρχει
+  async import(file) {
+    if (typeof dataService !== 'undefined') {
+      await dataService.importLocalDatabase(file);
+    } else {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = JSON.parse(e.target.result);
+          
+          // Validation - έλεγχος δομής
+          if (typeof data !== 'object') {
+            throw new Error('Μη έγκυρο format');
+          }
+          
+          // Merge με υπάρχοντα δεδομένα ή αντικατάσταση
+          if (confirm('Θέλετε να αντικαταστήσετε τα υπάρχοντα δεδομένα;')) {
+            Object.assign(DB_STRUCTURE, data);
+          } else {
+            // Merge - πρόσθεσε νέα χωρίς να αφαιρέσεις υπάρχοντα
+            Object.keys(data).forEach(key => {
+              if (Array.isArray(data[key])) {
+                DB_STRUCTURE[key] = [...DB_STRUCTURE[key], ...data[key]];
+              }
+            });
+          }
+          
+          this.save();
+          
+          if (typeof toast !== 'undefined') {
+            toast.show('Τα δεδομένα εισήχθησαν επιτυχώς', 'success');
+          }
+          setTimeout(() => location.reload(), 1000);
+        } catch (error) {
+          console.error('Σφάλμα εισαγωγής:', error);
+          if (typeof toast !== 'undefined') {
+            toast.show('Μη έγκυρο αρχείο JSON', 'error');
+          }
         }
-        
-        // Merge με υπάρχοντα δεδομένα ή αντικατάσταση
-        if (confirm('Θέλετε να αντικαταστήσετε τα υπάρχοντα δεδομένα;')) {
-          Object.assign(DB_STRUCTURE, data);
-        } else {
-          // Merge - πρόσθεσε νέα χωρίς να αφαιρέσεις υπάρχοντα
-          Object.keys(data).forEach(key => {
-            if (Array.isArray(data[key])) {
-              DB_STRUCTURE[key] = [...DB_STRUCTURE[key], ...data[key]];
-            }
-          });
-        }
-        
-        this.save();
-        Toast.success('Τα δεδομένα εισήχθησαν επιτυχώς');
-        setTimeout(() => location.reload(), 1000);
-      } catch (error) {
-        console.error('Σφάλμα εισαγωγής:', error);
-        Toast.error('Μη έγκυρο αρχείο JSON');
-      }
-    };
-    reader.readAsText(file);
+      };
+      reader.readAsText(file);
+    }
   },
 
   // Demo Data - παραδείγματα για testing

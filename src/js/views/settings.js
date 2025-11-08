@@ -181,13 +181,45 @@ window.SettingsView = {
         </div>
 
         <div class="card">
+          <h3><i class="fas fa-sync"></i> Συγχρονισμός Δεδομένων</h3>
+          <div class="sync-status-grid">
+            <div class="status-item">
+              <span class="status-label">Κατάσταση Σύνδεσης:</span>
+              <span id="connectionStatus" class="status-value">
+                ${typeof dataService !== 'undefined' ? (dataService.isOnline ? '<span class="badge badge-success">Online</span>' : '<span class="badge badge-warning">Offline</span>') : '<span class="badge badge-secondary">N/A</span>'}
+              </span>
+            </div>
+            <div class="status-item">
+              <span class="status-label">Τελευταίος Συγχρονισμός:</span>
+              <span id="lastSyncTime" class="status-value">
+                ${typeof dataService !== 'undefined' && dataService.lastSync ? new Date(dataService.lastSync).toLocaleString('el-GR') : 'Ποτέ'}
+              </span>
+            </div>
+            <div class="status-item">
+              <span class="status-label">Εκκρεμείς Αλλαγές:</span>
+              <span id="pendingChanges" class="status-value badge ${typeof dataService !== 'undefined' && dataService.syncQueue.length > 0 ? 'badge-warning' : 'badge-success'}">
+                ${typeof dataService !== 'undefined' ? dataService.syncQueue.length : 0}
+              </span>
+            </div>
+          </div>
+          <div class="button-group">
+            <button class="btn btn-primary" id="syncNowBtn">
+              <i class="fas fa-sync"></i> Συγχρονισμός Τώρα
+            </button>
+            <button class="btn btn-secondary" id="fullSyncBtn">
+              <i class="fas fa-cloud-download-alt"></i> Πλήρης Συγχρονισμός
+            </button>
+          </div>
+        </div>
+
+        <div class="card">
           <h3><i class="fas fa-database"></i> Διαχείριση Δεδομένων</h3>
           <div class="button-group">
-            <button class="btn btn-secondary" id="exportJsonBtn">
-              <i class="fas fa-download"></i> Export JSON
+            <button class="btn btn-success" id="exportJsonBtn">
+              <i class="fas fa-download"></i> Export Backup
             </button>
-            <button class="btn btn-secondary" id="importJsonBtn">
-              <i class="fas fa-upload"></i> Import JSON
+            <button class="btn btn-warning" id="importJsonBtn">
+              <i class="fas fa-upload"></i> Import Backup
             </button>
             <button class="btn btn-secondary" id="exportPdfBtn">
               <i class="fas fa-file-pdf"></i> Export PDF
@@ -236,6 +268,40 @@ window.SettingsView = {
     }
     
     // Data management buttons - using { once: true } to auto-remove after one click
+    document.getElementById('syncNowBtn')?.addEventListener('click', async () => {
+      if (typeof dataService !== 'undefined') {
+        const btn = document.getElementById('syncNowBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Συγχρονισμός...';
+        
+        await dataService.processSyncQueue();
+        
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-sync"></i> Συγχρονισμός Τώρα';
+        updateSyncStatus();
+      } else {
+        Toast.info('Το dataService δεν είναι διαθέσιμο');
+      }
+    });
+    
+    document.getElementById('fullSyncBtn')?.addEventListener('click', async () => {
+      if (typeof dataService !== 'undefined') {
+        if (confirm('Θέλετε να κάνετε πλήρη συγχρονισμό; Τα τοπικά δεδομένα θα αντικατασταθούν από τον server.')) {
+          const btn = document.getElementById('fullSyncBtn');
+          btn.disabled = true;
+          btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Συγχρονισμός...';
+          
+          await dataService.fullSync();
+          
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fas fa-cloud-download-alt"></i> Πλήρης Συγχρονισμός';
+          updateSyncStatus();
+        }
+      } else {
+        Toast.info('Το dataService δεν είναι διαθέσιμο - λειτουργία offline μόνο');
+      }
+    });
+    
     document.getElementById('exportJsonBtn')?.addEventListener('click', () => Storage.export(), { once: true });
     document.getElementById('importJsonBtn')?.addEventListener('click', () => this.importData(), { once: true });
     document.getElementById('exportPdfBtn')?.addEventListener('click', () => this.exportPDF(), { once: true });
@@ -251,5 +317,31 @@ window.SettingsView = {
     
     // Theme toggle button
     document.getElementById('toggleThemeBtn')?.addEventListener('click', () => Theme.toggle());
+    
+    // Helper function to update sync status
+    function updateSyncStatus() {
+      if (typeof dataService !== 'undefined') {
+        const statusEl = document.getElementById('connectionStatus');
+        const lastSyncEl = document.getElementById('lastSyncTime');
+        const pendingEl = document.getElementById('pendingChanges');
+        
+        if (statusEl) {
+          statusEl.innerHTML = dataService.isOnline ? 
+            '<span class="badge badge-success">Online</span>' : 
+            '<span class="badge badge-warning">Offline</span>';
+        }
+        
+        if (lastSyncEl) {
+          lastSyncEl.textContent = dataService.lastSync ? 
+            new Date(dataService.lastSync).toLocaleString('el-GR') : 
+            'Ποτέ';
+        }
+        
+        if (pendingEl) {
+          pendingEl.textContent = dataService.syncQueue.length;
+          pendingEl.className = `status-value badge ${dataService.syncQueue.length > 0 ? 'badge-warning' : 'badge-success'}`;
+        }
+      }
+    }
   }
 };

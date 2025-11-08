@@ -1,0 +1,11 @@
+# Block all search engines
+User-agent: *
+Disallow: /
+
+# Specific directories to block
+Disallow: /api/
+Disallow: /src/
+Disallow: /assets/
+Disallow: /*.sql
+Disallow: /*.json
+Disallow: /*.log
