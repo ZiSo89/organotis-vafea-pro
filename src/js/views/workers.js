@@ -21,14 +21,9 @@ window.WorkersView = {
     container.innerHTML = `
       <div class="view-header">
         <h1><i class="fas fa-hard-hat"></i> Προσωπικό</h1>
-        <div style="display: flex; gap: 10px;">
-          <button class="btn btn-secondary" id="workerReportsBtn">
-            <i class="fas fa-chart-line"></i> Αναφορές
-          </button>
-          <button class="btn btn-primary" id="addWorkerBtn">
-            <i class="fas fa-plus"></i> Νέος Εργάτης
-          </button>
-        </div>
+        <button class="btn btn-primary" id="addWorkerBtn">
+          <i class="fas fa-plus"></i> Νέος Εργάτης
+        </button>
       </div>
 
       <!-- Form (Hidden by default) -->
@@ -94,9 +89,6 @@ window.WorkersView = {
             <button type="submit" class="btn btn-primary">
               <i class="fas fa-save"></i> Αποθήκευση
             </button>
-            <button type="button" class="btn btn-secondary" id="clearWorkerFormBtn">
-              <i class="fas fa-eraser"></i> Καθαρισμός
-            </button>
             <button type="button" class="btn btn-ghost" id="cancelWorkerFormBtn">
               <i class="fas fa-times"></i> Ακύρωση
             </button>
@@ -106,7 +98,7 @@ window.WorkersView = {
       </div>
 
       <!-- Filters & Search -->
-      <div class="card">
+      <div class="card filters-card">
         <div class="filters">
           <div class="search-box">
             <i class="fas fa-search"></i>
@@ -150,11 +142,6 @@ window.WorkersView = {
       addBtn.addEventListener('click', this.addBtnHandler);
     }
 
-    // Reports button
-    const reportsBtn = document.getElementById('workerReportsBtn');
-    if (reportsBtn) {
-      reportsBtn.addEventListener('click', () => this.showReports());
-    }
 
     // Form submit
     const form = document.getElementById('workerFormElement');
@@ -168,16 +155,6 @@ window.WorkersView = {
     
     // Initialize date picker
     Utils.initDatePicker('#w_hireDate');
-    
-    // Clear button
-    const clearBtn = document.getElementById('clearWorkerFormBtn');
-    if (clearBtn) {
-      if (this.clearBtnHandler) {
-        clearBtn.removeEventListener('click', this.clearBtnHandler);
-      }
-      this.clearBtnHandler = () => this.clearForm();
-      clearBtn.addEventListener('click', this.clearBtnHandler);
-    }
     
     // Cancel button
     const cancelBtn = document.getElementById('cancelWorkerFormBtn');
@@ -264,8 +241,12 @@ window.WorkersView = {
     const thisMonth = now.getMonth();
     const thisYear = now.getFullYear();
 
-    // Reverse to show latest first
-    const sortedWorkers = [...workers].reverse();
+    // Sort by createdAt timestamp - latest first
+    const sortedWorkers = [...workers].sort((a, b) => {
+      const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
+      const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
+      return dateB - dateA; // Descending order (newest first)
+    });
 
     return `
       <div class="table-wrapper">
@@ -277,9 +258,9 @@ window.WorkersView = {
               <th>Ωρομίσθιο</th>
               <th>Τηλέφωνο</th>
               <th>Ώρες Μήνα</th>
-              <th>Κόστος Μήνα</th>
+              <th>Μισθός Μήνα</th>
               <th>Κατάσταση</th>
-              <th>Ενέργειες</th>
+              <th style="text-align: right;">Ενέργειες</th>
             </tr>
           </thead>
           <tbody>
@@ -313,7 +294,7 @@ window.WorkersView = {
               <td title="${Utils.formatCurrency(worker.hourlyRate)}">${Utils.formatCurrency(worker.hourlyRate)}/ώρα</td>
               <td title="${worker.phone || '-'}">${worker.phone || '-'}</td>
               <td><strong>${monthlyHours.toFixed(1)}h</strong></td>
-              <td><strong style="color: #ff4444;">${Utils.formatCurrency(monthlyEarnings)}</strong></td>
+              <td><strong>${Utils.formatCurrency(monthlyEarnings)}</strong></td>
               <td>${statusBadge}</td>
               <td class="actions">
                 <button class="btn-icon view-worker-btn" data-worker-id="${worker.id}" title="Προβολή">

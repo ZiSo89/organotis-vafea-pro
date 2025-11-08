@@ -83,9 +83,6 @@ window.ClientsView = {
             <button type="submit" class="btn btn-primary">
               <i class="fas fa-save"></i> Αποθήκευση
             </button>
-            <button type="button" class="btn btn-secondary" id="clearClientFormBtn">
-              <i class="fas fa-eraser"></i> Καθαρισμός
-            </button>
             <button type="button" class="btn btn-ghost" id="cancelClientFormBtn">
               <i class="fas fa-times"></i> Ακύρωση
             </button>
@@ -95,7 +92,7 @@ window.ClientsView = {
       </div>
 
       <!-- Filters & Search -->
-      <div class="card">
+      <div class="card filters-card">
         <div class="filters">
           <div class="search-box">
             <i class="fas fa-search"></i>
@@ -138,17 +135,6 @@ window.ClientsView = {
       };
       form.addEventListener('submit', this.formSubmitHandler);
     }
-
-    // Clear button - remove old listener first
-    const clearBtn = document.getElementById('clearClientFormBtn');
-    if (clearBtn) {
-      if (this.clearBtnHandler) {
-        clearBtn.removeEventListener('click', this.clearBtnHandler);
-      }
-      this.clearBtnHandler = () => this.clearForm();
-      clearBtn.addEventListener('click', this.clearBtnHandler);
-    }
-
     // Cancel button - remove old listener first
     const cancelBtn = document.getElementById('cancelClientFormBtn');
     if (cancelBtn) {
@@ -469,8 +455,12 @@ window.ClientsView = {
       `;
     }
 
-    // Reverse to show latest first
-    const sortedClients = [...clients].reverse();
+    // Sort by createdAt timestamp - latest first
+    const sortedClients = [...clients].sort((a, b) => {
+      const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
+      const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
+      return dateB - dateA; // Descending order (newest first)
+    });
 
     return `
       <div class="table-wrapper">
@@ -478,10 +468,10 @@ window.ClientsView = {
           <thead>
             <tr>
               <th>Όνομα</th>
-              <th>Τηλέφωνο</th>
+              <th>Τηλ.</th>
               <th>Email</th>
-              <th>Πόλη</th>
-              <th>Ενέργειες</th>
+              <th>Οδός</th>
+              <th style="text-align: right;">Ενέργειες</th>
             </tr>
           </thead>
           <tbody>
@@ -490,7 +480,7 @@ window.ClientsView = {
                 <td title="${client.name}">${client.name}</td>
                 <td title="${client.phone || '-'}">${client.phone || '-'}</td>
                 <td title="${client.email || '-'}">${client.email || '-'}</td>
-                <td title="${client.city || '-'}">${client.city || '-'}</td>
+                <td title="${client.address || '-'}">${client.address || '-'}</td>
                 <td class="actions">
                   <button class="btn-icon view-client-btn" data-client-id="${client.id}" title="Προβολή">
                     <i class="fas fa-eye"></i>

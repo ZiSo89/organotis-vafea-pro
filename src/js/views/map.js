@@ -333,7 +333,7 @@ window.MapView = {
           <p style="margin: 0 0 6px 0;"><strong>📊 Κατάσταση:</strong> ${job.status}</p>
           <p style="margin: 0 0 12px 0;"><strong>📍 Διεύθυνση:</strong><br>${address}</p>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button onclick="DashboardView.viewJob('${job.id}')" 
+            <button onclick="openJobFromMap('${job.id}')" 
                     style="flex: 1; min-width: 100px; padding: 8px 12px; background: var(--color-primary); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;">
               <i class="fas fa-eye"></i> Προβολή
             </button>
@@ -349,10 +349,16 @@ window.MapView = {
           <p style="margin: 0 0 6px 0;"><strong>📞 Τηλέφωνο:</strong> ${client.phone || '-'}</p>
           <p style="margin: 0 0 6px 0;"><strong>📧 Email:</strong> ${client.email || '-'}</p>
           <p style="margin: 0 0 12px 0;"><strong>📍 Διεύθυνση:</strong><br>${address}</p>
-          <button onclick="window.open('${mapsUrl}', '_blank')" 
-                  style="width: 100%; padding: 8px 12px; background: #4285F4; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;">
-            <i class="fas fa-route"></i> Οδηγίες στο Google Maps
-          </button>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button onclick="openClientFromMap('${client.id}')" 
+                    style="flex: 1; min-width: 100px; padding: 8px 12px; background: var(--color-primary); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;">
+              <i class="fas fa-eye"></i> Προβολή
+            </button>
+            <button onclick="window.open('${mapsUrl}', '_blank')" 
+                    style="flex: 1; min-width: 100px; padding: 8px 12px; background: #4285F4; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;">
+              <i class="fas fa-route"></i> Οδηγίες
+            </button>
+          </div>
         </div>
       `;
 
@@ -497,4 +503,23 @@ window.MapView = {
 window.initMap = function() {
   console.log('✅ Google Maps API loaded');
   window.googleMapsLoaded = true;
+};
+
+// Global helper functions for map popup buttons
+window.openJobFromMap = function(jobId) {
+  console.log('📋 Opening job from map:', jobId);
+  if (window.JobsView && typeof window.JobsView.viewJob === 'function') {
+    window.JobsView.viewJob(jobId);
+  } else {
+    console.error('❌ JobsView.viewJob is not available');
+  }
+};
+
+window.openClientFromMap = function(clientId) {
+  console.log('👤 Opening client from map:', clientId);
+  if (window.ClientsView && typeof window.ClientsView.viewClient === 'function') {
+    window.ClientsView.viewClient(clientId);
+  } else {
+    console.error('❌ ClientsView.viewClient is not available');
+  }
 };

@@ -144,6 +144,10 @@ const State = {
 
   // CREATE
   create(collection, item) {
+    // Add createdAt timestamp if not exists
+    if (!item.createdAt) {
+      item.createdAt = new Date().toISOString();
+    }
     this.data[collection].push(item);
     this.saveToHistory(`Προσθήκη ${collection}`, this.data);
     Storage.save();

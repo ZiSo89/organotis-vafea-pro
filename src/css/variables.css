@@ -10,6 +10,14 @@
   --color-primary-light: #6BA3E8;
   --color-primary-gradient: linear-gradient(135deg, #4A90E2 0%, #357ABD 100%);
   
+  /* Accent colors for UI elements */
+  --accent-primary: #4A90E2;
+  --accent-secondary: #357ABD;
+  
+  /* RGB Values for transparency effects */
+  --accent-primary-rgb: 74, 144, 226;
+  --accent-secondary-rgb: 53, 122, 189;
+  
   /* Professional Accent Colors */
   --color-paint-blue: #4A90E2;
   --color-paint-teal: #26C6DA;
