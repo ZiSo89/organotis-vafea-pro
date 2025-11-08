@@ -23,9 +23,25 @@ const Sidebar = {
       toggleBtn.addEventListener('click', () => {
         console.log('🔄 Toggle clicked!');
         this.toggle();
+        this.updateToggleIcon(toggleBtn);
       });
     } else {
       console.error('❌ Sidebar toggle button not found!');
+    }
+  },
+
+  updateToggleIcon(toggleBtn) {
+    const icon = toggleBtn.querySelector('i');
+    if (!icon) return;
+    
+    const isOpen = this.element.classList.contains('open');
+    
+    if (isOpen) {
+      icon.classList.remove('fa-bars');
+      icon.classList.add('fa-times');
+    } else {
+      icon.classList.remove('fa-times');
+      icon.classList.add('fa-bars');
     }
   },
 
@@ -45,6 +61,9 @@ const Sidebar = {
   close() {
     if (this.isMobile) {
       this.element.classList.remove('open');
+      // Update icon when closing
+      const toggleBtn = document.getElementById('sidebarToggle');
+      if (toggleBtn) this.updateToggleIcon(toggleBtn);
     }
   },
 
@@ -78,6 +97,9 @@ const Sidebar = {
       mobileBtn.addEventListener('click', () => {
         console.log('🍔 Hamburger clicked!');
         this.toggle();
+        // Update icon after toggle
+        const toggleBtn = document.getElementById('sidebarToggle');
+        if (toggleBtn) this.updateToggleIcon(toggleBtn);
       });
     } else {
       console.error('❌ Mobile menu button not found!');
@@ -102,6 +124,16 @@ const Sidebar = {
         // Reset states on breakpoint change
         this.element.classList.remove('open', 'collapsed');
         this.isCollapsed = false;
+        
+        // Reset icon to burger when switching breakpoints
+        const toggleBtn = document.getElementById('sidebarToggle');
+        if (toggleBtn) {
+          const icon = toggleBtn.querySelector('i');
+          if (icon) {
+            icon.classList.remove('fa-times');
+            icon.classList.add('fa-bars');
+          }
+        }
       }
     });
   },

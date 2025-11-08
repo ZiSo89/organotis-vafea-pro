@@ -4,6 +4,7 @@
 
 window.DashboardView = {
   statusChart: null, // Store chart instance
+  themeToggleHandler: null, // Store theme toggle handler
   
   render(container) {
     const stats = this.calculateStats();
@@ -12,49 +13,60 @@ window.DashboardView = {
       <div class="dashboard">
         <h1>Αρχική Σελίδα</h1>
         
-        <!-- Widgets -->
-        <div class="dashboard-widgets">
-          <div class="widget">
+        <!-- Widgets - Single Row -->
+        <div class="dashboard-widgets-single-row">
+          <div class="widget-compact">
+            <div class="widget-content">
+              <div class="widget-title">Εργασίες</div>
+              <div class="widget-value">${stats.totalJobs}</div>
+              <div class="widget-footer">${stats.activeJobs} ενεργές</div>
+            </div>
             <div class="widget-icon primary">
               <i class="fas fa-briefcase"></i>
             </div>
-            <div class="widget-title">Συνολικές Εργασίες</div>
-            <div class="widget-value">${stats.totalJobs}</div>
-            <div class="widget-footer">
-              ${stats.activeJobs} ενεργές
-            </div>
           </div>
 
-          <div class="widget">
+          <div class="widget-compact">
+            <div class="widget-content">
+              <div class="widget-title">Πελάτες</div>
+              <div class="widget-value">${stats.totalClients}</div>
+              <div class="widget-footer">${stats.newClientsThisMonth} νέοι</div>
+            </div>
             <div class="widget-icon info">
               <i class="fas fa-users"></i>
             </div>
-            <div class="widget-title">Πελάτες</div>
-            <div class="widget-value">${stats.totalClients}</div>
-            <div class="widget-footer">
-              ${stats.newClientsThisMonth} νέοι αυτόν το μήνα
+          </div>
+
+          <div class="widget-compact clickable" onclick="Router.navigate('workers')">
+            <div class="widget-content">
+              <div class="widget-title">Προσωπικό</div>
+              <div class="widget-value">${stats.totalWorkers}</div>
+              <div class="widget-footer">${stats.totalWorkers} εργάτες</div>
+            </div>
+            <div class="widget-icon success">
+              <i class="fas fa-hard-hat"></i>
             </div>
           </div>
 
-          <div class="widget">
+          <div class="widget-compact">
+            <div class="widget-content">
+              <div class="widget-title">Προγραμματισμένες</div>
+              <div class="widget-value">${stats.scheduledJobs}</div>
+              <div class="widget-footer">7 ημέρες</div>
+            </div>
             <div class="widget-icon warning">
               <i class="fas fa-calendar-check"></i>
             </div>
-            <div class="widget-title">Προγραμματισμένες</div>
-            <div class="widget-value">${stats.scheduledJobs}</div>
-            <div class="widget-footer">
-              επόμενες 7 ημέρες
-            </div>
           </div>
 
-          <div class="widget">
+          <div class="widget-compact">
+            <div class="widget-content">
+              <div class="widget-title">Έσοδα Μήνα</div>
+              <div class="widget-value">${Utils.formatCurrency(stats.monthlyRevenue)}</div>
+              <div class="widget-footer">${stats.completedThisMonth} ολοκληρωμένες</div>
+            </div>
             <div class="widget-icon primary">
               <i class="fas fa-euro-sign"></i>
-            </div>
-            <div class="widget-title">Έσοδα Μήνα</div>
-            <div class="widget-value">${Utils.formatCurrency(stats.monthlyRevenue)}</div>
-            <div class="widget-footer">
-              ${stats.completedThisMonth} ολοκληρωμένες
             </div>
           </div>
         </div>
@@ -126,21 +138,13 @@ window.DashboardView = {
   },
 
   setupActivityListeners(container) {
-    console.log('🔧 Setting up activity listeners on container:', container);
-    
     // Event delegation για τα activity items
     container.addEventListener('click', (e) => {
-      console.log('👆 Click detected on dashboard, target:', e.target);
-      
       const activityItem = e.target.closest('.activity-item[data-job-id]');
-      console.log('🎯 Activity item found:', activityItem);
       
       if (activityItem) {
         const jobId = activityItem.dataset.jobId;
-        console.log('📋 Opening job with ID:', jobId);
         this.viewJob(jobId);
-      } else {
-        console.log('❌ No activity item found');
       }
     });
   },
@@ -148,6 +152,7 @@ window.DashboardView = {
   calculateStats() {
     const jobs = State.data.jobs;
     const clients = State.data.clients;
+    const workers = State.data.workers || [];
     
     const now = new Date();
     const thisMonth = now.getMonth();
@@ -157,6 +162,7 @@ window.DashboardView = {
     return {
       totalJobs: jobs.length,
       totalClients: clients.length,
+      totalWorkers: workers.length,
       activeJobs: jobs.filter(j => 
         j.status === 'Σε εξέλιξη' || j.status === 'Προγραμματισμένη'
       ).length,
@@ -364,10 +370,7 @@ window.DashboardView = {
   },
 
   viewJob(id) {
-    console.log('🔍 viewJob called with ID:', id);
-    
     const job = State.data.jobs.find(j => j.id === id);
-    console.log('📦 Job found:', job);
     
     if (!job) {
       console.error('❌ Job not found!');
@@ -375,10 +378,6 @@ window.DashboardView = {
     }
 
     const client = State.data.clients.find(c => c.id === job.clientId);
-    const clientName = client ? client.name : 'Άγνωστος';
-    
-    console.log('👤 Client:', client);
-    console.log('📱 About to open modal...');
 
     const content = `
       <div class="job-details">
@@ -542,9 +541,6 @@ window.DashboardView = {
         <i class="fas fa-list"></i> Προβολή στις Εργασίες
       </button>
     `;
-
-    console.log('🪟 Opening modal with title:', clientName);
-    console.log('🪟 Modal object:', Modal);
     
     Modal.open({
       title: `${clientName}`,
@@ -555,8 +551,7 @@ window.DashboardView = {
   },
 
   openInMaps(address) {
-    const url = `https://www.google.com/maps/search/?api=1&query=${address}`;
-    window.open(url, '_blank');
+    Utils.openInMaps(address);
   },
 
   setupDarkModeToggle() {
@@ -576,11 +571,18 @@ window.DashboardView = {
       }
     }
     
+    // Remove old handler
+    if (this.themeToggleHandler) {
+      toggle.removeEventListener('change', this.themeToggleHandler);
+    }
+    
     // Handle toggle change
-    toggle.addEventListener('change', (e) => {
+    this.themeToggleHandler = (e) => {
       Theme.current = e.target.checked ? 'dark' : 'light';
       Theme.apply();
-    });
+    };
+    
+    toggle.addEventListener('change', this.themeToggleHandler);
   },
 
   initDashboardMap() {
@@ -615,7 +617,6 @@ window.DashboardView = {
   loadDashboardMap() {
     const mapElement = document.getElementById('dashboardMap');
     if (!mapElement) {
-      console.warn('⚠️ Dashboard map element not found');
       return;
     }
 
@@ -631,8 +632,6 @@ window.DashboardView = {
 
     const clients = State.data.clients || [];
     const jobs = State.data.jobs || [];
-    
-    console.log(`📊 Dashboard: ${clients.length} clients, ${jobs.length} jobs`);
 
     // Use ISO format YYYY-MM-DD for comparison
     const todayDate = new Date();
@@ -677,7 +676,6 @@ window.DashboardView = {
       let coordinates = geocodeCache[address];
       
       if (!coordinates || coordinates === 'ZERO_RESULTS') {
-        console.log(`⚠️ No cached coordinates for: ${client.name} (${address})`);
         continue;
       }
 
@@ -742,8 +740,6 @@ window.DashboardView = {
         infoWindow.open(map, marker);
       });
     }
-    
-    console.log(`✅ Dashboard map: ${markerCount} markers added`);
     
     } catch (error) {
       console.error('❌ Error loading dashboard map:', error);

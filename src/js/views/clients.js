@@ -83,9 +83,6 @@ window.ClientsView = {
             <button type="submit" class="btn btn-primary">
               <i class="fas fa-save"></i> Αποθήκευση
             </button>
-            <button type="button" class="btn btn-secondary" id="clearClientFormBtn">
-              <i class="fas fa-eraser"></i> Καθαρισμός
-            </button>
             <button type="button" class="btn btn-ghost" id="cancelClientFormBtn">
               <i class="fas fa-times"></i> Ακύρωση
             </button>
@@ -95,7 +92,7 @@ window.ClientsView = {
       </div>
 
       <!-- Filters & Search -->
-      <div class="card">
+      <div class="card filters-card">
         <div class="filters">
           <div class="search-box">
             <i class="fas fa-search"></i>
@@ -138,17 +135,6 @@ window.ClientsView = {
       };
       form.addEventListener('submit', this.formSubmitHandler);
     }
-
-    // Clear button - remove old listener first
-    const clearBtn = document.getElementById('clearClientFormBtn');
-    if (clearBtn) {
-      if (this.clearBtnHandler) {
-        clearBtn.removeEventListener('click', this.clearBtnHandler);
-      }
-      this.clearBtnHandler = () => this.clearForm();
-      clearBtn.addEventListener('click', this.clearBtnHandler);
-    }
-
     // Cancel button - remove old listener first
     const cancelBtn = document.getElementById('cancelClientFormBtn');
     if (cancelBtn) {
@@ -400,7 +386,6 @@ window.ClientsView = {
 
   editClient(id) {
     const client = State.read('clients', id);
-    console.log('📝 Editing client:', id, client);
     
     if (client) {
       this.editingClientId = id;
@@ -408,7 +393,6 @@ window.ClientsView = {
       document.getElementById('clientForm').style.display = 'block';
       
       const nameInput = document.getElementById('c_name');
-      console.log('📝 Name input exists:', !!nameInput);
       
       if (nameInput) {
         nameInput.value = client.name;
@@ -460,17 +444,15 @@ window.ClientsView = {
 
   renderTable(clients) {
     if (clients.length === 0) {
-      return `
-        <div class="empty-state">
-          <i class="fas fa-users fa-3x"></i>
-          <h3>Δεν υπάρχουν πελάτες</h3>
-          <p>Δημιουργήστε τον πρώτο σας πελάτη!</p>
-        </div>
-      `;
+      return Utils.renderEmptyState(
+        'fa-users',
+        'Δεν υπάρχουν πελάτες',
+        'Δημιουργήστε τον πρώτο σας πελάτη!'
+      );
     }
 
-    // Reverse to show latest first
-    const sortedClients = [...clients].reverse();
+    // Sort by createdAt timestamp - latest first
+    const sortedClients = Utils.sortBy(clients, 'createdAt', 'desc');
 
     return `
       <div class="table-wrapper">
@@ -478,10 +460,10 @@ window.ClientsView = {
           <thead>
             <tr>
               <th>Όνομα</th>
-              <th>Τηλέφωνο</th>
+              <th>Τηλ.</th>
               <th>Email</th>
-              <th>Πόλη</th>
-              <th>Ενέργειες</th>
+              <th>Οδός</th>
+              <th style="text-align: right;">Ενέργειες</th>
             </tr>
           </thead>
           <tbody>
@@ -490,7 +472,7 @@ window.ClientsView = {
                 <td title="${client.name}">${client.name}</td>
                 <td title="${client.phone || '-'}">${client.phone || '-'}</td>
                 <td title="${client.email || '-'}">${client.email || '-'}</td>
-                <td title="${client.city || '-'}">${client.city || '-'}</td>
+                <td title="${client.address || '-'}">${client.address || '-'}</td>
                 <td class="actions">
                   <button class="btn-icon view-client-btn" data-client-id="${client.id}" title="Προβολή">
                     <i class="fas fa-eye"></i>
@@ -511,8 +493,7 @@ window.ClientsView = {
   },
 
   openInMaps(address) {
-    const url = `https://www.google.com/maps/search/?api=1&query=${address}`;
-    window.open(url, '_blank');
+    Utils.openInMaps(address);
   }
 };
 

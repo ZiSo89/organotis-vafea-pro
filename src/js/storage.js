@@ -5,6 +5,8 @@
 // Δομή Δεδομένων - όλες οι οντότητες
 const DB_STRUCTURE = {
   clients: [],    // Πελάτες
+  workers: [],    // Εργάτες/Προσωπικό
+  timesheets: [], // Ώρες εργασίας εργατών
   paints: [],     // Χρώματα/Αποθήκη
   jobs: [],       // Εργασίες
   offers: [],     // Προσφορές
@@ -115,6 +117,9 @@ const Storage = {
 
   // Demo Data - παραδείγματα για testing
   loadDemoData() {
+    // Generate timestamps for demo data - older dates for older IDs
+    const baseDate = new Date('2025-01-01');
+    
     DB_STRUCTURE.clients = [
       {
         id: 'Π-0001',
@@ -124,7 +129,8 @@ const Storage = {
         address: 'L. Dimokratias 127',
         city: 'Alexandroupoli',
         postal: '68100',
-        notes: 'VIP πελάτης - προτεραιότητα'
+        notes: 'VIP πελάτης - προτεραιότητα',
+        createdAt: new Date(baseDate.getTime() + 0 * 24 * 60 * 60 * 1000).toISOString()
       },
       {
         id: 'Π-0002',
@@ -134,7 +140,8 @@ const Storage = {
         address: '14ης Μαΐου 23',
         city: 'Αλεξανδρούπολη',
         postal: '68100',
-        notes: 'Προτιμά βιολογικά χρώματα'
+        notes: 'Προτιμά βιολογικά χρώματα',
+        createdAt: new Date(baseDate.getTime() + 5 * 24 * 60 * 60 * 1000).toISOString()
       },
       {
         id: 'Π-0003',
@@ -144,7 +151,8 @@ const Storage = {
         address: 'Καραολή & Δημητρίου 12',
         city: 'Αλεξανδρούπολη',
         postal: '68100',
-        notes: ''
+        notes: '',
+        createdAt: new Date(baseDate.getTime() + 10 * 24 * 60 * 60 * 1000).toISOString()
       }
     ];
 
@@ -194,24 +202,45 @@ const Storage = {
         rooms: 3,
         area: 65,
         substrate: 'Γυψοσανίδα',
-        paintName: 'White Dove',
-        paintCode: 'OC-17',
-        finish: 'Eggshell',
-        primer: 'Ναι',
-        coats: 2,
+        paints: [
+          { name: 'White Dove', code: 'OC-17' }
+        ],
         nextVisit: '2025-11-12',
         materialsCost: 120,
         hours: 14,
         kilometers: 20,
+        billingHours: 14,
+        billingRate: 50,
         hourlyRate: 25,
         costPerKm: 0.5,
         vat: 24,
-        laborCost: 350,
+        assignedWorkers: [
+          {
+            workerId: 'W-0001',
+            workerName: 'Γιώργος Μαστρογιάννης',
+            specialty: 'Ελαιοχρωματιστής',
+            hourlyRate: 15.00,
+            hoursAllocated: 12,
+            laborCost: 180
+          },
+          {
+            workerId: 'W-0002',
+            workerName: 'Νίκος Παπαδόπουλος',
+            specialty: 'Βοηθός',
+            hourlyRate: 10.00,
+            hoursAllocated: 12,
+            laborCost: 120
+          }
+        ],
+        laborCost: 300,
         travelCost: 10,
-        netCost: 480,
-        vatAmount: 115.20,
-        totalCost: 595.20,
-        notes: 'Να γίνει προσεκτική προετοιμασία'
+        totalExpenses: 430,
+        billingAmount: 700,
+        vatAmount: 168,
+        totalCost: 868,
+        profit: 270,
+        notes: 'Να γίνει προσεκτική προετοιμασία',
+        createdAt: new Date(baseDate.getTime() + 15 * 24 * 60 * 60 * 1000).toISOString()
       },
       {
         id: 'Ε-0002',
@@ -222,24 +251,37 @@ const Storage = {
         rooms: 1,
         area: 40,
         substrate: 'Μέταλλο',
-        paintName: 'Pure Brilliant White',
-        paintCode: 'PBW',
-        finish: 'Ματ',
-        primer: 'Ναι',
-        coats: 1,
+        paints: [
+          { name: 'Pure Brilliant White', code: 'PBW' }
+        ],
         nextVisit: '',
         materialsCost: 90,
         hours: 10,
         kilometers: 30,
+        billingHours: 10,
+        billingRate: 50,
         hourlyRate: 25,
         costPerKm: 0.5,
         vat: 24,
-        laborCost: 250,
+        assignedWorkers: [
+          {
+            workerId: 'W-0003',
+            workerName: 'Κώστας Ιωάννου',
+            specialty: 'Γυψαδόρος',
+            hourlyRate: 18.00,
+            hoursAllocated: 8,
+            laborCost: 144
+          }
+        ],
+        laborCost: 144,
         travelCost: 15,
-        netCost: 355,
-        vatAmount: 85.20,
-        totalCost: 440.20,
-        notes: 'Χρειάζεται αντισκωριακό'
+        totalExpenses: 249,
+        billingAmount: 500,
+        vatAmount: 120,
+        totalCost: 620,
+        profit: 251,
+        notes: 'Χρειάζεται αντισκωριακό',
+        createdAt: new Date(baseDate.getTime() + 20 * 24 * 60 * 60 * 1000).toISOString()
       },
       {
         id: 'Ε-0003',
@@ -250,24 +292,45 @@ const Storage = {
         rooms: 2,
         area: 45,
         substrate: 'Σοβάς',
-        paintName: 'Λευκό',
-        paintCode: 'NP-001',
-        finish: 'Ματ',
-        primer: 'Όχι',
-        coats: 2,
+        paints: [
+          { name: 'Λευκό', code: 'NP-001' }
+        ],
         nextVisit: '',
         materialsCost: 75,
         hours: 8,
         kilometers: 40,
+        billingHours: 8,
+        billingRate: 50,
         hourlyRate: 25,
         costPerKm: 0.5,
         vat: 24,
-        laborCost: 200,
+        assignedWorkers: [
+          {
+            workerId: 'W-0001',
+            workerName: 'Γιώργος Μαστρογιάννης',
+            specialty: 'Ελαιοχρωματιστής',
+            hourlyRate: 15.00,
+            hoursAllocated: 7,
+            laborCost: 105
+          },
+          {
+            workerId: 'W-0002',
+            workerName: 'Νίκος Παπαδόπουλος',
+            specialty: 'Βοηθός',
+            hourlyRate: 10.00,
+            hoursAllocated: 7,
+            laborCost: 70
+          }
+        ],
+        laborCost: 175,
         travelCost: 20,
-        netCost: 295,
-        vatAmount: 70.80,
-        totalCost: 365.80,
-        notes: 'Πελάτης πολύ ικανοποιημένος'
+        totalExpenses: 270,
+        billingAmount: 400,
+        vatAmount: 96,
+        totalCost: 496,
+        profit: 130,
+        notes: 'Πελάτης πολύ ικανοποιημένος',
+        createdAt: new Date(baseDate.getTime() + 25 * 24 * 60 * 60 * 1000).toISOString()
       },
       {
         id: 'Ε-0004',
@@ -278,24 +341,45 @@ const Storage = {
         rooms: 1,
         area: 30,
         substrate: 'Ξύλο',
-        paintName: 'Trade Diamond',
-        paintCode: 'PBW',
-        finish: 'Satin',
-        primer: 'Ναι',
-        coats: 2,
+        paints: [
+          { name: 'Trade Diamond', code: 'PBW' }
+        ],
         nextVisit: '2025-11-20',
         materialsCost: 150,
         hours: 12,
         kilometers: 20,
+        billingHours: 12,
+        billingRate: 50,
         hourlyRate: 25,
         costPerKm: 0.5,
         vat: 24,
-        laborCost: 300,
+        assignedWorkers: [
+          {
+            workerId: 'W-0002',
+            workerName: 'Νίκος Παπαδόπουλος',
+            specialty: 'Βοηθός',
+            hourlyRate: 10.00,
+            hoursAllocated: 10,
+            laborCost: 100
+          },
+          {
+            workerId: 'W-0003',
+            workerName: 'Κώστας Ιωάννου',
+            specialty: 'Γυψαδόρος',
+            hourlyRate: 18.00,
+            hoursAllocated: 10,
+            laborCost: 180
+          }
+        ],
+        laborCost: 280,
         travelCost: 10,
-        netCost: 460,
-        vatAmount: 110.40,
-        totalCost: 570.40,
-        notes: 'Πελάτης ακύρωσε λόγω οικονομικών προβλημάτων'
+        totalExpenses: 440,
+        billingAmount: 600,
+        vatAmount: 144,
+        totalCost: 744,
+        profit: 160,
+        notes: 'Πελάτης ακύρωσε λόγω οικονομικών προβλημάτων',
+        createdAt: new Date(baseDate.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
       }
     ];
 
@@ -321,6 +405,44 @@ const Storage = {
     ];
 
     DB_STRUCTURE.templates = [];
+    
+    DB_STRUCTURE.workers = [
+      {
+        id: 'W-0001',
+        name: 'Γιώργος Μαστρογιάννης',
+        phone: '6977123456',
+        specialty: 'Ελαιοχρωματιστής',
+        hourlyRate: 15.00,
+        status: 'active',
+        hireDate: '2024-01-15',
+        notes: 'Έμπειρος επαγγελματίας, 10 χρόνια εμπειρία',
+        createdAt: new Date(baseDate.getTime() + 35 * 24 * 60 * 60 * 1000).toISOString()
+      },
+      {
+        id: 'W-0002',
+        name: 'Νίκος Παπαδόπουλος',
+        phone: '6988654321',
+        specialty: 'Βοηθός',
+        hourlyRate: 10.00,
+        status: 'active',
+        hireDate: '2024-06-01',
+        notes: '',
+        createdAt: new Date(baseDate.getTime() + 40 * 24 * 60 * 60 * 1000).toISOString()
+      },
+      {
+        id: 'W-0003',
+        name: 'Κώστας Ιωάννου',
+        phone: '6955111222',
+        specialty: 'Γυψαδόρος',
+        hourlyRate: 18.00,
+        status: 'active',
+        hireDate: '2023-09-10',
+        notes: 'Εξειδικευμένος σε ταβάνια και γυψοσανίδες',
+        createdAt: new Date(baseDate.getTime() + 45 * 24 * 60 * 60 * 1000).toISOString()
+      }
+    ];
+
+    DB_STRUCTURE.timesheets = [];
     
     DB_STRUCTURE.settings = {
       defaultVAT: 24,

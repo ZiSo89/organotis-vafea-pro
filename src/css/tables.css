@@ -33,26 +33,34 @@
   flex-wrap: wrap;
 }
 
-.search-box {
-  position: relative;
-  min-width: 250px;
-}
+/* Search box styling moved to components.css for compact filters */
 
-.search-box input {
-  padding-left: 2.5rem;
-}
-
-.search-box i {
-  position: absolute;
-  left: var(--spacing-md);
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--color-text-muted);
-}
+/* Filters Section - Moved to components.css for better styling */
 
 .table-wrapper {
-  overflow-x: visible; /* Desktop: no scroll needed */
+  overflow-x: visible; /* No scrollbar on large screens */
+  -webkit-overflow-scrolling: touch;
   border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+/* Custom scrollbar (will only show when overflow-x: auto is applied) */
+.table-wrapper::-webkit-scrollbar {
+  height: 12px;
+}
+
+.table-wrapper::-webkit-scrollbar-track {
+  background: var(--color-bg);
+  border-radius: var(--radius-md);
+}
+
+.table-wrapper::-webkit-scrollbar-thumb {
+  background: var(--color-primary);
+  border-radius: var(--radius-md);
+  border: 2px solid var(--color-bg);
+}
+
+.table-wrapper::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary-dark);
 }
 
 table {
@@ -66,14 +74,14 @@ thead {
 }
 
 th {
-  padding: var(--spacing-lg) var(--spacing-md);
+  padding: var(--spacing-md) var(--spacing-sm);
   text-align: left;
   font-weight: var(--font-weight-semibold);
-  font-size: var(--font-size-sm);
+  font-size: 0.75rem;
   color: var(--color-text);
   white-space: nowrap;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.3px;
   border-bottom: 2px solid var(--color-divider);
 }
 
@@ -111,8 +119,8 @@ tbody tr:last-child {
 }
 
 td {
-  padding: var(--spacing-lg) var(--spacing-md);
-  font-size: var(--font-size-sm);
+  padding: var(--spacing-md) var(--spacing-sm);
+  font-size: 0.8125rem;
   color: var(--color-text-light);
   vertical-align: middle;
 }
@@ -120,7 +128,7 @@ td {
 /* Add spacing between columns */
 td:not(:last-child),
 th:not(:last-child) {
-  padding-right: var(--spacing-xl);
+  padding-right: var(--spacing-md);
 }
 
 /* Actions Column - Icon Buttons in Row */
@@ -135,8 +143,8 @@ th:not(:last-child) {
 
 /* Icon Buttons for Tables */
 .btn-icon {
-  padding: var(--spacing-sm);
-  font-size: var(--font-size-base);
+  padding: var(--spacing-xs);
+  font-size: var(--font-size-sm);
   background: var(--color-hover);
   color: var(--color-text);
   border: 1px solid var(--color-border);
@@ -145,8 +153,8 @@ th:not(:last-child) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   cursor: pointer;
 }
 
@@ -268,53 +276,15 @@ th:not(:last-child) {
     align-items: stretch;
   }
   
-  .search-box {
-    width: 100%;
-  }
+  /* Search box responsive styling in components.css */
   
+  /* Enable horizontal scroll on small screens */
   .table-wrapper {
     overflow-x: auto;
-    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
-    position: relative;
-    /* Add visible scrollbar */
-    padding-bottom: var(--spacing-sm);
-  }
-  
-  /* Custom scrollbar για mobile */
-  .table-wrapper::-webkit-scrollbar {
-    height: 10px;
-  }
-  
-  .table-wrapper::-webkit-scrollbar-track {
-    background: var(--color-bg);
-    border-radius: var(--radius-md);
-    margin: 0 var(--spacing-md);
-  }
-  
-  .table-wrapper::-webkit-scrollbar-thumb {
-    background: var(--color-primary);
-    border-radius: var(--radius-md);
-    border: 2px solid var(--color-bg);
-  }
-  
-  .table-wrapper::-webkit-scrollbar-thumb:hover {
-    background: var(--color-primary-dark);
-  }
-  
-  /* Scroll indicator shadow */
-  .table-wrapper::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    right: 0;
-    bottom: 10px;
-    width: 30px;
-    background: linear-gradient(to left, var(--color-card), transparent);
-    pointer-events: none;
   }
   
   table {
-    min-width: 900px; /* Force horizontal scroll */
+    min-width: 900px; /* Force horizontal scroll on small screens */
     white-space: nowrap;
   }
   

@@ -25,8 +25,27 @@ document.addEventListener('DOMContentLoaded', () => {
   // Load company name in sidebar
   loadCompanyName();
   
+  // Initialize pricing settings
+  initializePricingSettings();
+  
   console.log('🎨 Οργανωτής Βαφέα - Έτοιμος!');
 });
+
+function initializePricingSettings() {
+  // Check if pricing settings exist
+  const pricingData = JSON.parse(localStorage.getItem('pricing_settings') || 'null');
+  
+  // If no saved data, set defaults
+  if (!pricingData) {
+    const defaultPricing = {
+      hourlyRate: 50,
+      vat: 24,
+      travelCost: 0.5
+    };
+    localStorage.setItem('pricing_settings', JSON.stringify(defaultPricing));
+    console.log('💰 Default pricing settings initialized');
+  }
+}
 
 function loadCompanyName() {
   // Default company data

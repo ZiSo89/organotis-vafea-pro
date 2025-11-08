@@ -2,6 +2,11 @@
    State Management - Κατάσταση Εφαρμογής
    ======================================== */
 
+/**
+ * Global application state manager
+ * Handles CRUD operations, history, search, filters, and persistence
+ * @namespace State
+ */
 const State = {
   // Current Data
   data: null,
@@ -24,7 +29,10 @@ const State = {
   // Selected Items (για bulk actions)
   selectedItems: new Set(),
   
-  // Initialization
+  /**
+   * Initialize application state
+   * Loads data from storage and sets up auto-save
+   */
   init() {
     this.data = Storage.load();
     this.setupAutoSave();
@@ -142,8 +150,16 @@ const State = {
 
   // CRUD Operations με History
 
-  // CREATE
+  /**
+   * Create new item in collection
+   * @param {string} collection - Collection name (e.g., 'clients', 'jobs')
+   * @param {Object} item - Item data to create
+   */
   create(collection, item) {
+    // Add createdAt timestamp if not exists
+    if (!item.createdAt) {
+      item.createdAt = new Date().toISOString();
+    }
     this.data[collection].push(item);
     this.saveToHistory(`Προσθήκη ${collection}`, this.data);
     Storage.save();
@@ -153,7 +169,12 @@ const State = {
     this.refreshDashboardIfNeeded();
   },
 
-  // READ
+  /**
+   * Read item(s) from collection
+   * @param {string} collection - Collection name
+   * @param {string} [id] - Optional item ID. If omitted, returns all items
+   * @returns {Object|Array|null} Single item, array of items, or null
+   */
   read(collection, id = null) {
     if (!this.data) {
       console.error('❌ State.data is null!');
@@ -169,7 +190,12 @@ const State = {
     return this.data[collection];
   },
 
-  // UPDATE
+  /**
+   * Update existing item in collection
+   * @param {string} collection - Collection name
+   * @param {string} id - Item ID to update
+   * @param {Object} updatedItem - New item data
+   */
   update(collection, id, updatedItem) {
     const index = this.data[collection].findIndex(item => item.id === id);
     if (index !== -1) {
@@ -183,7 +209,11 @@ const State = {
     }
   },
 
-  // DELETE
+  /**
+   * Delete item from collection
+   * @param {string} collection - Collection name
+   * @param {string} id - Item ID to delete
+   */
   delete(collection, id) {
     const index = this.data[collection].findIndex(item => item.id === id);
     if (index !== -1) {
@@ -197,38 +227,38 @@ const State = {
     }
   },
 
-  // BULK DELETE
-  bulkDelete(collection, ids) {
-    ids.forEach(id => {
-      const index = this.data[collection].findIndex(item => item.id === id);
-      if (index !== -1) {
-        this.data[collection].splice(index, 1);
-      }
-    });
-    this.saveToHistory(`Μαζική διαγραφή ${ids.length} ${collection}`, this.data);
-    Storage.save();
-    Toast.success(`Διαγράφηκαν ${ids.length} εγγραφές`);
-    this.selectedItems.clear();
-  },
+  // TODO: Future feature - Bulk operations
+  // bulkDelete(collection, ids) {
+  //   ids.forEach(id => {
+  //     const index = this.data[collection].findIndex(item => item.id === id);
+  //     if (index !== -1) {
+  //       this.data[collection].splice(index, 1);
+  //     }
+  //   });
+  //   this.saveToHistory(`Μαζική διαγραφή ${ids.length} ${collection}`, this.data);
+  //   Storage.save();
+  //   Toast.success(`Διαγράφηκαν ${ids.length} εγγραφές`);
+  //   this.selectedItems.clear();
+  // },
 
-  // DUPLICATE
-  duplicate(collection, id) {
-    const item = this.read(collection, id);
-    if (item) {
-      const copy = JSON.parse(JSON.stringify(item));
-      
-      // Δημιούργησε νέο ID
-      const prefix = id.match(/^[Α-ΩΠΕΤα-ω]+-/)?.[0] || '';
-      const maxNum = Math.max(
-        ...this.data[collection]
-          .map(i => parseInt(i.id.replace(prefix, '')) || 0)
-      );
-      copy.id = `${prefix}${String(maxNum + 1).padStart(4, '0')}`;
-      
-      this.create(collection, copy);
-      return copy;
-    }
-  },
+  // TODO: Future feature - Duplicate items
+  // duplicate(collection, id) {
+  //   const item = this.read(collection, id);
+  //   if (item) {
+  //     const copy = JSON.parse(JSON.stringify(item));
+  //     
+  //     // Δημιούργησε νέο ID
+  //     const prefix = id.match(/^[Α-ΩΠΕΤα-ω]+-/)?.[0] || '';
+  //     const maxNum = Math.max(
+  //       ...this.data[collection]
+  //         .map(i => parseInt(i.id.replace(prefix, '')) || 0)
+  //     );
+  //     copy.id = `${prefix}${String(maxNum + 1).padStart(4, '0')}`;
+  //     
+  //     this.create(collection, copy);
+  //     return copy;
+  //   }
+  // },
 
   // Search & Filter
   applyFilters(collection, items) {

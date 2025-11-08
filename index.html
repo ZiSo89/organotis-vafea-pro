@@ -15,9 +15,8 @@
   <title>Οργανωτής Βαφέα Pro</title>
   
   <!-- Favicon -->
-  <link rel="icon" type="image/x-icon" href="favicon.ico">
-  <link rel="shortcut icon" type="image/x-icon" href="favicon.ico">
-  
+  <link rel="icon" type="image/x-icon" href="assets/icons/favicon.ico">
+
   <!-- Font Awesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   
@@ -29,9 +28,7 @@
   <!-- Google Maps -->
   <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDbO_6f6Y_y_2_2MreK0XTWAIsZw-2AKWQ&libraries=geometry,places&callback=initMap&loading=async" defer></script>
   
-  <!-- Leaflet Maps (Fallback for local mode) -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Leaflet Maps (Fallback) - Loaded conditionally via JavaScript -->
   
   <!-- Nominatim Geocoding (OpenStreetMap) - No API key needed -->
   <script>
@@ -124,6 +121,10 @@
         <i class="fas fa-users"></i>
         <span data-translate="clients">Πελάτες</span>
       </a>
+      <a href="#workers" class="nav-item" data-section="workers">
+        <i class="fas fa-hard-hat"></i>
+        <span>Προσωπικό</span>
+      </a>
       <a href="#inventory" class="nav-item" data-section="inventory">
         <i class="fas fa-boxes"></i>
         <span data-translate="inventory">Αποθήκη</span>
@@ -152,6 +153,7 @@
     
     <!-- Header -->
     <header class="header">
+      <img src="assets/icons/logo.png" alt="Οργανωτής Βαφέα" class="header-logo">
       <button id="mobileMenuBtn" class="mobile-menu-btn" aria-label="Menu">
         <i class="fas fa-bars"></i>
       </button>
@@ -187,8 +189,10 @@
   <script src="src/js/table.js"></script>
   <script src="src/js/pagination.js"></script>
   <script src="src/js/export.js"></script>
+  <script src="src/js/models/timesheet.js"></script>
   <script src="src/js/views/dashboard.js"></script>
   <script src="src/js/views/clients.js"></script>
+  <script src="src/js/views/workers.js"></script>
   <script src="src/js/views/inventory.js"></script>
   <script src="src/js/views/jobs.js"></script>
   <script src="src/js/views/calendar.js"></script>

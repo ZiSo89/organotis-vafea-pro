@@ -360,3 +360,396 @@
   border-color: var(--color-danger);
   box-shadow: var(--shadow-danger);
 }
+
+/* ========================================
+   Tabs Navigation
+   ======================================== */
+
+.tabs-nav {
+  display: flex;
+  gap: 6px;
+  margin-bottom: var(--spacing-xl);
+  background: var(--bg-secondary);
+  padding: 6px;
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.06);
+  border: 1px solid var(--border);
+}
+
+.tab-btn {
+  background: transparent;
+  border: none;
+  padding: 10px 18px;
+  color: var(--text-muted);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 6px;
+  white-space: nowrap;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 54px;
+  min-width: 85px;
+  text-align: center;
+}
+
+.tab-btn:hover:not(.active) {
+  color: var(--text);
+  background: rgba(var(--accent-primary-rgb), 0.08);
+  transform: translateY(-1px);
+}
+
+.tab-btn.active {
+  color: white;
+  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+  font-weight: 600;
+  box-shadow: 0 4px 12px rgba(var(--accent-primary-rgb), 0.3),
+              0 2px 4px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+.tab-btn i {
+  font-size: 1.3em;
+  transition: transform 0.3s ease;
+  display: block;
+}
+
+.tab-btn span {
+  font-size: 0.8125rem;
+  display: block;
+  line-height: 1.2;
+}
+
+.tab-btn.active i {
+  transform: scale(1.1);
+}
+
+.tab-content {
+  display: none;
+  animation: fadeInUp 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  min-height: 200px;
+}
+
+.tab-content.active {
+  display: block;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Scrollbar styling for tabs */
+.tabs-nav::-webkit-scrollbar {
+  height: 6px;
+}
+
+.tabs-nav::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 3px;
+}
+
+.tabs-nav::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+.tabs-nav::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* ========================================
+   Financial Summary Cards
+   ======================================== */
+
+.financial-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: var(--spacing-lg);
+  margin-top: var(--spacing-md);
+}
+
+.financial-card {
+  background: var(--bg);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.financial-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.financial-header {
+  padding: var(--spacing-md);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  font-weight: 600;
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.financial-card.expenses .financial-header {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: white;
+}
+
+.financial-card.revenue .financial-header {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+}
+
+.financial-card.profit .financial-header {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: white;
+}
+
+.financial-body {
+  padding: var(--spacing-md);
+}
+
+.financial-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-sm) 0;
+  font-size: 0.9375rem;
+}
+
+.financial-row:not(:last-child) {
+  border-bottom: 1px solid var(--border);
+}
+
+.financial-row.total {
+  margin-top: var(--spacing-sm);
+  padding-top: var(--spacing-md);
+  border-top: 2px solid var(--border);
+  border-bottom: none;
+  font-weight: 600;
+}
+
+.financial-row.profit-row {
+  justify-content: center;
+  font-size: 1.75rem;
+  font-weight: 700;
+  padding: var(--spacing-lg) 0;
+  color: var(--accent-primary);
+}
+
+.financial-row span {
+  color: var(--text-muted);
+}
+
+.financial-row strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.financial-card.expenses .financial-row strong {
+  color: #ef4444;
+}
+
+.financial-card.revenue .financial-row strong {
+  color: #10b981;
+}
+
+.financial-card.profit .financial-row strong {
+  color: #3b82f6;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .financial-summary {
+    grid-template-columns: 1fr;
+  }
+  
+  .tabs-nav {
+    gap: 4px;
+    padding: 4px;
+    margin-bottom: var(--spacing-lg);
+  }
+  
+  .tab-btn {
+    padding: 8px 12px;
+    font-size: 0.875rem;
+    min-height: 48px;
+    min-width: 75px;
+    gap: 3px;
+  }
+  
+  .tab-btn i {
+    font-size: 1.2em;
+  }
+  
+  .tab-btn span {
+    font-size: 0.75rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .tabs-nav {
+    gap: 3px;
+    padding: 3px;
+  }
+  
+  .tab-btn {
+    padding: 6px 8px;
+    font-size: 0.75rem;
+    min-width: 60px;
+    min-height: 44px;
+  }
+  
+  .tab-btn i {
+    font-size: 1.1em;
+  }
+  
+  .tab-btn span {
+    font-size: 0.7rem;
+  }
+}
+
+/* ========================================
+   Compact Filters - Stylish & Small
+   ======================================== */
+
+/* Compact filter card wrapper */
+.card.filters-card {
+  padding: var(--spacing-sm) var(--spacing-md) !important;
+  margin-bottom: var(--spacing-md) !important;
+  background: linear-gradient(135deg, 
+    rgba(74, 144, 226, 0.08) 0%, 
+    rgba(53, 122, 189, 0.05) 100%);
+  border: 1px solid rgba(74, 144, 226, 0.15);
+  box-shadow: 0 2px 4px rgba(74, 144, 226, 0.08);
+}
+
+.card.filters-card::before {
+  display: none;
+}
+
+.card.filters-card:hover {
+  transform: none;
+  box-shadow: 0 2px 8px rgba(74, 144, 226, 0.12);
+  border-color: rgba(74, 144, 226, 0.25);
+  background: linear-gradient(135deg, 
+    rgba(74, 144, 226, 0.12) 0%, 
+    rgba(53, 122, 189, 0.08) 100%);
+}
+
+.filters {
+  display: flex;
+  gap: var(--spacing-md);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.search-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0 var(--spacing-sm);
+  flex: 1;
+  min-width: 200px;
+  height: 36px;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.search-box:focus-within {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px rgba(var(--accent-primary-rgb), 0.1);
+  background: white;
+}
+
+.search-box i {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  margin-right: var(--spacing-xs);
+  pointer-events: none;
+}
+
+.search-box:focus-within i {
+  color: var(--accent-primary);
+}
+
+.search-box input {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-size: 0.875rem;
+  color: var(--text);
+  width: 100%;
+  height: 100%;
+  outline: none;
+}
+
+.search-box input::placeholder {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+/* Compact Select Filter */
+.filters select {
+  height: 36px;
+  padding: 0 var(--spacing-md);
+  font-size: 0.875rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: white;
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  min-width: 180px;
+}
+
+.filters select:hover {
+  border-color: var(--accent-primary);
+  background: white;
+}
+
+.filters select:focus {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px rgba(var(--accent-primary-rgb), 0.1);
+  outline: none;
+  background: white;
+}
+
+/* Responsive Filters */
+@media (max-width: 768px) {
+  .filters {
+    gap: var(--spacing-sm);
+  }
+  
+  .search-box {
+    min-width: 150px;
+    max-width: 100%;
+    flex: 1;
+  }
+  
+  .filters select {
+    flex: 1;
+    min-width: 150px;
+  }
+}
+
+
