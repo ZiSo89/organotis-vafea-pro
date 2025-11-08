@@ -17,6 +17,17 @@
   top: 0;
   z-index: var(--z-sticky);
   backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-lg);
+}
+
+.header-logo {
+  height: 55px;
+  width: auto;
+  object-fit: contain;
+  margin-left: auto;
 }
 
 .mobile-menu-btn {
@@ -433,13 +444,16 @@
   gap: var(--spacing-xl);
 }
 
+/* Tablet - Show burger menu */
+@media (max-width: 1200px) {
+  .mobile-menu-btn {
+    display: block;
+  }
+}
+
 @media (max-width: 768px) {
   .main-content {
     margin-left: 0;
-  }
-  
-  .mobile-menu-btn {
-    display: block;
   }
   
   .content-area {

@@ -2,8 +2,6 @@
    Jobs View - Διαχείριση Εργασιών
    ======================================== */
 
-console.log('💼 Loading JobsView...');
-
 window.JobsView = {
   currentEdit: null,
   assignedWorkers: [], // Array to hold workers assigned to current job
@@ -15,6 +13,9 @@ window.JobsView = {
   clearBtnHandler: null,
   clientSelectHandler: null,
   costFieldHandlers: {},
+  tabClickHandler: null,
+  addWorkerBtnHandler: null,
+  addPaintBtnHandler: null,
 
   // Store handlers for filters
   cancelBtnHandler: null,
@@ -332,22 +333,33 @@ window.JobsView = {
   },
   
   setupEventListeners() {
-    // Tab navigation
-    const tabButtons = document.querySelectorAll('.tab-btn');
-    tabButtons.forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.preventDefault();
-        const targetTab = btn.dataset.tab;
-        
-        // Remove active class from all tabs and contents
-        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-        
-        // Add active class to clicked tab and corresponding content
-        btn.classList.add('active');
-        document.getElementById(`tab-${targetTab}`).classList.add('active');
-      });
-    });
+    // Tab navigation with event delegation
+    const formElement = document.getElementById('jobFormElement');
+    if (formElement) {
+      // Remove old tab handler
+      if (this.tabClickHandler) {
+        formElement.removeEventListener('click', this.tabClickHandler);
+      }
+      
+      // Create new handler with delegation
+      this.tabClickHandler = (e) => {
+        const tabBtn = e.target.closest('.tab-btn');
+        if (tabBtn) {
+          e.preventDefault();
+          const targetTab = tabBtn.dataset.tab;
+          
+          // Remove active class from all tabs and contents
+          document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+          document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+          
+          // Add active class to clicked tab and corresponding content
+          tabBtn.classList.add('active');
+          document.getElementById(`tab-${targetTab}`).classList.add('active');
+        }
+      };
+      
+      formElement.addEventListener('click', this.tabClickHandler);
+    }
 
     // Add button - remove old listener first
     const addBtn = document.getElementById('addJobBtn');
@@ -416,13 +428,21 @@ window.JobsView = {
     // Add Worker button
     const addWorkerBtn = document.getElementById('addWorkerToJobBtn');
     if (addWorkerBtn) {
-      addWorkerBtn.addEventListener('click', () => this.openWorkerAssignmentModal());
+      if (this.addWorkerBtnHandler) {
+        addWorkerBtn.removeEventListener('click', this.addWorkerBtnHandler);
+      }
+      this.addWorkerBtnHandler = () => this.openWorkerAssignmentModal();
+      addWorkerBtn.addEventListener('click', this.addWorkerBtnHandler);
     }
 
     // Add Paint button
     const addPaintBtn = document.getElementById('addPaintBtn');
     if (addPaintBtn) {
-      addPaintBtn.addEventListener('click', () => this.addPaint());
+      if (this.addPaintBtnHandler) {
+        addPaintBtn.removeEventListener('click', this.addPaintBtnHandler);
+      }
+      this.addPaintBtnHandler = () => this.addPaint();
+      addPaintBtn.addEventListener('click', this.addPaintBtnHandler);
     }
 
     // Cost calculation fields - real-time updates (jobBillingRate removed as it's readonly)
@@ -479,21 +499,15 @@ window.JobsView = {
 
   renderTable(jobs) {
     if (jobs.length === 0) {
-      return `
-        <div class="empty-state">
-          <i class="fas fa-briefcase fa-3x"></i>
-          <h3>Δεν υπάρχουν εργασίες</h3>
-          <p>Δημιουργήστε την πρώτη σας εργασία!</p>
-        </div>
-      `;
+      return Utils.renderEmptyState(
+        'fa-briefcase',
+        'Δεν υπάρχουν εργασίες',
+        'Δημιουργήστε την πρώτη σας εργασία!'
+      );
     }
 
     // Sort by job date - latest first
-    const sortedJobs = [...jobs].sort((a, b) => {
-      const dateA = new Date(a.date || a.createdAt || 0);
-      const dateB = new Date(b.date || b.createdAt || 0);
-      return dateB - dateA; // Descending order (newest first)
-    });
+    const sortedJobs = Utils.sortBy(jobs, 'date', 'desc');
 
     return `
       <div class="table-wrapper">
@@ -1079,19 +1093,14 @@ window.JobsView = {
       jobs = jobs.filter(job => job.status === statusFilter);
     }
 
-    // Sort by date - newest first (πιο πρόσφατες πρώτα)
-    jobs = jobs.sort((a, b) => {
-      const dateA = new Date(a.date || a.createdAt || 0);
-      const dateB = new Date(b.date || b.createdAt || 0);
-      return dateB - dateA; // Descending order (νεότερες πρώτα)
-    });
+    // Sort by date - newest first
+    jobs = Utils.sortBy(jobs, 'date', 'desc');
 
     document.getElementById('jobsTableContainer').innerHTML = this.renderTable(jobs);
   },
 
   openInMaps(address) {
-    const url = `https://www.google.com/maps/search/?api=1&query=${address}`;
-    window.open(url, '_blank');
+    Utils.openInMaps(address);
   },
 
   // ==================== Worker Assignment Methods ====================

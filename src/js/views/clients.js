@@ -386,7 +386,6 @@ window.ClientsView = {
 
   editClient(id) {
     const client = State.read('clients', id);
-    console.log('📝 Editing client:', id, client);
     
     if (client) {
       this.editingClientId = id;
@@ -394,7 +393,6 @@ window.ClientsView = {
       document.getElementById('clientForm').style.display = 'block';
       
       const nameInput = document.getElementById('c_name');
-      console.log('📝 Name input exists:', !!nameInput);
       
       if (nameInput) {
         nameInput.value = client.name;
@@ -446,21 +444,15 @@ window.ClientsView = {
 
   renderTable(clients) {
     if (clients.length === 0) {
-      return `
-        <div class="empty-state">
-          <i class="fas fa-users fa-3x"></i>
-          <h3>Δεν υπάρχουν πελάτες</h3>
-          <p>Δημιουργήστε τον πρώτο σας πελάτη!</p>
-        </div>
-      `;
+      return Utils.renderEmptyState(
+        'fa-users',
+        'Δεν υπάρχουν πελάτες',
+        'Δημιουργήστε τον πρώτο σας πελάτη!'
+      );
     }
 
     // Sort by createdAt timestamp - latest first
-    const sortedClients = [...clients].sort((a, b) => {
-      const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
-      const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
-      return dateB - dateA; // Descending order (newest first)
-    });
+    const sortedClients = Utils.sortBy(clients, 'createdAt', 'desc');
 
     return `
       <div class="table-wrapper">
@@ -501,8 +493,7 @@ window.ClientsView = {
   },
 
   openInMaps(address) {
-    const url = `https://www.google.com/maps/search/?api=1&query=${address}`;
-    window.open(url, '_blank');
+    Utils.openInMaps(address);
   }
 };
 

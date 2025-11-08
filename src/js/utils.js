@@ -2,17 +2,34 @@
    Utilities - Helper Functions
    ======================================== */
 
+/**
+ * Utility functions for common operations across the application
+ * @namespace Utils
+ */
 const Utils = {
-  // DOM Helpers
+  /**
+   * Shorthand for document.querySelector
+   * @param {string} selector - CSS selector
+   * @returns {Element|null} Selected element
+   */
   $(selector) {
     return document.querySelector(selector);
   },
 
+  /**
+   * Shorthand for document.querySelectorAll
+   * @param {string} selector - CSS selector
+   * @returns {NodeList} Selected elements
+   */
   $$(selector) {
     return document.querySelectorAll(selector);
   },
 
-  // Format Date - Greek format DD/MM/YYYY
+  /**
+   * Format date to Greek format (DD/MM/YYYY)
+   * @param {string|Date} dateString - Date to format
+   * @returns {string} Formatted date or '-' if invalid
+   */
   formatDate(dateString) {
     if (!dateString) return '-';
     const date = new Date(dateString);
@@ -36,7 +53,11 @@ const Utils = {
     return `${year}-${month}-${day}`;
   },
 
-  // Initialize Date Picker on input elements
+  /**
+   * Initialize Flatpickr date picker on element
+   * @param {string|Element} selector - CSS selector or element
+   * @returns {Object|undefined} Flatpickr instance
+   */
   initDatePicker(selector) {
     if (typeof flatpickr === 'undefined') {
       console.warn('Flatpickr not loaded yet');
@@ -51,7 +72,11 @@ const Utils = {
     });
   },
 
-  // Format Currency
+  /**
+   * Format number as currency (EUR)
+   * @param {number} amount - Amount to format
+   * @returns {string} Formatted currency or '-'
+   */
   formatCurrency(amount) {
     if (!amount && amount !== 0) return '-';
     return new Intl.NumberFormat('el-GR', {
@@ -79,7 +104,12 @@ const Utils = {
     return div.innerHTML;
   },
 
-  // Debounce Function
+  /**
+   * Debounce function execution
+   * @param {Function} func - Function to debounce
+   * @param {number} wait - Wait time in milliseconds
+   * @returns {Function} Debounced function
+   */
   debounce(func, wait) {
     let timeout;
     return function executedFunction(...args) {
@@ -92,7 +122,12 @@ const Utils = {
     };
   },
 
-  // Throttle Function
+  /**
+   * Throttle function execution
+   * @param {Function} func - Function to throttle
+   * @param {number} limit - Limit in milliseconds
+   * @returns {Function} Throttled function
+   */
   throttle(func, limit) {
     let inThrottle;
     return function(...args) {
@@ -202,7 +237,12 @@ const Utils = {
     }
   },
 
-  // Generate next ID
+  /**
+   * Generate next sequential ID for collection
+   * @param {string} collection - Collection name (e.g., 'clients', 'jobs')
+   * @param {string} prefix - ID prefix (e.g., 'Π', 'Ε')
+   * @returns {string} Generated ID (e.g., 'Π-0005')
+   */
   generateNextId(collection, prefix) {
     const items = State.data[collection];
     const maxNum = Math.max(
@@ -227,7 +267,13 @@ const Utils = {
     return text.substring(0, maxLength) + '...';
   },
 
-  // Sort Array by key
+  /**
+   * Sort array by specified key
+   * @param {Array} array - Array to sort
+   * @param {string} key - Property key to sort by
+   * @param {string} direction - 'asc' or 'desc'
+   * @returns {Array} Sorted array (new instance)
+   */
   sortBy(array, key, direction = 'asc') {
     return [...array].sort((a, b) => {
       let aVal = a[key];
@@ -250,7 +296,12 @@ const Utils = {
     });
   },
 
-  // Group by key
+  /**
+   * Group array items by property value
+   * @param {Array} array - Array to group
+   * @param {string} key - Property key to group by
+   * @returns {Object} Object with grouped items
+   */
   groupBy(array, key) {
     return array.reduce((groups, item) => {
       const value = item[key];
@@ -286,5 +337,31 @@ const Utils = {
       lat: baseLat + offsetLat,
       lng: baseLng + offsetLng
     };
+  },
+
+  /**
+   * Render empty state UI component
+   * @param {string} icon - Font Awesome icon class
+   * @param {string} title - Title text
+   * @param {string} message - Description message
+   * @returns {string} HTML string for empty state
+   */
+  renderEmptyState(icon, title, message) {
+    return `
+      <div class="empty-state">
+        <i class="fas ${icon} fa-3x"></i>
+        <h3>${title}</h3>
+        <p>${message}</p>
+      </div>
+    `;
+  },
+
+  /**
+   * Open address in Google Maps in new tab
+   * @param {string} address - Address to search
+   */
+  openInMaps(address) {
+    const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+    window.open(url, '_blank');
   }
 };

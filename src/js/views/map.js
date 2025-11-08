@@ -110,6 +110,38 @@ window.MapView = {
       return;
     }
 
+    // Load Leaflet if not already loaded
+    if (typeof L === 'undefined') {
+      console.log('📦 Loading Leaflet library...');
+      this.loadLeafletLibrary().then(() => {
+        this.createLeafletMap();
+      }).catch(error => {
+        console.error('❌ Failed to load Leaflet:', error);
+        mapElement.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #666;"><p><i class="fas fa-exclamation-triangle"></i> Αποτυχία φόρτωσης χάρτη</p></div>';
+      });
+    } else {
+      this.createLeafletMap();
+    }
+  },
+
+  loadLeafletLibrary() {
+    return new Promise((resolve, reject) => {
+      // Load CSS
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      document.head.appendChild(link);
+
+      // Load JS
+      const script = document.createElement('script');
+      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      script.onload = resolve;
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  },
+
+  createLeafletMap() {
     try {
       // Create Leaflet map
       this.map = L.map('map').setView([40.8473, 25.8753], 14);

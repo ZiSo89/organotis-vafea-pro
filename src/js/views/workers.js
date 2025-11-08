@@ -2,8 +2,6 @@
    Workers View - Διαχείριση Εργατών/Προσωπικού
    ======================================== */
 
-console.log('👷 Loading WorkersView...');
-
 window.WorkersView = {
   currentEdit: null,
   tableClickHandler: null,
@@ -226,13 +224,11 @@ window.WorkersView = {
 
   renderTable(workers) {
     if (workers.length === 0) {
-      return `
-        <div class="empty-state">
-          <i class="fas fa-hard-hat fa-3x"></i>
-          <h3>Δεν υπάρχουν εργάτες</h3>
-          <p>Δημιουργήστε τον πρώτο σας εργάτη!</p>
-        </div>
-      `;
+      return Utils.renderEmptyState(
+        'fa-hard-hat',
+        'Δεν υπάρχουν εργάτες',
+        'Δημιουργήστε τον πρώτο σας εργάτη!'
+      );
     }
 
     // Get jobs to calculate monthly stats
@@ -242,11 +238,7 @@ window.WorkersView = {
     const thisYear = now.getFullYear();
 
     // Sort by createdAt timestamp - latest first
-    const sortedWorkers = [...workers].sort((a, b) => {
-      const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
-      const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
-      return dateB - dateA; // Descending order (newest first)
-    });
+    const sortedWorkers = Utils.sortBy(workers, 'createdAt', 'desc');
 
     return `
       <div class="table-wrapper">
@@ -613,6 +605,9 @@ window.WorkersView = {
     document.getElementById('workersTableContainer').innerHTML = this.renderTable(workers);
   },
 
+  // TODO: Future feature - Timesheet Check-in/Check-out
+  // Currently not used in UI, but functions are ready for implementation
+  /*
   checkIn(id) {
     const worker = State.data.workers.find(w => w.id === id);
     if (!worker) return;
@@ -686,6 +681,7 @@ window.WorkersView = {
     Toast.success(`${worker.name} έκανε check-out! Ώρες: ${hoursWorked.toFixed(2)}, Έσοδα: ${Utils.formatCurrency(earnings)}`);
     this.refreshTable();
   },
+  */
 
   showReports() {
     const workers = State.read('workers') || [];

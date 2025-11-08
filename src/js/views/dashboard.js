@@ -4,6 +4,7 @@
 
 window.DashboardView = {
   statusChart: null, // Store chart instance
+  themeToggleHandler: null, // Store theme toggle handler
   
   render(container) {
     const stats = this.calculateStats();
@@ -137,21 +138,13 @@ window.DashboardView = {
   },
 
   setupActivityListeners(container) {
-    console.log('🔧 Setting up activity listeners on container:', container);
-    
     // Event delegation για τα activity items
     container.addEventListener('click', (e) => {
-      console.log('👆 Click detected on dashboard, target:', e.target);
-      
       const activityItem = e.target.closest('.activity-item[data-job-id]');
-      console.log('🎯 Activity item found:', activityItem);
       
       if (activityItem) {
         const jobId = activityItem.dataset.jobId;
-        console.log('📋 Opening job with ID:', jobId);
         this.viewJob(jobId);
-      } else {
-        console.log('❌ No activity item found');
       }
     });
   },
@@ -377,10 +370,7 @@ window.DashboardView = {
   },
 
   viewJob(id) {
-    console.log('🔍 viewJob called with ID:', id);
-    
     const job = State.data.jobs.find(j => j.id === id);
-    console.log('📦 Job found:', job);
     
     if (!job) {
       console.error('❌ Job not found!');
@@ -388,10 +378,6 @@ window.DashboardView = {
     }
 
     const client = State.data.clients.find(c => c.id === job.clientId);
-    const clientName = client ? client.name : 'Άγνωστος';
-    
-    console.log('👤 Client:', client);
-    console.log('📱 About to open modal...');
 
     const content = `
       <div class="job-details">
@@ -555,9 +541,6 @@ window.DashboardView = {
         <i class="fas fa-list"></i> Προβολή στις Εργασίες
       </button>
     `;
-
-    console.log('🪟 Opening modal with title:', clientName);
-    console.log('🪟 Modal object:', Modal);
     
     Modal.open({
       title: `${clientName}`,
@@ -568,8 +551,7 @@ window.DashboardView = {
   },
 
   openInMaps(address) {
-    const url = `https://www.google.com/maps/search/?api=1&query=${address}`;
-    window.open(url, '_blank');
+    Utils.openInMaps(address);
   },
 
   setupDarkModeToggle() {
@@ -589,11 +571,18 @@ window.DashboardView = {
       }
     }
     
+    // Remove old handler
+    if (this.themeToggleHandler) {
+      toggle.removeEventListener('change', this.themeToggleHandler);
+    }
+    
     // Handle toggle change
-    toggle.addEventListener('change', (e) => {
+    this.themeToggleHandler = (e) => {
       Theme.current = e.target.checked ? 'dark' : 'light';
       Theme.apply();
-    });
+    };
+    
+    toggle.addEventListener('change', this.themeToggleHandler);
   },
 
   initDashboardMap() {
@@ -628,7 +617,6 @@ window.DashboardView = {
   loadDashboardMap() {
     const mapElement = document.getElementById('dashboardMap');
     if (!mapElement) {
-      console.warn('⚠️ Dashboard map element not found');
       return;
     }
 
@@ -644,8 +632,6 @@ window.DashboardView = {
 
     const clients = State.data.clients || [];
     const jobs = State.data.jobs || [];
-    
-    console.log(`📊 Dashboard: ${clients.length} clients, ${jobs.length} jobs`);
 
     // Use ISO format YYYY-MM-DD for comparison
     const todayDate = new Date();
@@ -690,7 +676,6 @@ window.DashboardView = {
       let coordinates = geocodeCache[address];
       
       if (!coordinates || coordinates === 'ZERO_RESULTS') {
-        console.log(`⚠️ No cached coordinates for: ${client.name} (${address})`);
         continue;
       }
 
@@ -755,8 +740,6 @@ window.DashboardView = {
         infoWindow.open(map, marker);
       });
     }
-    
-    console.log(`✅ Dashboard map: ${markerCount} markers added`);
     
     } catch (error) {
       console.error('❌ Error loading dashboard map:', error);
