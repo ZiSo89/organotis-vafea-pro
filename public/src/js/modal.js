@@ -56,11 +56,13 @@ const Modal = {
     this.container.classList.add('active');
     this.currentModal = modal;
 
-    // Focus management
-    setTimeout(() => {
-      const firstInput = modal.querySelector('input, select, textarea, button');
-      if (firstInput) firstInput.focus();
-    }, 100);
+    // Focus management - only on desktop (not mobile to avoid keyboard popup)
+    if (!Utils.isMobile()) {
+      setTimeout(() => {
+        const firstInput = modal.querySelector('input, select, textarea, button');
+        if (firstInput) firstInput.focus();
+      }, 100);
+    }
 
     return modal;
   },

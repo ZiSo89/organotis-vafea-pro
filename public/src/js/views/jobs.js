@@ -724,7 +724,9 @@ window.JobsView = {
       document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
       document.querySelector('.tab-btn[data-tab="basic"]').classList.add('active');
       document.getElementById('tab-basic').classList.add('active');
-      document.getElementById('jobClient').focus();
+      if (!Utils.isMobile()) {
+        document.getElementById('jobClient').focus();
+      }
       return;
     }
     
@@ -735,7 +737,9 @@ window.JobsView = {
       document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
       document.querySelector('.tab-btn[data-tab="details"]').classList.add('active');
       document.getElementById('tab-details').classList.add('active');
-      document.getElementById('jobType').focus();
+      if (!Utils.isMobile()) {
+        document.getElementById('jobType').focus();
+      }
       return;
     }
 
@@ -1564,7 +1568,9 @@ window.JobsView = {
           });
         });
 
-        nameInput.focus();
+        if (!Utils.isMobile()) {
+          nameInput.focus();
+        }
       }
     }, 100);
   },

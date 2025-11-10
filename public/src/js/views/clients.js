@@ -401,7 +401,9 @@ window.ClientsView = {
       
       if (nameInput) {
         nameInput.value = client.name;
-        nameInput.focus();
+        if (!Utils.isMobile()) {
+          nameInput.focus();
+        }
       }
       document.getElementById('c_phone').value = client.phone || '';
       document.getElementById('c_email').value = client.email || '';

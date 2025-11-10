@@ -8,13 +8,16 @@ RewriteBase /
 # RewriteCond %{HTTPS} off
 # RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 
+# Allow access to root - redirect to public/
+DirectoryIndex public/index.html
+
 # Block access to sensitive files
-<FilesMatch "(\.htaccess|\.git|composer\.json|package\.json|\.env|config\.php|database\.php)$">
+<FilesMatch "(\.htaccess|\.git|composer\.json|package\.json|\.env|database\.php)$">
     Order Allow,Deny
     Deny from all
 </FilesMatch>
 
-# Block access to directories
+# Block access to directories (except public)
 RedirectMatch 403 ^/\.git
 RedirectMatch 403 ^/config/
 RedirectMatch 403 ^/database/
@@ -44,11 +47,15 @@ RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^api/([a-zA-Z_]+)$ api/$1.php [L,QSA]
 
-# Frontend SPA routing
+# Root access - redirect to public/login.html
+RewriteRule ^$ public/login.html [L]
+
+# Frontend SPA routing - public folder
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteCond %{REQUEST_URI} !^/api/
-RewriteRule ^(.*)$ public/index.html [L]
+RewriteCond %{REQUEST_URI} !^/public/
+RewriteRule ^(.*)$ public/$1 [L]
 
 # UTF-8 Encoding
 AddDefaultCharset UTF-8
@@ -71,10 +78,9 @@ AddDefaultCharset UTF-8
 </IfModule>
 
 # PHP Settings
-<IfModule mod_php8.c>
+<IfModule mod_php.c>
     php_flag display_errors Off
     php_flag log_errors On
-    php_value error_log /var/log/php_errors.log
     php_value upload_max_filesize 10M
     php_value post_max_size 10M
     php_value max_execution_time 30

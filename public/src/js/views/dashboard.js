@@ -5,6 +5,7 @@
 window.DashboardView = {
   statusChart: null, // Store chart instance
   themeToggleHandler: null, // Store theme toggle handler
+  themeChangeListener: null, // Store theme change listener to prevent duplicates
   
   render(container) {
     const stats = this.calculateStats();
@@ -128,10 +129,19 @@ window.DashboardView = {
     // Setup event delegation for activity items
     this.setupActivityListeners(container);
     
-    // Listen for theme changes
-    window.addEventListener('themeChanged', () => {
-      this.renderCharts(this.calculateStats());
-    });
+    // Remove old theme change listener
+    if (this.themeChangeListener) {
+      window.removeEventListener('themeChanged', this.themeChangeListener);
+    }
+    
+    // Listen for theme changes - store reference to remove it later
+    // Only for charts, skip on mobile to prevent loops
+    if (!Utils.isMobile()) {
+      this.themeChangeListener = () => {
+        this.renderCharts(this.calculateStats());
+      };
+      window.addEventListener('themeChanged', this.themeChangeListener);
+    }
     
     // Initialize dashboard map
     this.initDashboardMap();
@@ -680,7 +690,24 @@ window.DashboardView = {
   },
 
   initDashboardMap() {
-    // Wait for Google Maps to load
+    // Skip map on mobile to prevent issues
+    if (Utils.isMobile()) {
+      const mapElement = document.getElementById('dashboardMap');
+      if (mapElement) {
+        mapElement.innerHTML = `
+          <div style="display: flex; align-items: center; justify-content: center; height: 100%; background: var(--bg-secondary); color: var(--text-secondary); padding: 2rem; text-align: center;">
+            <div>
+              <i class="fas fa-map-marked-alt" style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;"></i>
+              <p style="margin: 0;">Χρησιμοποιήστε την καρτέλα "Χάρτης"</p>
+              <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem;">για πλήρη προβολή.</p>
+            </div>
+          </div>
+        `;
+      }
+      return;
+    }
+    
+    // Wait for Google Maps to load (desktop only)
     const waitForGoogleMaps = (attempts = 0) => {
       const maxAttempts = 15; // Wait up to 1.5 seconds
       

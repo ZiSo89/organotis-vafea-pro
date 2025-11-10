@@ -12,14 +12,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     return;
   }
 
-  // Enable transitions after page load
-  setTimeout(() => {
-    document.documentElement.classList.add('transitions-enabled');
-  }, 100);
+  // Log device info for debugging
+  console.log('📱 Device info:', {
+    isMobile: Utils.isMobile(),
+    isTouch: Utils.isTouchDevice(),
+    width: window.innerWidth,
+    userAgent: navigator.userAgent
+  });
 
+  // Initialize theme FIRST (before anything else)
+  Theme.init();
+
+  // Disable transitions during initial load
+  document.documentElement.style.setProperty('--transition-base', '0s');
+  
   // Initialize all systems
   await State.init();
-  Theme.init();
   i18n.init();
   Sidebar.init();
   Keyboard.init();
@@ -35,6 +43,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // Initialize pricing settings
   initializePricingSettings();
+  
+  // Enable transitions after everything is loaded
+  setTimeout(() => {
+    document.documentElement.style.removeProperty('--transition-base');
+    document.documentElement.classList.add('transitions-enabled');
+  }, 200);
   
   console.log('🎨 Οργανωτής Βαφέα - Έτοιμος!');
 });

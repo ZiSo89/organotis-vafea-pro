@@ -2,7 +2,7 @@
 <html lang="el">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self'; 
     script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://cdn.sheetjs.com https://nominatim.openstreetmap.org https://unpkg.com; 
@@ -14,8 +14,17 @@
   ">
   <title>Οργανωτής Βαφέα Pro</title>
   
-  <!-- Favicon -->
-  <link rel="icon" type="image/x-icon" href="assets/icons/favicon.ico">
+  <!-- Favicon & App Icons -->
+  <link rel="icon" type="image/x-icon" href="/public/assets/icons/favicon.ico">
+  <link rel="icon" type="image/png" sizes="192x192" href="/public/assets/icons/icon.png">
+  <link rel="apple-touch-icon" href="/public/assets/icons/icon.png">
+  
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="/public/manifest.json">
+  <meta name="theme-color" content="#1a1a2e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Οργανωτής Βαφέα">
 
   <!-- Font Awesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -26,7 +35,38 @@
   <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/gr.js"></script>
   
   <!-- Google Maps -->
-  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDbO_6f6Y_y_2_2MreK0XTWAIsZw-2AKWQ&libraries=geometry,places&callback=initMap&loading=async" defer></script>
+  <script>
+    // Dummy callback to prevent errors
+    window.initMap = function() {
+      console.log('📍 Google Maps API loaded');
+    };
+    
+    // Load Google Maps on demand (only when needed)
+    window.loadGoogleMaps = function() {
+      return new Promise((resolve, reject) => {
+        // Check if already loaded
+        if (typeof google !== 'undefined' && google.maps) {
+          console.log('📍 Google Maps already loaded');
+          resolve();
+          return;
+        }
+        
+        // Only load on desktop or when explicitly requested
+        if (window.innerWidth <= 768) {
+          console.log('📍 Skipping Google Maps on mobile');
+          reject('Mobile device');
+          return;
+        }
+        
+        const script = document.createElement('script');
+        script.src = 'https://maps.googleapis.com/maps/api/js?key=AIzaSyDbO_6f6Y_y_2_2MreK0XTWAIsZw-2AKWQ&libraries=geometry,places&callback=initMap';
+        script.async = true;
+        script.onload = () => resolve();
+        script.onerror = () => reject('Failed to load');
+        document.head.appendChild(script);
+      });
+    };
+  </script>
   
   <!-- Leaflet Maps (Fallback) - Loaded conditionally via JavaScript -->
   
@@ -85,8 +125,20 @@
   <link rel="stylesheet" href="src/css/animations.css">
   <link rel="stylesheet" href="src/css/responsive.css">
   <link rel="stylesheet" href="src/css/print.css">
+  
+  <!-- Disable Google Save Address Popup -->
+  <style>
+    /* Hide Google's "Save address?" popup */
+    [role="dialog"][aria-label*="Save"],
+    [role="dialog"][aria-label*="address"],
+    .gm-style-iw-chr,
+    .dismissButton {
+      display: none !important;
+      visibility: hidden !important;
+    }
+  </style>
 </head>
-<body data-theme="dark">
+<body>
 
   <!-- Sidebar Navigation -->
   <aside id="sidebar" class="sidebar">
@@ -169,7 +221,6 @@
   <script src="src/js/services/api.js"></script>
   <script src="src/js/config.js"></script>
   <script src="src/js/i18n.js"></script>
-  <script src="src/js/storage.js"></script>
   <script src="src/js/state.js"></script>
   <script src="src/js/utils.js"></script>
   <script src="src/js/validation.js"></script>
@@ -183,7 +234,6 @@
   <script src="src/js/search.js"></script>
   <script src="src/js/table.js"></script>
   <script src="src/js/pagination.js"></script>
-  <script src="src/js/export.js"></script>
   <script src="src/js/models/timesheet.js"></script>
   <script src="src/js/views/dashboard.js"></script>
   <script src="src/js/views/clients.js"></script>

@@ -397,5 +397,28 @@ const Utils = {
   openInMaps(address) {
     const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
     window.open(url, '_blank');
+  },
+
+  /**
+   * Check if user is on mobile device
+   * @returns {boolean} True if mobile device
+   */
+  isMobile() {
+    // Check screen width
+    if (window.innerWidth <= 768) return true;
+    
+    // Check user agent for mobile devices
+    const userAgent = navigator.userAgent || navigator.vendor || window.opera;
+    return /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent.toLowerCase());
+  },
+
+  /**
+   * Check if device has touch screen
+   * @returns {boolean} True if touch device
+   */
+  isTouchDevice() {
+    return ('ontouchstart' in window) || 
+           (navigator.maxTouchPoints > 0) || 
+           (navigator.msMaxTouchPoints > 0);
   }
 };

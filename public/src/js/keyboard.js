@@ -16,13 +16,15 @@ const Keyboard = {
       Toast.success('Δεδομένα αποθηκεύτηκαν');
     },
 
-    // Ctrl/Cmd + F - Focus search
+    // Ctrl/Cmd + F - Focus search (desktop only)
     'ctrl+f': (e) => {
       e.preventDefault();
-      const searchInput = document.getElementById('globalSearch');
-      if (searchInput) {
-        searchInput.focus();
-        searchInput.select();
+      if (!Utils.isMobile()) {
+        const searchInput = document.getElementById('globalSearch');
+        if (searchInput) {
+          searchInput.focus();
+          searchInput.select();
+        }
       }
     },
 

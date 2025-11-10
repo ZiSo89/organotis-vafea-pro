@@ -4,6 +4,7 @@
 
 const Theme = {
   current: 'light',
+  isApplying: false, // Prevent re-entry
 
   init() {
     // Load saved theme
@@ -19,9 +20,16 @@ const Theme = {
   },
 
   apply() {
-    document.body.setAttribute('data-theme', this.current);
+    // Prevent re-entry (infinite loop protection)
+    if (this.isApplying) {
+      console.log('⚠️ Theme.apply() already in progress - skipping');
+      return;
+    }
     
-    // Force repaint for all elements
+    this.isApplying = true;
+    console.log(`🎨 Applying theme: ${this.current}`);
+    
+    document.body.setAttribute('data-theme', this.current);
     document.documentElement.setAttribute('data-theme', this.current);
     
     // Update all theme toggle buttons
@@ -32,6 +40,8 @@ const Theme = {
     
     // Trigger custom event for components to update
     window.dispatchEvent(new CustomEvent('themeChanged', { detail: { theme: this.current } }));
+    
+    this.isApplying = false;
   },
 
   updateToggleButtons() {
@@ -62,17 +72,6 @@ const Theme = {
   toggle() {
     this.current = this.current === 'dark' ? 'light' : 'dark';
     this.apply();
-    
-    // Force immediate repaint
-    document.body.style.display = 'none';
-    document.body.offsetHeight; // Trigger reflow
-    document.body.style.display = '';
-    
-    // Smooth transition animation
-    document.body.classList.add('theme-transitioning');
-    setTimeout(() => {
-      document.body.classList.remove('theme-transitioning');
-    }, 300);
   },
 
   setupToggle() {
