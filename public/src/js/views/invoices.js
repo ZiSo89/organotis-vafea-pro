@@ -2,7 +2,6 @@
    Invoices View - Τιμολόγια
    ======================================== */
 
-console.log('🧾 Loading InvoicesView...');
 
 window.InvoicesView = {
   render(container) {

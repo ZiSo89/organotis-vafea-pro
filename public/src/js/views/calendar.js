@@ -2,7 +2,6 @@
    Calendar View - Ημερολόγιο Εργασιών
    ======================================== */
 
-console.log('📅 Loading CalendarView...');
 
 window.CalendarView = {
   render(container) {

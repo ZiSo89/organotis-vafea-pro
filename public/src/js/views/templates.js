@@ -2,7 +2,6 @@
    Templates View - Πρότυπα Εργασιών
    ======================================== */
 
-console.log('📋 Loading TemplatesView...');
 
 window.TemplatesView = {
   render(container) {

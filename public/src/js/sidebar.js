@@ -17,11 +17,9 @@ const Sidebar = {
 
   setupToggle() {
     const toggleBtn = document.getElementById('sidebarToggle');
-    console.log('🔘 Sidebar toggle button:', toggleBtn);
     
     if (toggleBtn) {
       toggleBtn.addEventListener('click', () => {
-        console.log('🔄 Toggle clicked!');
         this.toggle();
         this.updateToggleIcon(toggleBtn);
       });
@@ -46,15 +44,11 @@ const Sidebar = {
   },
 
   toggle() {
-    console.log('📱 Is mobile:', this.isMobile);
-    
     if (this.isMobile) {
       this.element.classList.toggle('open');
-      console.log('📱 Mobile: toggled open class');
     } else {
       this.isCollapsed = !this.isCollapsed;
       this.element.classList.toggle('collapsed');
-      console.log('💻 Desktop: toggled collapsed class, isCollapsed:', this.isCollapsed);
     }
   },
 
@@ -91,11 +85,9 @@ const Sidebar = {
 
   setupMobileMenu() {
     const mobileBtn = document.getElementById('mobileMenuBtn');
-    console.log('📱 Mobile menu button:', mobileBtn);
     
     if (mobileBtn) {
       mobileBtn.addEventListener('click', () => {
-        console.log('🍔 Hamburger clicked!');
         this.toggle();
         // Update icon after toggle
         const toggleBtn = document.getElementById('sidebarToggle');

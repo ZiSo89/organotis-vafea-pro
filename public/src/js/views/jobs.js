@@ -610,27 +610,15 @@ window.JobsView = {
 
   autoFillClientData() {
     const clientId = document.getElementById('jobClient').value;
-    console.log('🔍 autoFillClientData - Selected clientId:', clientId, 'Type:', typeof clientId);
-    
     const client = State.data.clients.find(c => Number(c.id) === Number(clientId));
-    console.log('🔍 Found client:', client);
 
     if (client) {
-      console.log('✅ Auto-filling client data:', {
-        phone: client.phone,
-        email: client.email,
-        address: client.address,
-        city: client.city,
-        postal: client.postalCode || client.postal
-      });
-      
       document.getElementById('jobPhone').value = client.phone || '';
       document.getElementById('jobEmail').value = client.email || '';
       document.getElementById('jobAddress').value = client.address || '';
       document.getElementById('jobCity').value = client.city || '';
       document.getElementById('jobPostal').value = client.postalCode || client.postal || '';
     } else {
-      console.log('⚠️ No client found, clearing fields');
       document.getElementById('jobPhone').value = '';
       document.getElementById('jobEmail').value = '';
       document.getElementById('jobAddress').value = '';
@@ -705,21 +693,11 @@ window.JobsView = {
   async saveJob(e) {
     e.preventDefault();
     
-    console.log('💾 saveJob started');
-    console.log('📝 Current edit:', this.currentEdit);
-    
     // Manual validation check for required fields
     const jobClient = document.getElementById('jobClient').value;
     const jobType = document.getElementById('jobType').value;
     const jobDate = document.getElementById('jobDate').value;
     const jobStatus = document.getElementById('jobStatus').value;
-    
-    console.log('📋 Required fields check:', {
-      jobClient,
-      jobType,
-      jobDate,
-      jobStatus
-    });
     
     if (!jobClient) {
       Toast.error('Παρακαλώ επιλέξτε πελάτη');
@@ -754,14 +732,6 @@ window.JobsView = {
 
     const billingHours = parseFloat(document.getElementById('jobBillingHours').value) || 0;
     const billingRate = parseFloat(document.getElementById('jobBillingRate').value) || 50;
-    
-    console.log('📋 Form values:', {
-      jobClient,
-      jobType,
-      jobStatus,
-      billingHours,
-      billingRate
-    });
 
     const jobData = {
       date: Utils.greekToDate(jobDate),
@@ -779,12 +749,9 @@ window.JobsView = {
       vat: vatPercent,
       costPerKm: costPerKm,
       notes: document.getElementById('jobNotes').value,
-      // Add assigned workers and paints
       assignedWorkers: [...this.assignedWorkers],
       paints: [...this.assignedPaints]
     };
-    
-    console.log('📦 Job data prepared:', jobData);
 
     // If editing, add the ID
     if (this.currentEdit) {
@@ -812,15 +779,8 @@ window.JobsView = {
     jobData.totalExpenses = totalExpenses;
     jobData.billingAmount = billingAmount; // Billing amount (revenue)
     jobData.vatAmount = vatAmount;
-    jobData.totalCost = totalCharge; // Total charge to client
-    jobData.profit = profit; // Net profit
-    
-    console.log('💰 Calculated costs:', {
-      laborCost,
-      totalExpenses,
-      billingAmount,
-      profit
-    });
+    jobData.totalCost = totalCharge;
+    jobData.profit = profit;
 
     // Validate
     const validation = Validation.validateJob(jobData);
@@ -830,25 +790,18 @@ window.JobsView = {
       return;
     }
 
-    console.log('✅ Validation passed');
-
     try {
       // Save or update
       if (this.currentEdit) {
-        console.log('🔄 Updating job:', jobData.id);
         await State.update('jobs', jobData.id, jobData);
         Toast.success('Η εργασία ενημερώθηκε!');
       } else {
-        console.log('➕ Creating new job');
-        const result = await State.create('jobs', jobData);
-        console.log('✅ Job created with result:', result);
+        await State.create('jobs', jobData);
         Toast.success('Η εργασία δημιουργήθηκε!');
       }
 
       this.cancelForm();
-      // Refresh the table to show the new/updated job
       this.refreshTable();
-      console.log('✅ Job saved successfully');
     } catch (error) {
       console.error('❌ Error saving job:', error);
       Toast.error('Σφάλμα κατά την αποθήκευση: ' + error.message);
@@ -1176,33 +1129,25 @@ window.JobsView = {
   filterJobs() {
     const searchTerm = document.getElementById('jobSearch').value.toLowerCase();
     const statusFilter = document.getElementById('statusFilter').value;
-    
-    console.log('🔍 filterJobs - searchTerm:', searchTerm, 'statusFilter:', statusFilter);
 
     let jobs = State.data.jobs;
-    console.log('📋 Total jobs before filter:', jobs.length);
 
     // Filter by search
     if (searchTerm) {
       jobs = jobs.filter(job => {
         const clientName = this.getClientName(job.clientId).toLowerCase();
-        const jobIdStr = String(job.id).toLowerCase(); // Convert ID to string
+        const jobIdStr = String(job.id).toLowerCase();
         const jobType = (job.type || '').toLowerCase();
         
-        const matches = jobIdStr.includes(searchTerm) ||
+        return jobIdStr.includes(searchTerm) ||
                clientName.includes(searchTerm) ||
                jobType.includes(searchTerm);
-        
-        console.log('🔍 Job', job.id, '- ID:', jobIdStr, 'Client:', clientName, 'Type:', jobType, 'Matches:', matches);
-        return matches;
       });
-      console.log('📋 Jobs after search filter:', jobs.length);
     }
 
     // Filter by status
     if (statusFilter) {
       jobs = jobs.filter(job => job.status === statusFilter);
-      console.log('📋 Jobs after status filter:', jobs.length);
     }
 
     // Sort by date - newest first
@@ -1314,8 +1259,6 @@ window.JobsView = {
 
   addWorkerToJob(workerId, hours) {
     const workers = State.read('workers') || [];
-    console.log('🔍 addWorkerToJob - workerId:', workerId, 'type:', typeof workerId);
-    console.log('👥 Available workers:', workers.map(w => ({ id: w.id, name: w.name, type: typeof w.id })));
     
     // Convert workerId to number for comparison
     const numericWorkerId = Number(workerId);

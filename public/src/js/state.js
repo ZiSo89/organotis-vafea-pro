@@ -37,7 +37,6 @@ const State = {
     try {
       // Load data from API
       this.data = await this.loadFromAPI();
-      console.log('✅ Data loaded from API:', this.data);
       
       // Setup auto-save (every 30 seconds - but now it's just for indicators)
       this.setupAutoSave();
@@ -400,7 +399,6 @@ const State = {
   // Refresh Dashboard if currently viewing it
   refreshDashboardIfNeeded() {
     if (this.currentSection === 'dashboard' && window.DashboardView) {
-      console.log('🔄 Refreshing Dashboard...');
       window.DashboardView.render();
     }
   }

@@ -2,15 +2,12 @@
    Settings View - Ρυθμίσεις
    ======================================== */
 
-console.log('⚙️ Loading SettingsView...');
-
 window.SettingsView = {
   // Event handlers stored to prevent duplicates
   companyFormHandler: null,
   pricingFormHandler: null,
   
   saveCompany(e) {
-    console.log('💾 saveCompany called!', e);
     e.preventDefault();
     
     const companyData = {
@@ -120,9 +117,6 @@ window.SettingsView = {
   },
 
   render(container) {
-    console.log('🎨 SettingsView.render called');
-    console.log('🔍 SettingsView object:', SettingsView);
-    console.log('🔍 saveCompany exists?', typeof SettingsView.saveCompany);
     
     container.innerHTML = `
       <div class="view-header">

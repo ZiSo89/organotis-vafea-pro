@@ -12,14 +12,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     return;
   }
 
-  // Log device info for debugging
-  console.log('📱 Device info:', {
-    isMobile: Utils.isMobile(),
-    isTouch: Utils.isTouchDevice(),
-    width: window.innerWidth,
-    userAgent: navigator.userAgent
-  });
-
   // Initialize theme FIRST (before anything else)
   Theme.init();
 
@@ -49,8 +41,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.documentElement.style.removeProperty('--transition-base');
     document.documentElement.classList.add('transitions-enabled');
   }, 200);
-  
-  console.log('🎨 Οργανωτής Βαφέα - Έτοιμος!');
 });
 
 function initializePricingSettings() {
@@ -65,7 +55,6 @@ function initializePricingSettings() {
       travelCost: 0.5
     };
     localStorage.setItem('pricing_settings', JSON.stringify(defaultPricing));
-    console.log('💰 Default pricing settings initialized');
   }
 }
 

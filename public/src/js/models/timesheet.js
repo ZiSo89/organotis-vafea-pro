@@ -2,7 +2,6 @@
    Timesheet Model - Διαχείριση Ωρών Εργασίας
    ======================================== */
 
-console.log('⏰ Loading Timesheet Model...');
 
 window.Timesheet = {
   

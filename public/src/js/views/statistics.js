@@ -2,7 +2,6 @@
    Statistics View - Στατιστικά & Αναφορές
    ======================================== */
 
-console.log('📊 Loading StatisticsView...');
 
 window.StatisticsView = {
   render(container) {

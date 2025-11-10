@@ -2,7 +2,6 @@
    Offers View - Προσφορές
    ======================================== */
 
-console.log('📄 Loading OffersView...');
 
 window.OffersView = {
   render(container) {

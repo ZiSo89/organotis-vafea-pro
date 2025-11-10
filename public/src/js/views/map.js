@@ -2,8 +2,6 @@
    Map View - Χάρτης Πελατών & Επισκέψεων
    ======================================== */
 
-console.log('🗺️ Loading MapView...');
-
 window.MapView = {
   map: null,
   isLeaflet: false,
@@ -126,15 +124,13 @@ window.MapView = {
   waitForGoogleMaps(attempts = 0) {
     // Prevent multiple simultaneous initialization attempts
     if (this.isInitializing) {
-      console.log('⏳ Map initialization already in progress...');
       return;
     }
     
-    const maxAttempts = 20; // Wait up to 4 seconds for Google Maps
+    const maxAttempts = 20;
     
     // Check if Google Maps is already loaded
     if (typeof google !== 'undefined' && google.maps && google.maps.Map) {
-      console.log('✅ Using Google Maps');
       this.isInitializing = true;
       setTimeout(() => {
         this.initMap();
@@ -143,21 +139,17 @@ window.MapView = {
       return;
     }
     
-    // First attempt: Try to load Google Maps (if not mobile)
+    // First attempt: Try to load Google Maps
     if (attempts === 0 && typeof loadGoogleMaps === 'function') {
       this.isInitializing = true;
-      console.log('📍 Loading Google Maps API...');
       loadGoogleMaps()
         .then(() => {
-          console.log('✅ Google Maps loaded successfully');
           setTimeout(() => {
             this.initMap();
             this.isInitializing = false;
           }, 100);
         })
         .catch((err) => {
-          console.log('⚠️ Failed to load Google Maps:', err);
-          console.log('🗺️ Falling back to Leaflet Maps (OpenStreetMap)');
           this.initLeafletMap();
           this.isInitializing = false;
         });
@@ -169,16 +161,12 @@ window.MapView = {
       setTimeout(() => this.waitForGoogleMaps(attempts + 1), 200);
     } else {
       // Timeout - fallback to Leaflet
-      console.log('🗺️ Google Maps timeout - Using Leaflet Maps (OpenStreetMap)');
       this.isInitializing = true;
       this.initLeafletMap();
-      // isInitializing will be reset in initLeafletMap
     }
   },
 
   initLeafletMap() {
-    console.log('✅ Initializing Leaflet map...');
-
     const mapElement = document.getElementById('map');
     if (!mapElement) {
       console.error('❌ Map element not found!');
@@ -188,7 +176,6 @@ window.MapView = {
 
     // Load Leaflet if not already loaded
     if (typeof L === 'undefined') {
-      console.log('📦 Loading Leaflet library...');
       this.loadLeafletLibrary().then(() => {
         this.createLeafletMap();
       }).catch(error => {
@@ -224,9 +211,6 @@ window.MapView = {
       
       // Destroy existing map if it exists
       if (this.map) {
-        console.log('🗑️ Destroying existing map...');
-        
-        // Clear all markers first
         this.clearMarkers();
         
         if (this.isLeaflet && this.map.remove) {
@@ -257,7 +241,6 @@ window.MapView = {
             maxZoom: 19
           }).addTo(this.map);
 
-          console.log('✅ Leaflet map created successfully');
           this.loadMap();
           this.isInitializing = false;
         } catch (innerError) {
@@ -273,8 +256,6 @@ window.MapView = {
   },
 
   initMap() {
-    console.log('✅ Initializing map...');
-
     const mapElement = document.getElementById('map');
     if (!mapElement) {
       console.error('❌ Map element not found!');
@@ -283,7 +264,6 @@ window.MapView = {
     }
 
     // Check if we need to create a new map instance
-    // If map exists but the DOM element is different, we need to recreate
     let needsNewInstance = !this.map || this.isLeaflet;
     
     if (this.map && !this.isLeaflet && typeof google !== 'undefined' && google.maps) {
@@ -291,16 +271,13 @@ window.MapView = {
       try {
         const currentMapDiv = this.map.getDiv();
         if (!currentMapDiv || !document.body.contains(currentMapDiv)) {
-          console.log('🔄 Map DOM element no longer exists, recreating...');
           needsNewInstance = true;
         } else {
-          console.log('♻️ Reusing existing Google Maps instance');
           this.loadMap();
           this.isInitializing = false;
           return;
         }
       } catch (e) {
-        console.log('🔄 Error checking map instance, recreating...');
         needsNewInstance = true;
       }
     }
@@ -335,8 +312,6 @@ window.MapView = {
     const clients = State.data.clients || [];
     const jobs = State.data.jobs || [];
     
-    console.log(`🔍 Total clients: ${clients.length}, Total jobs: ${jobs.length}`);
-    
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const nextWeek = new Date(today);
@@ -357,26 +332,20 @@ window.MapView = {
       return visitDate.getTime() === today.getTime();
     });
 
-    console.log(`📅 Upcoming jobs: ${upcomingJobs.length}, Today's jobs: ${todayJobs.length}`);
-
     let addedMarkers = 0;
 
     // Add client markers (blue)
     if (document.getElementById('showClients').checked) {
-      console.log('📍 Adding client markers...');
       for (const client of clients) {
         if (client.address && client.city) {
           await this.addMarker(client, 'clients', '#2196F3');
           addedMarkers++;
-        } else {
-          console.log(`⚠️ Skipping client ${client.name} - missing address or city`);
         }
       }
     }
 
     // Add upcoming visit markers (green)
     if (document.getElementById('showUpcoming').checked) {
-      console.log('📗 Adding upcoming visit markers...');
       for (const job of upcomingJobs) {
         const client = clients.find(c => c.id === job.clientId);
         if (client && client.address && client.city) {
@@ -388,7 +357,6 @@ window.MapView = {
 
     // Add today's visit markers (red)
     if (document.getElementById('showToday').checked) {
-      console.log('📕 Adding today\'s visit markers...');
       for (const job of todayJobs) {
         const client = clients.find(c => c.id === job.clientId);
         if (client && client.address && client.city) {
@@ -397,8 +365,6 @@ window.MapView = {
         }
       }
     }
-
-    console.log(`✅ Total markers added: ${addedMarkers}`);
 
     // Update request count
     document.getElementById('geocodeCount').textContent = 
@@ -416,7 +382,6 @@ window.MapView = {
     
     if (!location || location === 'ZERO_RESULTS') {
       // Geocode if not in cache
-      console.log(`🔍 Geocoding: ${address}`);
       location = await this.geocodeAddress(address);
       
       // Save to cache
@@ -425,8 +390,6 @@ window.MapView = {
       
       // Small delay to respect Nominatim usage policy (max 1 request per second)
       await new Promise(resolve => setTimeout(resolve, 1000));
-    } else {
-      console.log(`✅ Using cached location for: ${client.name}`);
     }
 
     if (!location || location === 'ZERO_RESULTS') {
@@ -563,8 +526,6 @@ window.MapView = {
       for (const query of queries) {
         const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1&countrycodes=gr&addressdetails=1`;
         
-        console.log(`📡 Fetching geocode for: ${query}`);
-        
         const response = await fetch(url, {
           headers: {
             'User-Agent': 'Painter-Organizer-App/1.0'
@@ -579,7 +540,6 @@ window.MapView = {
         const data = await response.json();
         
         if (data && data.length > 0) {
-          console.log(`✅ Geocoded: ${query} -> ${data[0].display_name}`);
           return {
             lat: parseFloat(data[0].lat),
             lng: parseFloat(data[0].lon)
@@ -689,13 +649,11 @@ window.MapView = {
 
 // Global callback for Google Maps
 window.initMap = function() {
-  console.log('✅ Google Maps API loaded');
   window.googleMapsLoaded = true;
 };
 
 // Global helper functions for map popup buttons
 window.openJobFromMap = function(jobId) {
-  console.log('📋 Opening job from map:', jobId);
   if (window.JobsView && typeof window.JobsView.viewJob === 'function') {
     window.JobsView.viewJob(jobId);
   } else {
@@ -704,7 +662,6 @@ window.openJobFromMap = function(jobId) {
 };
 
 window.openClientFromMap = function(clientId) {
-  console.log('👤 Opening client from map:', clientId);
   if (window.ClientsView && typeof window.ClientsView.viewClient === 'function') {
     window.ClientsView.viewClient(clientId);
   } else {

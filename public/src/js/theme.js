@@ -22,12 +22,10 @@ const Theme = {
   apply() {
     // Prevent re-entry (infinite loop protection)
     if (this.isApplying) {
-      console.log('⚠️ Theme.apply() already in progress - skipping');
       return;
     }
     
     this.isApplying = true;
-    console.log(`🎨 Applying theme: ${this.current}`);
     
     document.body.setAttribute('data-theme', this.current);
     document.documentElement.setAttribute('data-theme', this.current);
