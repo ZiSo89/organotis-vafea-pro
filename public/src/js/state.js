@@ -41,7 +41,6 @@ const State = {
       
       // Setup auto-save (every 30 seconds - but now it's just for indicators)
       this.setupAutoSave();
-      this.detectOffline();
     } catch (error) {
       console.error('❌ Failed to load data from API:', error);
       Toast.error('Σφάλμα φόρτωσης δεδομένων');
@@ -101,24 +100,6 @@ const State = {
         indicator.classList.remove('saved');
       }, 2000);
     }
-  },
-
-  // Offline Detection
-  detectOffline() {
-    const updateStatus = () => {
-      const indicator = document.getElementById('offlineIndicator');
-      if (indicator) {
-        if (!navigator.onLine) {
-          indicator.classList.remove('hidden');
-        } else {
-          indicator.classList.add('hidden');
-        }
-      }
-    };
-
-    window.addEventListener('online', updateStatus);
-    window.addEventListener('offline', updateStatus);
-    updateStatus();
   },
 
   // History Management για Undo/Redo
