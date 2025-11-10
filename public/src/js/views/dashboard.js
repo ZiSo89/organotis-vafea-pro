@@ -690,8 +690,43 @@ window.DashboardView = {
   },
 
   initDashboardMap() {
-    // Skip map on mobile to prevent issues
+    // Use Leaflet for mobile
     if (Utils.isMobile()) {
+      this.loadDashboardMapLeaflet();
+      return;
+    }
+    
+    // Check if Google Maps is already loaded
+    if (typeof google !== 'undefined' && google.maps && google.maps.Map) {
+      // Already loaded, render map immediately
+      setTimeout(() => this.loadDashboardMap(), 100);
+      return;
+    }
+    
+    // Load Google Maps API
+    if (typeof window.loadGoogleMaps === 'function') {
+      window.loadGoogleMaps()
+        .then(() => {
+          console.log('✅ Google Maps loaded for dashboard');
+          setTimeout(() => this.loadDashboardMap(), 100);
+        })
+        .catch(err => {
+          console.warn('⚠️ Google Maps not available for dashboard:', err);
+          const mapElement = document.getElementById('dashboardMap');
+          if (mapElement) {
+            mapElement.innerHTML = `
+              <div style="display: flex; align-items: center; justify-content: center; height: 100%; background: var(--bg-secondary); color: var(--text-secondary); padding: 2rem; text-align: center;">
+                <div>
+                  <i class="fas fa-map-marked-alt" style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;"></i>
+                  <p style="margin: 0;">Ο χάρτης δεν μπόρεσε να φορτώσει.</p>
+                  <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem;">Χρησιμοποιήστε την καρτέλα "Χάρτης" για πλήρη προβολή.</p>
+                </div>
+              </div>
+            `;
+          }
+        });
+    } else {
+      // Fallback if loadGoogleMaps is not available
       const mapElement = document.getElementById('dashboardMap');
       if (mapElement) {
         mapElement.innerHTML = `
@@ -704,35 +739,7 @@ window.DashboardView = {
           </div>
         `;
       }
-      return;
     }
-    
-    // Wait for Google Maps to load (desktop only)
-    const waitForGoogleMaps = (attempts = 0) => {
-      const maxAttempts = 15; // Wait up to 1.5 seconds
-      
-      if (typeof google !== 'undefined' && google.maps && google.maps.Map) {
-        // Add delay to ensure DOM is ready
-        setTimeout(() => this.loadDashboardMap(), 100);
-      } else if (attempts < maxAttempts) {
-        setTimeout(() => waitForGoogleMaps(attempts + 1), 100);
-      } else {
-        // Show fallback message if Google Maps doesn't load
-        const mapElement = document.getElementById('dashboardMap');
-        if (mapElement) {
-          mapElement.innerHTML = `
-            <div style="display: flex; align-items: center; justify-content: center; height: 100%; background: var(--bg-secondary); color: var(--text-secondary); padding: 2rem; text-align: center;">
-              <div>
-                <i class="fas fa-map-marked-alt" style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;"></i>
-                <p style="margin: 0;">Ο χάρτης δεν μπόρεσε να φορτώσει.</p>
-                <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem;">Χρησιμοποιήστε την καρτέλα "Χάρτης" για πλήρη προβολή.</p>
-              </div>
-            </div>
-          `;
-        }
-      }
-    };
-    waitForGoogleMaps();
   },
 
   loadDashboardMap() {
@@ -864,6 +871,189 @@ window.DashboardView = {
     
     } catch (error) {
       console.error('❌ Error loading dashboard map:', error);
+    }
+  },
+
+  loadDashboardMapLeaflet() {
+    const mapElement = document.getElementById('dashboardMap');
+    if (!mapElement) return;
+
+    // Load Leaflet if not already loaded
+    if (typeof L === 'undefined') {
+      // Load Leaflet CSS
+      if (!document.querySelector('link[href*="leaflet"]')) {
+        const leafletCSS = document.createElement('link');
+        leafletCSS.rel = 'stylesheet';
+        leafletCSS.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+        document.head.appendChild(leafletCSS);
+      }
+
+      // Load Leaflet JS
+      const leafletScript = document.createElement('script');
+      leafletScript.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      leafletScript.onload = () => {
+        console.log('✅ Leaflet loaded for dashboard');
+        this.renderLeafletMap();
+      };
+      leafletScript.onerror = () => {
+        console.error('❌ Failed to load Leaflet');
+        mapElement.innerHTML = `
+          <div style="display: flex; align-items: center; justify-content: center; height: 100%; background: var(--bg-secondary); color: var(--text-secondary); padding: 2rem; text-align: center;">
+            <div>
+              <i class="fas fa-map-marked-alt" style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;"></i>
+              <p style="margin: 0;">Ο χάρτης δεν μπόρεσε να φορτώσει.</p>
+            </div>
+          </div>
+        `;
+      };
+      document.head.appendChild(leafletScript);
+    } else {
+      this.renderLeafletMap();
+    }
+  },
+
+  renderLeafletMap() {
+    const mapElement = document.getElementById('dashboardMap');
+    if (!mapElement) return;
+
+    try {
+      // Clear existing content
+      mapElement.innerHTML = '';
+
+      // Create Leaflet map
+      const map = L.map(mapElement, {
+        zoomControl: true,
+        attributionControl: false
+      }).setView([40.8475, 25.8747], 13);
+
+      // Add OpenStreetMap tiles
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap'
+      }).addTo(map);
+
+      const clients = State.data.clients || [];
+      const jobs = State.data.jobs || [];
+
+      // Use ISO format for date comparison
+      const todayDate = new Date();
+      const today = todayDate.toISOString().split('T')[0];
+      const nextWeekDate = new Date();
+      nextWeekDate.setDate(nextWeekDate.getDate() + 7);
+      const nextWeek = nextWeekDate.toISOString().split('T')[0];
+
+      // Load geocode cache
+      let geocodeCache = {};
+      try {
+        const cached = localStorage.getItem('geocode_cache');
+        if (cached) {
+          geocodeCache = JSON.parse(cached);
+        }
+      } catch (e) {
+        console.error('Error loading geocode cache:', e);
+      }
+
+      // Create client-job map
+      const clientJobMap = new Map();
+      jobs.forEach(job => {
+        const client = clients.find(c => c.id === job.clientId);
+        if (!client || !client.address || !client.city) return;
+        
+        if (!clientJobMap.has(job.clientId)) {
+          clientJobMap.set(job.clientId, []);
+        }
+        clientJobMap.get(job.clientId).push(job);
+      });
+
+      let markerCount = 0;
+      const bounds = [];
+
+      // Add markers
+      for (const [clientId, clientJobs] of clientJobMap) {
+        const client = clients.find(c => c.id === clientId);
+        if (!client || !client.address || !client.city) continue;
+
+        const address = `${client.address}, ${client.city}, ${client.postal || ''} Greece`;
+        let coordinates = geocodeCache[address];
+        
+        if (!coordinates || coordinates === 'ZERO_RESULTS') continue;
+
+        // Determine marker color based on next visit
+        let color, label, priority;
+        const nextVisitJob = clientJobs.find(j => j.nextVisit);
+        
+        if (nextVisitJob && nextVisitJob.nextVisit === today) {
+          color = '#dc3545'; // Red
+          label = 'Σημερινή Επίσκεψη';
+          priority = 3;
+        } else if (nextVisitJob && nextVisitJob.nextVisit > today && nextVisitJob.nextVisit <= nextWeek) {
+          color = '#28a745'; // Green
+          label = 'Προγραμματισμένη Επίσκεψη';
+          priority = 2;
+        } else {
+          color = '#007bff'; // Blue
+          label = 'Πελάτης';
+          priority = 1;
+        }
+
+        // Create custom icon
+        const icon = L.divIcon({
+          className: 'custom-leaflet-marker',
+          html: `<div style="
+            width: ${priority === 3 ? 20 : priority === 2 ? 18 : 16}px;
+            height: ${priority === 3 ? 20 : priority === 2 ? 18 : 16}px;
+            background-color: ${color};
+            border: 2px solid white;
+            border-radius: 50%;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+          "></div>`,
+          iconSize: [20, 20],
+          iconAnchor: [10, 10]
+        });
+
+        // Add marker
+        const marker = L.marker([coordinates.lat, coordinates.lng], { icon }).addTo(map);
+        bounds.push([coordinates.lat, coordinates.lng]);
+        markerCount++;
+
+        // Build job list
+        const jobList = clientJobs.map(job => 
+          `<div style="margin: 5px 0; padding: 5px; background: #f8f9fa; border-radius: 4px;">
+            <strong>${job.id}</strong> - ${job.status}<br>
+            ${job.nextVisit ? `Επόμενη: ${Utils.dateToGreek(job.nextVisit)}` : 'Χωρίς προγραμματισμό'}
+          </div>`
+        ).join('');
+
+        // Bind popup
+        marker.bindPopup(`
+          <div style="padding: 8px; max-width: 250px;">
+            <strong style="color: ${color};">${label}</strong><br>
+            <strong>${client.name}</strong><br>
+            ${client.address || ''}<br>
+            <div style="margin-top: 8px; max-height: 150px; overflow-y: auto;">
+              <small><strong>Εργασίες (${clientJobs.length}):</strong></small>
+              ${jobList}
+            </div>
+          </div>
+        `);
+      }
+
+      // Fit map to show all markers
+      if (bounds.length > 0) {
+        map.fitBounds(bounds, { padding: [20, 20] });
+      }
+
+      console.log(`📍 Dashboard map loaded with ${markerCount} markers (Leaflet)`);
+    } catch (error) {
+      console.error('❌ Error loading Leaflet dashboard map:', error);
+      mapElement.innerHTML = `
+        <div style="display: flex; align-items: center; justify-content: center; height: 100%; background: var(--bg-secondary); color: var(--text-secondary); padding: 2rem; text-align: center;">
+          <div>
+            <i class="fas fa-map-marked-alt" style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;"></i>
+            <p style="margin: 0;">Σφάλμα φόρτωσης χάρτη.</p>
+          </div>
+        </div>
+      `;
     }
   }
 };

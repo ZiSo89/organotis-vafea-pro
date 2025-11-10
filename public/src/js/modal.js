@@ -206,5 +206,37 @@ const Modal = {
     cancelBtn.onclick = () => {
       this.close();
     };
+  },
+  
+  // Alias for compatibility
+  show(options) {
+    // Convert buttons format if needed
+    if (options.buttons) {
+      const footer = options.buttons.map(btn => 
+        `<button type="button" class="btn ${btn.className || 'btn-secondary'}" data-btn="${btn.text}">${btn.text}</button>`
+      ).join('');
+      
+      const originalOptions = { ...options, footer };
+      delete originalOptions.buttons;
+      
+      this.open(originalOptions);
+      
+      // Attach button handlers
+      options.buttons.forEach(btn => {
+        const btnEl = this.currentModal.querySelector(`[data-btn="${btn.text}"]`);
+        if (btnEl && btn.onClick) {
+          btnEl.onclick = (e) => {
+            e.preventDefault();
+            btn.onClick(e);
+          };
+        }
+      });
+    } else {
+      this.open(options);
+    }
+  },
+  
+  hide() {
+    this.close();
   }
 };

@@ -83,6 +83,68 @@ class APIService {
         }
     }
 
+    // ==================== GENERIC HTTP METHODS ====================
+
+    /**
+     * GET request
+     */
+    async get(endpoint) {
+        // Remove leading slash if endpoint starts with /api to avoid double /api/api
+        const cleanEndpoint = endpoint.startsWith('/api') ? endpoint.substring(4) : endpoint;
+        const url = endpoint.startsWith('http') ? endpoint : `${this.baseURL}${cleanEndpoint}`;
+        const response = await fetch(url, {
+            credentials: 'include'
+        });
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return await response.json();
+    }
+
+    /**
+     * POST request
+     */
+    async post(endpoint, data) {
+        const cleanEndpoint = endpoint.startsWith('/api') ? endpoint.substring(4) : endpoint;
+        const url = endpoint.startsWith('http') ? endpoint : `${this.baseURL}${cleanEndpoint}`;
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(data)
+        });
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return await response.json();
+    }
+
+    /**
+     * PUT request
+     */
+    async put(endpoint, data) {
+        const cleanEndpoint = endpoint.startsWith('/api') ? endpoint.substring(4) : endpoint;
+        const url = endpoint.startsWith('http') ? endpoint : `${this.baseURL}${cleanEndpoint}`;
+        const response = await fetch(url, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(data)
+        });
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return await response.json();
+    }
+
+    /**
+     * DELETE request
+     */
+    async delete(endpoint) {
+        const cleanEndpoint = endpoint.startsWith('/api') ? endpoint.substring(4) : endpoint;
+        const url = endpoint.startsWith('http') ? endpoint : `${this.baseURL}${cleanEndpoint}`;
+        const response = await fetch(url, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return await response.json();
+    }
+
     // ==================== CLIENTS ====================
 
     async getClients() {

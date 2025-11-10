@@ -13,7 +13,10 @@ const Router = {
     // Handle hash changes
     window.addEventListener('hashchange', () => {
       const hash = window.location.hash.slice(1) || 'dashboard';
-      this.navigate(hash);
+      // Αποφυγή re-navigation αν είμαστε ήδη εκεί
+      if (hash !== this.currentRoute) {
+        this.navigate(hash);
+      }
     });
 
     // Initial route
@@ -39,23 +42,38 @@ const Router = {
   },
 
   navigate(route) {
-    const view = this.routes[route];
+    // Parse route and query parameters
+    const [routeName, queryString] = route.split('?');
+    const params = {};
+    
+    if (queryString) {
+      queryString.split('&').forEach(param => {
+        const [key, value] = param.split('=');
+        params[key] = decodeURIComponent(value);
+      });
+    }
+    
+    const view = this.routes[routeName];
     
     if (!view) {
-      console.error(`❌ Route not found: ${route}`);
+      console.error(`❌ Route not found: ${routeName}`);
       this.navigate('dashboard');
       return;
     }
 
-    // Update state
-    State.currentSection = route;
-    this.currentRoute = route;
+    console.log(`🔹 Navigating to: ${routeName}`, params);
 
-    // Update URL
-    window.location.hash = route;
+    // Update state
+    State.currentSection = routeName;
+    this.currentRoute = route; // Store full route with params
+
+    // Update URL (keep query params) - Only if different
+    if (window.location.hash.slice(1) !== route) {
+      window.location.hash = route;
+    }
 
     // Update sidebar
-    Sidebar.setActive(route);
+    Sidebar.setActive(routeName);
 
     // Render view
     const contentArea = document.getElementById('contentArea');
@@ -63,7 +81,7 @@ const Router = {
       contentArea.innerHTML = '';
       
       if (view.render && typeof view.render === 'function') {
-        view.render(contentArea);
+        view.render(contentArea, params); // Pass params to view
       } else {
         console.error(`❌ view.render is not a function!`, view);
       }

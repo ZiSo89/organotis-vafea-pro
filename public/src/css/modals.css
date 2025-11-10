@@ -66,12 +66,6 @@
   line-height: 1;
 }
 
-.modal-close:hover {
-  color: var(--color-text);
-  background: var(--color-hover);
-  transform: none;
-}
-
 .modal-body {
   padding: var(--spacing-lg);
   overflow-y: auto;
@@ -118,11 +112,69 @@
 }
 
 @media (max-width: 768px) {
+  .modal-container {
+    padding: 0;
+  }
+  
   .modal {
     max-width: 100%;
-    margin: var(--spacing-md);
+    max-height: 100vh;
+    border-radius: 0;
+    margin: 0;
+  }
+  
+  .modal-header {
+    padding: var(--spacing-md);
+  }
+  
+  .modal-title {
+    font-size: 1.1rem;
+  }
+  
+  .modal-body {
+    padding: var(--spacing-md);
+  }
+  
+  .modal-footer {
+    padding: var(--spacing-md);
+    flex-direction: column-reverse;
+  }
+  
+  .modal-footer button {
+    width: 100%;
+  }
+  
+  .detail-section {
+    padding: var(--spacing-md);
+  }
+  
+  .detail-section h4 {
+    font-size: 1rem;
   }
 }
+
+@media (max-width: 640px) {
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .detail-item.span-2 {
+    grid-column: span 1;
+  }
+  
+  .modal-header {
+    padding: var(--spacing-sm) var(--spacing-md);
+  }
+  
+  .modal-body {
+    padding: var(--spacing-sm) var(--spacing-md);
+  }
+  
+  .modal-footer {
+    padding: var(--spacing-sm) var(--spacing-md);
+  }
+}
+
 
 /* Job Details Styling in Modal */
 .job-details {

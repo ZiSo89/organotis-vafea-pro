@@ -42,6 +42,9 @@
 .content-area {
   padding: var(--spacing-xl);
   max-width: 1600px;
+  width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 .dashboard h1 {

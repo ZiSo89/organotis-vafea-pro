@@ -33,7 +33,15 @@ try {
                     sendError('Η εργασία δεν βρέθηκε', 404);
                 }
             } else {
-                $stmt = $db->query("SELECT * FROM jobs ORDER BY created_at DESC");
+                $stmt = $db->query("
+                    SELECT 
+                        j.*,
+                        c.name as client_name,
+                        c.phone as client_phone
+                    FROM jobs j
+                    LEFT JOIN clients c ON j.client_id = c.id
+                    ORDER BY j.created_at DESC
+                ");
                 $jobs = array_map(function($job) {
                     $job = convertKeys($job);
                     if (isset($job['coordinates'])) $job['coordinates'] = json_decode($job['coordinates'], true);

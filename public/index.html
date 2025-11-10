@@ -8,7 +8,7 @@
     script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://cdn.sheetjs.com https://nominatim.openstreetmap.org https://unpkg.com; 
     style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com; 
     img-src 'self' data: https: http:; 
-    font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; 
+    font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com; 
     connect-src 'self' https://maps.googleapis.com https://nominatim.openstreetmap.org https://*.googleapis.com https://*.tile.openstreetmap.org https://unpkg.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; 
     frame-src 'self' https://www.google.com;
   ">
@@ -22,6 +22,7 @@
   <!-- PWA Manifest -->
   <link rel="manifest" href="/public/manifest.json">
   <meta name="theme-color" content="#1a1a2e">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Οργανωτής Βαφέα">
@@ -33,6 +34,10 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
   <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/gr.js"></script>
+  
+  <!-- FullCalendar -->
+  <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
+  <script src='https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.10/locales/el.global.min.js'></script>
   
   <!-- Google Maps -->
   <script>
@@ -141,6 +146,10 @@
   <!-- SheetJS για Excel export -->
   <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
   
+  <!-- ExcelJS για Excel export με styling -->
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+  
   <!-- Styles -->
   <link rel="stylesheet" href="src/css/variables.css">
   <link rel="stylesheet" href="src/css/base.css">
@@ -149,6 +158,8 @@
   <link rel="stylesheet" href="src/css/dashboard.css">
   <link rel="stylesheet" href="src/css/tables.css">
   <link rel="stylesheet" href="src/css/modals.css">
+  <link rel="stylesheet" href="src/css/calendar.css">
+  <link rel="stylesheet" href="src/css/calendar-mobile.css">
   <link rel="stylesheet" href="src/css/animations.css">
   <link rel="stylesheet" href="src/css/responsive.css">
   <link rel="stylesheet" href="src/css/print.css">
