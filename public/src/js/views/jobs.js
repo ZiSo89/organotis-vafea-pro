@@ -25,7 +25,7 @@ window.JobsView = {
   render(container) {
     const jobs = State.read('jobs') || [];
     const clients = State.read('clients') || [];
-    const paints = State.read('paints') || [];
+    const inventory = State.read('inventory') || []; // Changed from paints to inventory
 
     // Reverse clients to show latest first
     const sortedClients = [...clients].reverse();
@@ -130,7 +130,7 @@ window.JobsView = {
             <div class="form-grid">
               <div class="form-group">
                 <label>Τύπος Εργασίας <span class="required">*</span></label>
-                <select id="jobType" required>
+                <select id="jobType">
                   <option value="">Επιλέξτε τύπο...</option>
                   ${CONFIG.JOB_TYPES.map(type => `<option value="${type}">${type}</option>`).join('')}
                 </select>
@@ -531,7 +531,7 @@ window.JobsView = {
               <td title="${Utils.formatDate(job.date)}">${Utils.formatDate(job.date)}</td>
               <td title="${clientName}">${clientName}</td>
               <td title="${job.type || '-'}">${job.type || '-'}</td>
-              <td><span class="status-pill status-${job.status?.toLowerCase().replace(/\s+/g, '-')}">${job.status}</span></td>
+              <td><span class="status-pill status-${job.status?.toLowerCase().replace(/\s+/g, '-')}">${Utils.translateStatus(job.status)}</span></td>
               <td>${job.nextVisit ? `<strong style="color: var(--accent-primary);" title="${Utils.formatDate(job.nextVisit)}">${Utils.formatDate(job.nextVisit)}</strong>` : '-'}</td>
               <td title="${Utils.formatCurrency(job.totalCost || 0)}"><strong>${Utils.formatCurrency(job.totalCost || 0)}</strong></td>
               <td class="actions">
@@ -606,15 +606,27 @@ window.JobsView = {
 
   autoFillClientData() {
     const clientId = document.getElementById('jobClient').value;
-    const client = State.data.clients.find(c => c.id === clientId);
+    console.log('🔍 autoFillClientData - Selected clientId:', clientId, 'Type:', typeof clientId);
+    
+    const client = State.data.clients.find(c => Number(c.id) === Number(clientId));
+    console.log('🔍 Found client:', client);
 
     if (client) {
+      console.log('✅ Auto-filling client data:', {
+        phone: client.phone,
+        email: client.email,
+        address: client.address,
+        city: client.city,
+        postal: client.postalCode || client.postal
+      });
+      
       document.getElementById('jobPhone').value = client.phone || '';
       document.getElementById('jobEmail').value = client.email || '';
       document.getElementById('jobAddress').value = client.address || '';
       document.getElementById('jobCity').value = client.city || '';
-      document.getElementById('jobPostal').value = client.postal || client.postalCode || '';
+      document.getElementById('jobPostal').value = client.postalCode || client.postal || '';
     } else {
+      console.log('⚠️ No client found, clearing fields');
       document.getElementById('jobPhone').value = '';
       document.getElementById('jobEmail').value = '';
       document.getElementById('jobAddress').value = '';
@@ -686,8 +698,46 @@ window.JobsView = {
     }
   },
 
-  saveJob(e) {
+  async saveJob(e) {
     e.preventDefault();
+    
+    console.log('💾 saveJob started');
+    console.log('📝 Current edit:', this.currentEdit);
+    
+    // Manual validation check for required fields
+    const jobClient = document.getElementById('jobClient').value;
+    const jobType = document.getElementById('jobType').value;
+    const jobDate = document.getElementById('jobDate').value;
+    const jobStatus = document.getElementById('jobStatus').value;
+    
+    console.log('📋 Required fields check:', {
+      jobClient,
+      jobType,
+      jobDate,
+      jobStatus
+    });
+    
+    if (!jobClient) {
+      Toast.error('Παρακαλώ επιλέξτε πελάτη');
+      // Switch to basic tab
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      document.querySelector('.tab-btn[data-tab="basic"]').classList.add('active');
+      document.getElementById('tab-basic').classList.add('active');
+      document.getElementById('jobClient').focus();
+      return;
+    }
+    
+    if (!jobType) {
+      Toast.error('Παρακαλώ επιλέξτε τύπο εργασίας');
+      // Switch to details tab
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      document.querySelector('.tab-btn[data-tab="details"]').classList.add('active');
+      document.getElementById('tab-details').classList.add('active');
+      document.getElementById('jobType').focus();
+      return;
+    }
 
     // Get pricing settings
     const pricingSettings = JSON.parse(localStorage.getItem('pricing_settings') || '{}');
@@ -696,12 +746,20 @@ window.JobsView = {
 
     const billingHours = parseFloat(document.getElementById('jobBillingHours').value) || 0;
     const billingRate = parseFloat(document.getElementById('jobBillingRate').value) || 50;
+    
+    console.log('📋 Form values:', {
+      jobClient,
+      jobType,
+      jobStatus,
+      billingHours,
+      billingRate
+    });
 
     const jobData = {
-      date: Utils.greekToDate(document.getElementById('jobDate').value),
-      clientId: document.getElementById('jobClient').value,
-      type: document.getElementById('jobType').value,
-      status: document.getElementById('jobStatus').value,
+      date: Utils.greekToDate(jobDate),
+      clientId: Number(jobClient), // Convert to number
+      type: jobType,
+      status: jobStatus,
       rooms: parseInt(document.getElementById('jobRooms').value) || null,
       area: parseFloat(document.getElementById('jobArea').value) || null,
       substrate: document.getElementById('jobSubstrate').value,
@@ -717,15 +775,11 @@ window.JobsView = {
       assignedWorkers: [...this.assignedWorkers],
       paints: [...this.assignedPaints]
     };
+    
+    console.log('📦 Job data prepared:', jobData);
 
-    // Auto-generate ID if new job
-    if (!this.currentEdit) {
-      const jobs = State.read('jobs') || [];
-      const maxId = jobs.length > 0 
-        ? Math.max(...jobs.map(j => parseInt(j.id.split('-')[1]) || 0))
-        : 0;
-      jobData.id = `E-${String(maxId + 1).padStart(4, '0')}`;
-    } else {
+    // If editing, add the ID
+    if (this.currentEdit) {
       jobData.id = this.currentEdit;
     }
 
@@ -752,26 +806,42 @@ window.JobsView = {
     jobData.vatAmount = vatAmount;
     jobData.totalCost = totalCharge; // Total charge to client
     jobData.profit = profit; // Net profit
+    
+    console.log('💰 Calculated costs:', {
+      laborCost,
+      totalExpenses,
+      billingAmount,
+      profit
+    });
 
     // Validate
     const validation = Validation.validateJob(jobData);
     if (!validation.valid) {
+      console.error('❌ Validation failed:', validation.errors);
       Toast.error(validation.errors[0]);
       return;
     }
 
-    // Save or update
-    if (this.currentEdit) {
-      State.update('jobs', jobData.id, jobData);
-      Toast.success('Η εργασία ενημερώθηκε!');
-    } else {
-      State.create('jobs', jobData);
-      Toast.success('Η εργασία δημιουργήθηκε!');
-    }
+    try {
+      // Save or update
+      if (this.currentEdit) {
+        console.log('🔄 Updating job:', jobData.id);
+        await State.update('jobs', jobData.id, jobData);
+        Toast.success('Η εργασία ενημερώθηκε!');
+      } else {
+        console.log('➕ Creating new job');
+        await State.create('jobs', jobData);
+        Toast.success('Η εργασία δημιουργήθηκε!');
+      }
 
-    this.cancelForm();
-    // Refresh the table to show the new/updated job
-    this.refreshTable();
+      this.cancelForm();
+      // Refresh the table to show the new/updated job
+      this.refreshTable();
+      console.log('✅ Job saved successfully');
+    } catch (error) {
+      console.error('❌ Error saving job:', error);
+      Toast.error('Σφάλμα κατά την αποθήκευση: ' + error.message);
+    }
   },
 
   refreshTable() {
@@ -783,11 +853,28 @@ window.JobsView = {
   },
 
   viewJob(id) {
-    const job = State.data.jobs.find(j => j.id === id);
+    const job = State.data.jobs.find(j => Number(j.id) === Number(id));
     if (!job) return;
 
-    const client = State.data.clients.find(c => c.id === job.clientId);
+    const client = State.data.clients.find(c => Number(c.id) === Number(job.clientId));
     const clientName = client ? client.name : 'Άγνωστος';
+    
+    // Υπολογισμοί κόστους
+    const assignedWorkers = job.assignedWorkers || [];
+    const laborCost = assignedWorkers.reduce((sum, w) => sum + (w.laborCost || 0), 0);
+    const materialsCost = job.materialsCost || 0;
+    const kilometers = job.kilometers || 0;
+    const costPerKm = job.costPerKm || 0.5;
+    const travelCost = kilometers * costPerKm;
+    const totalExpenses = materialsCost + laborCost + travelCost;
+    
+    const billingHours = job.billingHours || job.hours || 0;
+    const billingRate = job.billingRate || 50;
+    const billingAmount = billingHours * billingRate;
+    const vat = job.vat || 24;
+    const vatAmount = billingAmount * (vat / 100);
+    const totalCost = billingAmount + vatAmount;
+    const profit = billingAmount - totalExpenses;
 
     const content = `
       <div class="job-details">
@@ -805,7 +892,7 @@ window.JobsView = {
             </div>
             <div class="detail-item">
               <label>Κατάσταση:</label>
-              <span class="status-pill status-${job.status?.toLowerCase().replace(/\s+/g, '-')}">${job.status}</span>
+              <span class="status-pill status-${job.status?.toLowerCase().replace(/\s+/g, '-')}">${Utils.translateStatus(job.status)}</span>
             </div>
             <div class="detail-item">
               <label>Επόμενη Επίσκεψη:</label>
@@ -833,9 +920,9 @@ window.JobsView = {
             <div class="detail-item span-2">
               <label>Διεύθυνση:</label>
               <div style="display: flex; align-items: center; gap: 10px;">
-                <span>${client?.address || '-'}, ${client?.city || '-'}, ${client?.postal || '-'}</span>
+                <span>${client?.address || '-'}, ${client?.city || '-'}, ${client?.postalCode || client?.postal || '-'}</span>
                 ${client?.address && client?.city ? `
-                  <button class="btn-icon" onclick="JobsView.openInMaps('${encodeURIComponent(client.address + ', ' + client.city + ', ' + (client.postal || 'Ελλάδα'))}')" title="Άνοιγμα στο Google Maps">
+                  <button class="btn-icon" onclick="Utils.openInMaps('${client.address}, ${client.city}, ${client.postalCode || client.postal || 'Ελλάδα'}')" title="Άνοιγμα στο Google Maps">
                     <i class="fas fa-map-marked-alt"></i>
                   </button>
                 ` : ''}
@@ -911,7 +998,7 @@ window.JobsView = {
                 ${job.assignedWorkers.map(worker => `
                   <tr>
                     <td><strong>${worker.workerName}</strong></td>
-                    <td>${worker.specialty}</td>
+                    <td>${worker.workerSpecialty || worker.specialty || ''}</td>
                     <td>${Utils.formatCurrency(worker.hourlyRate)}/ώρα</td>
                     <td>${worker.hoursAllocated}h</td>
                     <td><strong style="color: var(--error);">${Utils.formatCurrency(worker.laborCost)}</strong></td>
@@ -934,35 +1021,35 @@ window.JobsView = {
           <div class="detail-grid">
             <div class="detail-item">
               <label>Υλικά:</label>
-              <span>${Utils.formatCurrency(job.materialsCost || 0)}</span>
+              <span>${Utils.formatCurrency(materialsCost)}</span>
             </div>
             <div class="detail-item">
               <label>Ώρες Εργασίας:</label>
-              <span>${job.hours || 0} ώρες</span>
+              <span>${billingHours} ώρες</span>
             </div>
             <div class="detail-item">
-              <label>Κόστος Εργασίας:</label>
-              <span>${Utils.formatCurrency(job.laborCost || 0)}</span>
+              <label>Κόστος Εργατών:</label>
+              <span>${Utils.formatCurrency(laborCost)}</span>
             </div>
             <div class="detail-item">
               <label>Χιλιόμετρα:</label>
-              <span>${job.kilometers || 0} km</span>
+              <span>${kilometers} km</span>
             </div>
             <div class="detail-item">
               <label>Κόστος Μετακίνησης:</label>
-              <span>${Utils.formatCurrency(job.travelCost || 0)}</span>
+              <span>${Utils.formatCurrency(travelCost)}</span>
             </div>
             <div class="detail-item">
-              <label>Καθαρό Σύνολο:</label>
-              <span><strong>${Utils.formatCurrency(job.netCost || 0)}</strong></span>
+              <label>Χρέωση Εργασίας:</label>
+              <span><strong>${Utils.formatCurrency(billingAmount)}</strong></span>
             </div>
             <div class="detail-item">
-              <label>ΦΠΑ (${job.vat || 0}%):</label>
-              <span>${Utils.formatCurrency(job.vatAmount || 0)}</span>
+              <label>ΦΠΑ (${vat}%):</label>
+              <span>${Utils.formatCurrency(vatAmount)}</span>
             </div>
             <div class="detail-item">
               <label>Τελικό Σύνολο:</label>
-              <span><strong style="color: var(--accent-primary); font-size: 1.2em;">${Utils.formatCurrency(job.totalCost || 0)}</strong></span>
+              <span><strong style="color: var(--accent-primary); font-size: 1.2em;">${Utils.formatCurrency(totalCost)}</strong></span>
             </div>
           </div>
         </div>
@@ -1008,10 +1095,10 @@ window.JobsView = {
   },
 
   editJob(id) {
-    const job = State.data.jobs.find(j => j.id === id);
+    const job = State.data.jobs.find(j => Number(j.id) === Number(id));
     if (!job) return;
 
-    this.currentEdit = id;
+    this.currentEdit = Number(id);
     document.getElementById('formTitle').textContent = 'Επεξεργασία Εργασίας';
     document.getElementById('jobForm').style.display = 'block';
 
@@ -1047,15 +1134,18 @@ window.JobsView = {
     document.getElementById('jobForm').scrollIntoView({ behavior: 'smooth' });
   },
 
-  deleteJob(id) {
+  async deleteJob(id) {
     Modal.confirm({
       title: 'Διαγραφή Εργασίας',
       message: 'Είστε σίγουροι ότι θέλετε να διαγράψετε αυτή την εργασία;',
-      onConfirm: () => {
-        State.delete('jobs', id);
-        Toast.success('Η εργασία διαγράφηκε');
-        // Refresh the table to remove the deleted job
-        this.refreshTable();
+      onConfirm: async () => {
+        try {
+          await State.delete('jobs', id);
+          Toast.success('Η εργασία διαγράφηκε');
+          this.refreshTable();
+        } catch (error) {
+          // Error toast already shown by State
+        }
       }
     });
   },
@@ -1075,22 +1165,33 @@ window.JobsView = {
   filterJobs() {
     const searchTerm = document.getElementById('jobSearch').value.toLowerCase();
     const statusFilter = document.getElementById('statusFilter').value;
+    
+    console.log('🔍 filterJobs - searchTerm:', searchTerm, 'statusFilter:', statusFilter);
 
     let jobs = State.data.jobs;
+    console.log('📋 Total jobs before filter:', jobs.length);
 
     // Filter by search
     if (searchTerm) {
       jobs = jobs.filter(job => {
         const clientName = this.getClientName(job.clientId).toLowerCase();
-        return job.id.toLowerCase().includes(searchTerm) ||
+        const jobIdStr = String(job.id).toLowerCase(); // Convert ID to string
+        const jobType = (job.type || '').toLowerCase();
+        
+        const matches = jobIdStr.includes(searchTerm) ||
                clientName.includes(searchTerm) ||
-               (job.type || '').toLowerCase().includes(searchTerm);
+               jobType.includes(searchTerm);
+        
+        console.log('🔍 Job', job.id, '- ID:', jobIdStr, 'Client:', clientName, 'Type:', jobType, 'Matches:', matches);
+        return matches;
       });
+      console.log('📋 Jobs after search filter:', jobs.length);
     }
 
     // Filter by status
     if (statusFilter) {
       jobs = jobs.filter(job => job.status === statusFilter);
+      console.log('📋 Jobs after status filter:', jobs.length);
     }
 
     // Sort by date - newest first
@@ -1222,6 +1323,7 @@ window.JobsView = {
     this.assignedWorkers.push({
       workerId: worker.id,
       workerName: worker.name,
+      workerSpecialty: worker.specialty,
       specialty: worker.specialty,
       hourlyRate: worker.hourlyRate,
       hoursAllocated: hours,
@@ -1261,7 +1363,7 @@ window.JobsView = {
             ${this.assignedWorkers.map((w, index) => `
               <tr>
                 <td><strong>${w.workerName}</strong></td>
-                <td>${w.specialty}</td>
+                <td>${w.workerSpecialty || w.specialty || ''}</td>
                 <td>${Utils.formatCurrency(w.hourlyRate)}/ώρα</td>
                 <td>${w.hoursAllocated}h</td>
                 <td><strong style="color: var(--accent-primary);">${Utils.formatCurrency(w.laborCost)}</strong></td>
@@ -1316,7 +1418,7 @@ window.JobsView = {
       <div class="form-grid">
         <div class="form-group span-2">
           <label>Εργάτης</label>
-          <input type="text" value="${worker.workerName} - ${worker.specialty}" readonly>
+          <input type="text" value="${worker.workerName} - ${worker.workerSpecialty || worker.specialty || ''}" readonly>
         </div>
 
         <div class="form-group">

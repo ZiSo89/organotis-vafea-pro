@@ -48,9 +48,12 @@ window.WorkersView = {
             <label>Ειδικότητα <span class="required">*</span></label>
             <select id="w_specialty" required>
               <option value="">Επιλέξτε ειδικότητα...</option>
+              <option value="Όλες οι ειδικότητες">Όλες οι ειδικότητες</option>
               <option value="Ελαιοχρωματιστής">Ελαιοχρωματιστής</option>
               <option value="Βοηθός">Βοηθός</option>
               <option value="Γυψαδόρος">Γυψαδόρος</option>
+              <option value="Βαφέας">Βαφέας</option>
+              <option value="Ειδικός σε Ξύλο">Ειδικός σε Ξύλο</option>
             </select>
           </div>
 
@@ -114,6 +117,8 @@ window.WorkersView = {
             <option value="Ελαιοχρωματιστής">Ελαιοχρωματιστής</option>
             <option value="Βοηθός">Βοηθός</option>
             <option value="Γυψαδόρος">Γυψαδόρος</option>
+            <option value="Βαφέας">Βαφέας</option>
+            <option value="Ειδικός σε Ξύλο">Ειδικός σε Ξύλο</option>
           </select>
         </div>
       </div>
@@ -334,7 +339,7 @@ window.WorkersView = {
     workerForm.scrollIntoView({ behavior: 'smooth' });
   },
 
-  saveWorker(e) {
+  async saveWorker(e) {
     e.preventDefault();
 
     const workerData = {
@@ -375,16 +380,21 @@ window.WorkersView = {
     }
 
     // Save or update
-    if (this.currentEdit) {
-      State.update('workers', workerData.id, workerData);
-      Toast.success('Ο εργάτης ενημερώθηκε!');
-    } else {
-      State.create('workers', workerData);
-      Toast.success('Ο εργάτης δημιουργήθηκε!');
-    }
+    try {
+      if (this.currentEdit) {
+        await State.update('workers', workerData.id, workerData);
+        Toast.success('Ο εργάτης ενημερώθηκε!');
+      } else {
+        await State.create('workers', workerData);
+        Toast.success('Ο εργάτης δημιουργήθηκε!');
+      }
 
-    this.cancelForm();
-    this.refreshTable();
+      this.cancelForm();
+      this.refreshTable();
+    } catch (error) {
+      console.error('Error saving worker:', error);
+      // Error toast already shown by State
+    }
   },
 
   refreshTable() {
@@ -396,7 +406,7 @@ window.WorkersView = {
   },
 
   viewWorker(id) {
-    const worker = State.data.workers.find(w => w.id === id);
+    const worker = State.data.workers.find(w => Number(w.id) === Number(id));
     if (!worker) return;
 
     // Get worker's work history from jobs
@@ -527,10 +537,10 @@ window.WorkersView = {
   },
 
   editWorker(id) {
-    const worker = State.data.workers.find(w => w.id === id);
+    const worker = State.data.workers.find(w => Number(w.id) === Number(id));
     if (!worker) return;
 
-    this.currentEdit = id;
+    this.currentEdit = Number(id);
     document.getElementById('workerFormTitle').textContent = 'Επεξεργασία Εργάτη';
     document.getElementById('workerForm').style.display = 'block';
 
@@ -546,14 +556,18 @@ window.WorkersView = {
     document.getElementById('workerForm').scrollIntoView({ behavior: 'smooth' });
   },
 
-  deleteWorker(id) {
+  async deleteWorker(id) {
     Modal.confirm({
       title: 'Διαγραφή Εργάτη',
       message: 'Είστε σίγουροι ότι θέλετε να διαγράψετε αυτόν τον εργάτη;',
-      onConfirm: () => {
-        State.delete('workers', id);
-        Toast.success('Ο εργάτης διαγράφηκε');
-        this.refreshTable();
+      onConfirm: async () => {
+        try {
+          await State.delete('workers', id);
+          Toast.success('Ο εργάτης διαγράφηκε');
+          this.refreshTable();
+        } catch (error) {
+          // Error toast already shown by State
+        }
       }
     });
   },

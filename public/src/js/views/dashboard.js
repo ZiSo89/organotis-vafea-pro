@@ -143,8 +143,20 @@ window.DashboardView = {
       const activityItem = e.target.closest('.activity-item[data-job-id]');
       
       if (activityItem) {
-        const jobId = activityItem.dataset.jobId;
-        this.viewJob(jobId);
+        const jobId = Number(activityItem.dataset.jobId);
+        
+        // Καλεί ΠΑΝΤΑ το JobsView.viewJob() αντί για το DashboardView.viewJob()
+        try {
+          if (typeof JobsView !== 'undefined' && JobsView.viewJob) {
+            JobsView.viewJob(jobId);
+          } else {
+            // Fallback αν δεν υπάρχει το JobsView
+            this.viewJob(jobId);
+          }
+        } catch (error) {
+          console.error('Error calling JobsView.viewJob:', error);
+          this.viewJob(jobId);
+        }
       }
     });
   },
@@ -167,8 +179,7 @@ window.DashboardView = {
         j.status === 'Σε εξέλιξη' || j.status === 'Προγραμματισμένη'
       ).length,
       scheduledJobs: jobs.filter(j => {
-        const jobDate = new Date(j.date);
-        return jobDate >= now && jobDate <= nextWeek;
+        return j.status === 'Προγραμματισμένη';
       }).length,
       completedThisMonth: jobs.filter(j => {
         const jobDate = new Date(j.date);
@@ -234,29 +245,34 @@ window.DashboardView = {
   renderUpcomingVisits() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    const nextWeek = new Date(today);
+    nextWeek.setDate(nextWeek.getDate() + 7);
     
-    // Get jobs with upcoming visits
+    // Get jobs with upcoming visits - ΜΟΝΟ 7 ΗΜΕΡΕΣ
     const upcomingJobs = State.data.jobs
       .filter(job => {
         if (!job.nextVisit) return false;
         const visitDate = new Date(job.nextVisit);
         visitDate.setHours(0, 0, 0, 0);
-        return visitDate >= today;
+        return visitDate >= today && visitDate <= nextWeek;
       })
       .sort((a, b) => new Date(a.nextVisit) - new Date(b.nextVisit))
       .slice(0, 10); // Show up to 10 upcoming visits
 
     if (upcomingJobs.length === 0) {
-      return '<p class="text-muted text-center">Δεν υπάρχουν προγραμματισμένες επισκέψεις</p>';
+      return '<p class="text-muted text-center">Δεν υπάρχουν προγραμματισμένες επισκέψεις τις επόμενες 7 ημέρες</p>';
     }
 
     return `
       <ul class="activities-list">
         ${upcomingJobs.map(job => {
-          const client = State.data.clients.find(c => c.id === job.clientId);
+          const client = State.data.clients.find(c => Number(c.id) === Number(job.clientId));
           const clientName = client ? client.name : 'Άγνωστος πελάτης';
           const visitDate = new Date(job.nextVisit);
-          const daysUntil = Math.ceil((visitDate - today) / (1000 * 60 * 60 * 24));
+          visitDate.setHours(0, 0, 0, 0);
+          const todayDate = new Date();
+          todayDate.setHours(0, 0, 0, 0);
+          const daysUntil = Math.round((visitDate - todayDate) / (1000 * 60 * 60 * 24));
           
           let urgencyClass = '';
           let urgencyText = '';
@@ -370,14 +386,54 @@ window.DashboardView = {
   },
 
   viewJob(id) {
-    const job = State.data.jobs.find(j => j.id === id);
+    const job = State.data.jobs.find(j => Number(j.id) === Number(id));
     
     if (!job) {
-      console.error('❌ Job not found!');
+      console.error('❌ Job not found!', id, State.data.jobs);
+      Toast.error('Η εργασία δεν βρέθηκε');
       return;
     }
 
-    const client = State.data.clients.find(c => c.id === job.clientId);
+    const client = State.data.clients.find(c => Number(c.id) === Number(job.clientId));
+    const clientName = client ? client.name : 'Άγνωστος πελάτης';
+    
+    // Parse JSON fields
+    let assignedWorkers = [];
+    let paints = [];
+    
+    try {
+      assignedWorkers = typeof job.assignedWorkers === 'string' 
+        ? JSON.parse(job.assignedWorkers) 
+        : (job.assignedWorkers || []);
+    } catch (e) {
+      console.error('Error parsing assignedWorkers:', e);
+      assignedWorkers = [];
+    }
+    
+    try {
+      paints = typeof job.paints === 'string' 
+        ? JSON.parse(job.paints) 
+        : (job.paints || []);
+    } catch (e) {
+      console.error('Error parsing paints:', e);
+      paints = [];
+    }
+    
+    // Calculate costs
+    const laborCost = assignedWorkers.reduce((sum, w) => sum + (w.laborCost || 0), 0);
+    const materialsCost = Number(job.materialsCost) || 0;
+    const kilometers = Number(job.kilometers) || 0;
+    const costPerKm = Number(job.costPerKm) || 0.5;
+    const travelCost = kilometers * costPerKm;
+    const totalExpenses = materialsCost + laborCost + travelCost;
+    
+    const billingHours = Number(job.billingHours) || 0;
+    const billingRate = Number(job.billingRate) || 50;
+    const billingAmount = billingHours * billingRate;
+    const vat = Number(job.vat) || 24;
+    const vatAmount = billingAmount * (vat / 100);
+    const totalCost = billingAmount + vatAmount;
+    const profit = billingAmount - totalExpenses;
 
     const content = `
       <div class="job-details">
@@ -457,68 +513,106 @@ window.DashboardView = {
           </div>
         </div>
 
-        <!-- Χρώμα -->
+        <!-- Χρώματα -->
+        ${paints.length > 0 ? `
         <div class="detail-section">
-          <h4><i class="fas fa-palette"></i> Χρώμα</h4>
-          <div class="detail-grid">
-            <div class="detail-item">
-              <label>Όνομα Χρώματος:</label>
-              <span>${job.paintName || '-'}</span>
-            </div>
-            <div class="detail-item">
-              <label>Κωδικός:</label>
-              <span>${job.paintCode || '-'}</span>
-            </div>
-            <div class="detail-item">
-              <label>Φινίρισμα:</label>
-              <span>${job.finish || '-'}</span>
-            </div>
-            <div class="detail-item">
-              <label>Αστάρι:</label>
-              <span>${job.primer || '-'}</span>
-            </div>
-            <div class="detail-item">
-              <label>Στρώσεις:</label>
-              <span>${job.coats || '-'}</span>
-            </div>
+          <h4><i class="fas fa-palette"></i> Χρώματα</h4>
+          <div style="overflow-x: auto;">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Όνομα</th>
+                  <th>Κωδικός</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${paints.map(paint => `
+                  <tr>
+                    <td><strong>${paint.name}</strong></td>
+                    <td>${paint.code || '-'}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
           </div>
         </div>
+        ` : ''}
+
+        <!-- Ανατεθειμένοι Εργάτες -->
+        ${assignedWorkers.length > 0 ? `
+        <div class="detail-section">
+          <h4><i class="fas fa-hard-hat"></i> Ανατεθειμένοι Εργάτες</h4>
+          <div style="overflow-x: auto;">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Εργάτης</th>
+                  <th>Ειδικότητα</th>
+                  <th>Ωρομίσθιο</th>
+                  <th>Ώρες</th>
+                  <th>Κόστος</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${assignedWorkers.map(worker => `
+                  <tr>
+                    <td><strong>${worker.workerName}</strong></td>
+                    <td>${worker.workerSpecialty || worker.specialty || ''}</td>
+                    <td>${Utils.formatCurrency(worker.hourlyRate)}/ώρα</td>
+                    <td>${worker.hoursAllocated}h</td>
+                    <td><strong style="color: var(--error);">${Utils.formatCurrency(worker.laborCost)}</strong></td>
+                  </tr>
+                `).join('')}
+                <tr style="background: var(--bg-secondary); font-weight: bold;">
+                  <td colspan="3" style="text-align: right;">ΣΥΝΟΛΟ:</td>
+                  <td>${assignedWorkers.reduce((sum, w) => sum + w.hoursAllocated, 0).toFixed(1)}h</td>
+                  <td><strong style="color: var(--error);">${Utils.formatCurrency(laborCost)}</strong></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        ` : ''}
 
         <!-- Κόστος -->
         <div class="detail-section">
           <h4><i class="fas fa-euro-sign"></i> Κόστος</h4>
           <div class="detail-grid">
             <div class="detail-item">
-              <label>Υλικά:</label>
-              <span>${Utils.formatCurrency(job.materialsCost || 0)}</span>
+              <label>Κόστος Εργατών:</label>
+              <span style="color: var(--error);">${Utils.formatCurrency(laborCost)}</span>
             </div>
             <div class="detail-item">
-              <label>Ώρες Εργασίας:</label>
-              <span>${job.hours || 0} ώρες</span>
-            </div>
-            <div class="detail-item">
-              <label>Κόστος Εργασίας:</label>
-              <span>${Utils.formatCurrency(job.laborCost || 0)}</span>
-            </div>
-            <div class="detail-item">
-              <label>Χιλιόμετρα:</label>
-              <span>${job.kilometers || 0} km</span>
+              <label>Κόστος Υλικών:</label>
+              <span style="color: var(--error);">${Utils.formatCurrency(materialsCost)}</span>
             </div>
             <div class="detail-item">
               <label>Κόστος Μετακίνησης:</label>
-              <span>${Utils.formatCurrency(job.travelCost || 0)}</span>
+              <span style="color: var(--error);">${Utils.formatCurrency(travelCost)} (${kilometers} km)</span>
             </div>
             <div class="detail-item">
-              <label>Καθαρό Σύνολο:</label>
-              <span><strong>${Utils.formatCurrency(job.netCost || 0)}</strong></span>
+              <label>Σύνολο Εξόδων:</label>
+              <span><strong style="color: var(--error);">${Utils.formatCurrency(totalExpenses)}</strong></span>
             </div>
             <div class="detail-item">
-              <label>ΦΠΑ (${job.vat || 0}%):</label>
-              <span>${Utils.formatCurrency(job.vatAmount || 0)}</span>
+              <label>Ώρες Χρέωσης:</label>
+              <span>${billingHours}h × ${Utils.formatCurrency(billingRate)}/h</span>
             </div>
             <div class="detail-item">
-              <label>Τελικό Σύνολο:</label>
-              <span><strong style="color: var(--accent-primary); font-size: 1.2em;">${Utils.formatCurrency(job.totalCost || 0)}</strong></span>
+              <label>Ποσό Χρέωσης:</label>
+              <span style="color: var(--success);">${Utils.formatCurrency(billingAmount)}</span>
+            </div>
+            <div class="detail-item">
+              <label>ΦΠΑ (${vat}%):</label>
+              <span>${Utils.formatCurrency(vatAmount)}</span>
+            </div>
+            <div class="detail-item">
+              <label>Τελικό Ποσό:</label>
+              <span><strong style="color: var(--success); font-size: 1.2em;">${Utils.formatCurrency(totalCost)}</strong></span>
+            </div>
+            <div class="detail-item span-2">
+              <label>Κέρδος:</label>
+              <span><strong style="color: ${profit >= 0 ? 'var(--success)' : 'var(--error)'}; font-size: 1.2em;">${Utils.formatCurrency(profit)}</strong></span>
             </div>
           </div>
         </div>

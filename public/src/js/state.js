@@ -31,12 +31,53 @@ const State = {
   
   /**
    * Initialize application state
-   * Loads data from storage and sets up auto-save
+   * Loads data from API and sets up auto-save
    */
-  init() {
-    this.data = Storage.load();
-    this.setupAutoSave();
-    this.detectOffline();
+  async init() {
+    try {
+      // Load data from API
+      this.data = await this.loadFromAPI();
+      console.log('✅ Data loaded from API:', this.data);
+      
+      // Setup auto-save (every 30 seconds - but now it's just for indicators)
+      this.setupAutoSave();
+      this.detectOffline();
+    } catch (error) {
+      console.error('❌ Failed to load data from API:', error);
+      Toast.error('Σφάλμα φόρτωσης δεδομένων');
+      throw error;
+    }
+  },
+
+  /**
+   * Load all data from API
+   */
+  async loadFromAPI() {
+    try {
+      const [clients, workers, materials, jobs, offers, invoices, templates] = await Promise.all([
+        API.getClients(),
+        API.getWorkers(),
+        API.getMaterials(),
+        API.getJobs(),
+        API.getOffers(),
+        API.getInvoices(),
+        API.getTemplates(),
+      ]);
+
+      return {
+        clients: clients || [],
+        workers: workers || [],
+        inventory: materials || [], // materials -> inventory
+        jobs: jobs || [],
+        offers: offers || [],
+        invoices: invoices || [],
+        templates: templates || [],
+        timesheets: [], // TODO: Add timesheet API later
+      };
+    } catch (error) {
+      console.error('Error loading from API:', error);
+      throw error;
+    }
   },
 
   // Auto-save κάθε 30 δευτερόλεπτα
@@ -155,18 +196,46 @@ const State = {
    * @param {string} collection - Collection name (e.g., 'clients', 'jobs')
    * @param {Object} item - Item data to create
    */
-  create(collection, item) {
-    // Add createdAt timestamp if not exists
-    if (!item.createdAt) {
-      item.createdAt = new Date().toISOString();
+  async create(collection, item) {
+    try {
+      // Add createdAt timestamp if not exists
+      if (!item.createdAt) {
+        item.createdAt = new Date().toISOString();
+      }
+
+      // Map collection names to API methods
+      const apiCollection = collection === 'inventory' ? 'materials' : collection;
+      const apiMethodMap = {
+        clients: 'createClient',
+        workers: 'createWorker',
+        materials: 'createMaterial',
+        jobs: 'createJob',
+        offers: 'createOffer',
+        invoices: 'createInvoice',
+        templates: 'createTemplate',
+      };
+
+      const method = apiMethodMap[apiCollection];
+      if (!method) {
+        throw new Error(`Unknown collection: ${collection}`);
+      }
+
+      // Call API
+      const createdItem = await API[method](item);
+      
+      // Update local state
+      this.data[collection].push(createdItem);
+      this.saveToHistory(`Προσθήκη ${collection}`, this.data);
+      
+      // Refresh Dashboard if needed
+      this.refreshDashboardIfNeeded();
+      
+      return createdItem;
+    } catch (error) {
+      console.error(`Error creating ${collection}:`, error);
+      Toast.error('Σφάλμα κατά την αποθήκευση');
+      throw error;
     }
-    this.data[collection].push(item);
-    this.saveToHistory(`Προσθήκη ${collection}`, this.data);
-    Storage.save();
-    // Toast removed - let the calling view handle user feedback
-    
-    // Refresh Dashboard if we're on it
-    this.refreshDashboardIfNeeded();
   },
 
   /**
@@ -185,7 +254,8 @@ const State = {
       return id ? null : [];
     }
     if (id) {
-      return this.data[collection].find(item => item.id === id);
+      // Convert both to numbers for comparison (API returns numeric IDs)
+      return this.data[collection].find(item => Number(item.id) === Number(id));
     }
     return this.data[collection];
   },
@@ -196,16 +266,41 @@ const State = {
    * @param {string} id - Item ID to update
    * @param {Object} updatedItem - New item data
    */
-  update(collection, id, updatedItem) {
-    const index = this.data[collection].findIndex(item => item.id === id);
-    if (index !== -1) {
-      this.data[collection][index] = updatedItem;
-      this.saveToHistory(`Ενημέρωση ${collection}`, this.data);
-      Storage.save();
-      // Toast removed - let the calling view handle user feedback
+  async update(collection, id, updatedItem) {
+    try {
+      // Map collection names to API methods
+      const apiCollection = collection === 'inventory' ? 'materials' : collection;
+      const apiMethodMap = {
+        clients: 'updateClient',
+        workers: 'updateWorker',
+        materials: 'updateMaterial',
+        jobs: 'updateJob',
+        offers: 'updateOffer',
+        invoices: 'updateInvoice',
+        templates: 'updateTemplate',
+      };
+
+      const method = apiMethodMap[apiCollection];
+      if (!method) {
+        throw new Error(`Unknown collection: ${collection}`);
+      }
+
+      // Call API
+      const updated = await API[method](id, updatedItem);
       
-      // Refresh Dashboard if we're on it
-      this.refreshDashboardIfNeeded();
+      // Update local state
+      const index = this.data[collection].findIndex(item => Number(item.id) === Number(id));
+      if (index !== -1) {
+        this.data[collection][index] = updated;
+        this.saveToHistory(`Ενημέρωση ${collection}`, this.data);
+        this.refreshDashboardIfNeeded();
+      }
+      
+      return updated;
+    } catch (error) {
+      console.error(`❌ Error updating ${collection}:`, error);
+      Toast.error('Σφάλμα κατά την ενημέρωση');
+      throw error;
     }
   },
 
@@ -214,16 +309,41 @@ const State = {
    * @param {string} collection - Collection name
    * @param {string} id - Item ID to delete
    */
-  delete(collection, id) {
-    const index = this.data[collection].findIndex(item => item.id === id);
-    if (index !== -1) {
-      this.data[collection].splice(index, 1);
-      this.saveToHistory(`Διαγραφή ${collection}`, this.data);
-      Storage.save();
-      // Toast removed - let the calling view handle user feedback
+  async delete(collection, id) {
+    try {
+      // Map collection names to API methods
+      const apiCollection = collection === 'inventory' ? 'materials' : collection;
+      const apiMethodMap = {
+        clients: 'deleteClient',
+        workers: 'deleteWorker',
+        materials: 'deleteMaterial',
+        jobs: 'deleteJob',
+        offers: 'deleteOffer',
+        invoices: 'deleteInvoice',
+        templates: 'deleteTemplate',
+      };
+
+      const method = apiMethodMap[apiCollection];
+      if (!method) {
+        throw new Error(`Unknown collection: ${collection}`);
+      }
+
+      // Call API
+      await API[method](id);
       
-      // Refresh Dashboard if we're on it
-      this.refreshDashboardIfNeeded();
+      // Update local state
+      const index = this.data[collection].findIndex(item => Number(item.id) === Number(id));
+      if (index !== -1) {
+        this.data[collection].splice(index, 1);
+        this.saveToHistory(`Διαγραφή ${collection}`, this.data);
+        this.refreshDashboardIfNeeded();
+      }
+      
+      return true;
+    } catch (error) {
+      console.error(`❌ Error deleting ${collection}:`, error);
+      Toast.error('Σφάλμα κατά τη διαγραφή');
+      throw error;
     }
   },
 

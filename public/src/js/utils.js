@@ -85,6 +85,40 @@ const Utils = {
     }).format(amount);
   },
 
+  /**
+   * Translate status from English to Greek
+   * @param {string} status - Status in English
+   * @returns {string} Status in Greek
+   */
+  translateStatus(status) {
+    if (!status) return '-';
+    
+    // Αν είναι ήδη ελληνικά, επέστρεψε το όπως είναι
+    const greekStatuses = [
+      'Υποψήφιος', 'Προγραμματισμένη', 'Σε εξέλιξη', 'Σε αναμονή',
+      'Ολοκληρώθηκε', 'Εξοφλήθηκε', 'Ακυρώθηκε',
+      'Ενεργός', 'Ανενεργός', 'Πληρωμένο', 'Απλήρωτο'
+    ];
+    
+    if (greekStatuses.includes(status)) {
+      return status;
+    }
+    
+    // Μετάφραση από αγγλικά σε ελληνικά
+    const translations = {
+      'pending': 'Σε αναμονή',
+      'in-progress': 'Σε εξέλιξη',
+      'completed': 'Ολοκληρώθηκε',
+      'cancelled': 'Ακυρώθηκε',
+      'active': 'Ενεργός',
+      'inactive': 'Ανενεργός',
+      'paid': 'Πληρωμένο',
+      'unpaid': 'Απλήρωτο'
+    };
+    
+    return translations[status] || status;
+  },
+
   // Calculate Total με ΦΠΑ
   calculateTotal(net, vat) {
     const netAmount = parseFloat(net) || 0;

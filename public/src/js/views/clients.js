@@ -200,20 +200,19 @@ window.ClientsView = {
     const email = document.getElementById('c_email').value.trim();
     const address = document.getElementById('c_address').value.trim();
     const city = document.getElementById('c_city').value.trim();
-    const postal = document.getElementById('c_postal').value.trim();
+    const postalCode = document.getElementById('c_postal').value.trim();
     const notes = document.getElementById('c_notes').value.trim();
 
     // Check if updating existing client
     const existingId = this.editingClientId;
     
     const client = {
-      id: existingId || Utils.generateNextId('clients', 'Π'),
       name,
       phone,
       email,
       address,
       city,
-      postal,
+      postalCode,
       notes
     };
 
@@ -249,17 +248,20 @@ window.ClientsView = {
     }
 
     // Save or update
-    if (existingId) {
-      State.update('clients', client.id, client);
-      Toast.success('Ο πελάτης ενημερώθηκε!');
-    } else {
-      State.create('clients', client);
-      Toast.success('Ο πελάτης δημιουργήθηκε!');
-    }
+    try {
+      if (existingId) {
+        await State.update('clients', existingId, client);
+        Toast.success('Ο πελάτης ενημερώθηκε!');
+      } else {
+        await State.create('clients', client);
+        Toast.success('Ο πελάτης δημιουργήθηκε!');
+      }
 
-    this.cancelForm();
-    // Refresh the table to show the new/updated client
-    this.refreshTable();
+      this.cancelForm();
+      this.refreshTable();
+    } catch (error) {
+      console.error('❌ Error saving client:', error);
+    }
   },
 
   refreshTable() {
@@ -283,8 +285,11 @@ window.ClientsView = {
   },
 
   viewClient(id) {
-    const client = State.data.clients.find(c => c.id === id);
-    if (!client) return;
+    const client = State.data.clients.find(c => Number(c.id) === Number(id));
+    if (!client) {
+      console.error('❌ Client not found:', id);
+      return;
+    }
 
     const content = `
       <div class="job-details">
@@ -332,11 +337,11 @@ window.ClientsView = {
             </div>
             <div class="detail-item">
               <label>Τ.Κ.:</label>
-              <span>${client.postal || '-'}</span>
+              <span>${client.postalCode || client.postal || '-'}</span>
             </div>
             ${client.address && client.city ? `
             <div class="detail-item span-2">
-              <button class="btn btn-secondary" onclick="ClientsView.openInMaps('${encodeURIComponent(client.address + ', ' + client.city + ', ' + (client.postal || 'Ελλάδα'))}')" style="width: fit-content;">
+              <button class="btn btn-secondary" onclick="ClientsView.openInMaps(\`${client.address}, ${client.city}, ${client.postalCode || client.postal || 'Ελλάδα'}\`)" style="width: fit-content;">
                 <i class="fas fa-map-marked-alt"></i> Άνοιγμα στο Google Maps
               </button>
             </div>
@@ -402,7 +407,7 @@ window.ClientsView = {
       document.getElementById('c_email').value = client.email || '';
       document.getElementById('c_address').value = client.address || '';
       document.getElementById('c_city').value = client.city || '';
-      document.getElementById('c_postal').value = client.postal || '';
+      document.getElementById('c_postal').value = client.postalCode || client.postal || '';
       document.getElementById('c_notes').value = client.notes || '';
 
       document.getElementById('clientForm').scrollIntoView({ behavior: 'smooth' });
@@ -411,16 +416,19 @@ window.ClientsView = {
     }
   },
 
-  deleteClient(id) {
+  async deleteClient(id) {
     Modal.confirm({
       title: 'Διαγραφή Πελάτη',
       message: 'Είστε σίγουροι ότι θέλετε να διαγράψετε αυτόν τον πελάτη;',
       confirmText: 'Διαγραφή',
-      onConfirm: () => {
-        State.delete('clients', id);
-        Toast.success('Ο πελάτης διαγράφηκε');
-        // Refresh the table to remove the deleted client
-        this.refreshTable();
+      onConfirm: async () => {
+        try {
+          await State.delete('clients', id);
+          Toast.success('Ο πελάτης διαγράφηκε');
+          this.refreshTable();
+        } catch (error) {
+          console.error('❌ Error deleting client:', error);
+        }
       }
     });
   },

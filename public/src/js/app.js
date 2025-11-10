@@ -3,14 +3,22 @@
    ======================================== */
 
 // Αναμονή για DOM ready
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  // Check authentication first
+  const isAuthenticated = await API.checkAuth();
+  
+  if (!isAuthenticated) {
+    window.location.href = 'login.html';
+    return;
+  }
+
   // Enable transitions after page load
   setTimeout(() => {
     document.documentElement.classList.add('transitions-enabled');
   }, 100);
 
   // Initialize all systems
-  State.init();
+  await State.init();
   Theme.init();
   i18n.init();
   Sidebar.init();
