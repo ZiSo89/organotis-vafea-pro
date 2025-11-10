@@ -26,13 +26,15 @@ const Utils = {
   },
 
   /**
-   * Format date to Greek format (DD/MM/YYYY)
+   * Format date for display
    * @param {string|Date} dateString - Date to format
    * @returns {string} Formatted date or '-' if invalid
    */
   formatDate(dateString) {
-    if (!dateString) return '-';
+    if (!dateString || dateString === 'null' || dateString === 'undefined') return '-';
     const date = new Date(dateString);
+    // Check if date is valid
+    if (isNaN(date.getTime())) return '-';
     const day = String(date.getDate()).padStart(2, '0');
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const year = date.getFullYear();
@@ -41,16 +43,24 @@ const Utils = {
 
   // Convert YYYY-MM-DD to DD/MM/YYYY for form display
   dateToGreek(isoDate) {
-    if (!isoDate) return '';
-    const [year, month, day] = isoDate.split('-');
-    return `${day}/${month}/${year}`;
+    if (!isoDate || isoDate === 'null' || isoDate === 'undefined') return '';
+    const parts = isoDate.split('-');
+    if (parts.length !== 3) return '';
+    const [year, month, day] = parts;
+    // Validate parts exist and are numbers
+    if (!year || !month || !day || isNaN(year) || isNaN(month) || isNaN(day)) return '';
+    return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
   },
 
   // Convert DD/MM/YYYY to YYYY-MM-DD for storage
   greekToDate(greekDate) {
-    if (!greekDate) return '';
-    const [day, month, year] = greekDate.split('/');
-    return `${year}-${month}-${day}`;
+    if (!greekDate || greekDate.trim() === '') return null;
+    const parts = greekDate.split('/');
+    if (parts.length !== 3) return null;
+    const [day, month, year] = parts;
+    // Validate parts are numbers
+    if (!day || !month || !year || isNaN(day) || isNaN(month) || isNaN(year)) return null;
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
   },
 
   /**
@@ -59,17 +69,62 @@ const Utils = {
    * @returns {Object|undefined} Flatpickr instance
    */
   initDatePicker(selector) {
+    const element = typeof selector === 'string' ? document.querySelector(selector) : selector;
+    if (!element) return;
+    
+    // If flatpickr is not available, add manual date input handler
     if (typeof flatpickr === 'undefined') {
-      console.warn('Flatpickr not loaded yet');
+      console.warn('Flatpickr not loaded, using manual date input');
+      
+      // Format input as user types (dd/mm/yyyy)
+      const formatHandler = function(e) {
+        let value = e.target.value.replace(/\D/g, ''); // Remove non-digits
+        if (value.length >= 2) {
+          value = value.substring(0, 2) + '/' + value.substring(2);
+        }
+        if (value.length >= 5) {
+          value = value.substring(0, 5) + '/' + value.substring(5, 9);
+        }
+        e.target.value = value;
+      };
+      
+      // Remove previous handler if exists
+      element.removeEventListener('input', formatHandler);
+      element.addEventListener('input', formatHandler);
+      
       return;
     }
     
-    return flatpickr(selector, {
+    // Destroy existing flatpickr instance if any
+    if (element._flatpickr) {
+      element._flatpickr.destroy();
+    }
+    
+    // Use flatpickr with Greek locale - preserve existing value
+    const config = {
       dateFormat: 'd/m/Y',
-      locale: 'gr',
+      altInput: false,
       allowInput: true,
       clickOpens: true
-    });
+    };
+    
+    // Set Greek locale if available
+    if (typeof flatpickr.l10ns !== 'undefined' && flatpickr.l10ns.gr) {
+      config.locale = flatpickr.l10ns.gr;
+    }
+    
+    // If there's already a value, parse it correctly as dd/mm/yyyy
+    if (element.value && element.value.includes('/')) {
+      const parts = element.value.split('/');
+      if (parts.length === 3) {
+        const day = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1; // JS months are 0-indexed
+        const year = parseInt(parts[2], 10);
+        config.defaultDate = new Date(year, month, day);
+      }
+    }
+    
+    return flatpickr(element, config);
   },
 
   /**

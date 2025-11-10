@@ -81,11 +81,11 @@ const State = {
 
   // Auto-save κάθε 30 δευτερόλεπτα
   setupAutoSave() {
+    // Since we use API, auto-save indicator shows after successful API calls
+    // This is just for keeping the interval running (can be used later)
     setInterval(() => {
-      const saved = Storage.save();
-      if (saved) {
-        this.showAutoSaveIndicator();
-      }
+      // Auto-save is handled by API calls in create/update/delete methods
+      // This interval can be used for background sync if needed
     }, CONFIG.AUTO_SAVE_INTERVAL);
   },
 
@@ -152,7 +152,6 @@ const State = {
   restoreState(entry) {
     // Ανάλογα με την ενέργεια, επαναφέρουμε την κατάσταση
     Object.assign(this.data, entry.data);
-    Storage.save();
     // Refresh την τρέχουσα σελίδα
     Router.navigate(this.currentSection);
   },

@@ -1,4 +1,4 @@
-# Οργανωτής Βαφέα - Apache Configuration
+# Οργανωτής Βαφέα - Apache Configuration (Root)
 
 # Enable Rewrite Engine
 RewriteEngine On
@@ -8,20 +8,20 @@ RewriteBase /
 # RewriteCond %{HTTPS} off
 # RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 
-# Allow access to root - redirect to public/
-DirectoryIndex public/index.html
-
 # Block access to sensitive files
 <FilesMatch "(\.htaccess|\.git|composer\.json|package\.json|\.env|database\.php)$">
     Order Allow,Deny
     Deny from all
 </FilesMatch>
 
-# Block access to directories (except public)
+# Block access to directories (except public and api)
 RedirectMatch 403 ^/\.git
 RedirectMatch 403 ^/config/
 RedirectMatch 403 ^/database/
 RedirectMatch 403 ^/node_modules/
+
+# Disable directory browsing
+Options -Indexes
 
 # PHP Security Headers
 <IfModule mod_headers.c>
@@ -31,7 +31,7 @@ RedirectMatch 403 ^/node_modules/
     Header set X-XSS-Protection "1; mode=block"
     Header set Referrer-Policy "strict-origin-when-cross-origin"
     
-    # Prevent search engine indexing
+    # Prevent search engine indexing - ΝΑΙ, το σαιτ παραμένει κρυμμένο
     Header set X-Robots-Tag "noindex, nofollow, noarchive, nosnippet"
     
     # Remove server signature
@@ -39,23 +39,18 @@ RedirectMatch 403 ^/node_modules/
     Header unset X-Powered-By
 </IfModule>
 
-# Disable directory browsing
-Options -Indexes
-
 # API routing - remove .php extension
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^api/([a-zA-Z_]+)$ api/$1.php [L,QSA]
 
-# Root access - redirect to public/login.html
-RewriteRule ^$ public/login.html [L]
+# Redirect root to public folder
+RewriteRule ^$ /public/login.html [L,R=301]
 
-# Frontend SPA routing - public folder
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
-RewriteCond %{REQUEST_URI} !^/api/
+# Allow direct access to /public/ and /api/
 RewriteCond %{REQUEST_URI} !^/public/
-RewriteRule ^(.*)$ public/$1 [L]
+RewriteCond %{REQUEST_URI} !^/api/
+RewriteRule ^(.*)$ /public/$1 [L,R=301]
 
 # UTF-8 Encoding
 AddDefaultCharset UTF-8
@@ -71,8 +66,8 @@ AddDefaultCharset UTF-8
 # Cache Control
 <IfModule mod_expires.c>
     ExpiresActive On
-    ExpiresByType text/css "access plus 1 month"
-    ExpiresByType application/javascript "access plus 1 month"
+    ExpiresByType text/css "access plus 1 hour"
+    ExpiresByType application/javascript "access plus 1 hour"
     ExpiresByType image/x-icon "access plus 1 year"
     ExpiresByType image/svg+xml "access plus 1 year"
 </IfModule>

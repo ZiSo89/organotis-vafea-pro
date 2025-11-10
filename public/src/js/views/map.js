@@ -7,6 +7,7 @@ console.log('🗺️ Loading MapView...');
 window.MapView = {
   map: null,
   isLeaflet: false,
+  isInitializing: false, // Prevent multiple simultaneous initializations
   markers: {
     clients: [],
     upcoming: [],
@@ -17,6 +18,9 @@ window.MapView = {
   maxRequests: 100,
 
   render(container) {
+    const isMobile = Utils.isMobile();
+    const mapHeight = isMobile ? '450px' : '600px';
+    
     container.innerHTML = `
       <div class="view-header">
         <h1><i class="fas fa-map-marked-alt"></i> Χάρτης</h1>
@@ -63,8 +67,30 @@ window.MapView = {
       </div>
 
       <!-- Map Container -->
-      <div class="card" style="padding: 0; overflow: hidden;">
-        <div id="map" style="width: 100%; height: 600px;"></div>
+      <div class="card" style="padding: 0; overflow: hidden; position: relative;">
+        <div id="map" style="width: 100%; height: ${mapHeight};"></div>
+        ${isMobile ? `
+          <button id="scrollToTopBtn" style="
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: var(--color-primary);
+            color: white;
+            border: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.3rem;
+            z-index: 1000;
+          " title="Πήγαινε στην αρχή">
+            <i class="fas fa-arrow-up"></i>
+          </button>
+        ` : ''}
       </div>
     `;
 
@@ -73,6 +99,16 @@ window.MapView = {
     document.getElementById('showUpcoming').addEventListener('change', () => this.toggleLayer('upcoming'));
     document.getElementById('showToday').addEventListener('change', () => this.toggleLayer('today'));
     document.getElementById('refreshMapBtn').addEventListener('click', () => this.loadMap(true));
+    
+    // Scroll to top button (mobile only)
+    if (isMobile) {
+      const scrollBtn = document.getElementById('scrollToTopBtn');
+      if (scrollBtn) {
+        scrollBtn.addEventListener('click', () => {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+      }
+    }
 
     // Load geocode cache from localStorage
     const cached = localStorage.getItem('geocode_cache');
@@ -80,24 +116,63 @@ window.MapView = {
       this.geocodeCache = JSON.parse(cached);
     }
 
+    // Reset initialization flag when rendering
+    this.isInitializing = false;
+
     // Wait for Google Maps to be ready, then initialize
     this.waitForGoogleMaps();
   },
 
   waitForGoogleMaps(attempts = 0) {
+    // Prevent multiple simultaneous initialization attempts
+    if (this.isInitializing) {
+      console.log('⏳ Map initialization already in progress...');
+      return;
+    }
+    
     const maxAttempts = 20; // Wait up to 4 seconds for Google Maps
     
-    if (window.googleMapsLoaded && typeof google !== 'undefined' && google.maps && google.maps.Map) {
+    // Check if Google Maps is already loaded
+    if (typeof google !== 'undefined' && google.maps && google.maps.Map) {
       console.log('✅ Using Google Maps');
-      // Ensure DOM is ready
-      setTimeout(() => this.initMap(), 100);
-    } else if (attempts < maxAttempts) {
-      console.log('⏳ Waiting for Google Maps API...');
+      this.isInitializing = true;
+      setTimeout(() => {
+        this.initMap();
+        this.isInitializing = false;
+      }, 100);
+      return;
+    }
+    
+    // First attempt: Try to load Google Maps (if not mobile)
+    if (attempts === 0 && typeof loadGoogleMaps === 'function') {
+      this.isInitializing = true;
+      console.log('📍 Loading Google Maps API...');
+      loadGoogleMaps()
+        .then(() => {
+          console.log('✅ Google Maps loaded successfully');
+          setTimeout(() => {
+            this.initMap();
+            this.isInitializing = false;
+          }, 100);
+        })
+        .catch((err) => {
+          console.log('⚠️ Failed to load Google Maps:', err);
+          console.log('🗺️ Falling back to Leaflet Maps (OpenStreetMap)');
+          this.initLeafletMap();
+          this.isInitializing = false;
+        });
+      return;
+    }
+    
+    // Continue waiting if already loading
+    if (attempts < maxAttempts) {
       setTimeout(() => this.waitForGoogleMaps(attempts + 1), 200);
     } else {
-      // Fallback to Leaflet after timeout
+      // Timeout - fallback to Leaflet
       console.log('🗺️ Google Maps timeout - Using Leaflet Maps (OpenStreetMap)');
+      this.isInitializing = true;
       this.initLeafletMap();
+      // isInitializing will be reset in initLeafletMap
     }
   },
 
@@ -107,6 +182,7 @@ window.MapView = {
     const mapElement = document.getElementById('map');
     if (!mapElement) {
       console.error('❌ Map element not found!');
+      this.isInitializing = false;
       return;
     }
 
@@ -118,6 +194,7 @@ window.MapView = {
       }).catch(error => {
         console.error('❌ Failed to load Leaflet:', error);
         mapElement.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #666;"><p><i class="fas fa-exclamation-triangle"></i> Αποτυχία φόρτωσης χάρτη</p></div>';
+        this.isInitializing = false;
       });
     } else {
       this.createLeafletMap();
@@ -143,19 +220,55 @@ window.MapView = {
 
   createLeafletMap() {
     try {
-      // Create Leaflet map
-      this.map = L.map('map').setView([40.8473, 25.8753], 14);
+      const mapElement = document.getElementById('map');
+      
+      // Destroy existing map if it exists
+      if (this.map) {
+        console.log('🗑️ Destroying existing map...');
+        
+        // Clear all markers first
+        this.clearMarkers();
+        
+        if (this.isLeaflet && this.map.remove) {
+          this.map.remove();
+        }
+        
+        this.map = null;
+      }
+      
+      // Clear the map container completely
+      mapElement.innerHTML = '';
+      
+      // Remove Leaflet's internal references
+      if (mapElement._leaflet_id) {
+        delete mapElement._leaflet_id;
+      }
+      
+      // Small delay to ensure cleanup is complete
+      setTimeout(() => {
+        try {
+          // Create new Leaflet map
+          this.map = L.map('map').setView([40.8473, 25.8753], 14);
+          this.isLeaflet = true;
 
-      // Add OpenStreetMap tiles
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-        maxZoom: 19
-      }).addTo(this.map);
+          // Add OpenStreetMap tiles
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 19
+          }).addTo(this.map);
 
-      this.isLeaflet = true;
-      this.loadMap();
+          console.log('✅ Leaflet map created successfully');
+          this.loadMap();
+          this.isInitializing = false;
+        } catch (innerError) {
+          console.error('❌ Error creating Leaflet map:', innerError);
+          this.isInitializing = false;
+        }
+      }, 100);
+      
     } catch (error) {
       console.error('❌ Error initializing Leaflet map:', error);
+      this.isInitializing = false;
     }
   },
 
@@ -165,7 +278,31 @@ window.MapView = {
     const mapElement = document.getElementById('map');
     if (!mapElement) {
       console.error('❌ Map element not found!');
+      this.isInitializing = false;
       return;
+    }
+
+    // Check if we need to create a new map instance
+    // If map exists but the DOM element is different, we need to recreate
+    let needsNewInstance = !this.map || this.isLeaflet;
+    
+    if (this.map && !this.isLeaflet && typeof google !== 'undefined' && google.maps) {
+      // Verify the map's DOM element still exists and matches
+      try {
+        const currentMapDiv = this.map.getDiv();
+        if (!currentMapDiv || !document.body.contains(currentMapDiv)) {
+          console.log('🔄 Map DOM element no longer exists, recreating...');
+          needsNewInstance = true;
+        } else {
+          console.log('♻️ Reusing existing Google Maps instance');
+          this.loadMap();
+          this.isInitializing = false;
+          return;
+        }
+      } catch (e) {
+        console.log('🔄 Error checking map instance, recreating...');
+        needsNewInstance = true;
+      }
     }
 
     // Center on Alexandroupoli
@@ -179,10 +316,13 @@ window.MapView = {
         streetViewControl: false,
         fullscreenControl: true
       });
+      this.isLeaflet = false;
 
       this.loadMap();
+      this.isInitializing = false;
     } catch (error) {
       console.error('❌ Error initializing map:', error);
+      this.isInitializing = false;
     }
   },
 
@@ -462,14 +602,22 @@ window.MapView = {
     const visible = document.getElementById(`show${type.charAt(0).toUpperCase() + type.slice(1)}`).checked;
     
     this.markers[type].forEach(marker => {
-      if (this.isLeaflet) {
-        if (visible) {
-          marker.addTo(this.map);
+      try {
+        if (this.isLeaflet) {
+          if (marker && marker.remove && marker.addTo) {
+            if (visible) {
+              marker.addTo(this.map);
+            } else {
+              marker.remove();
+            }
+          }
         } else {
-          marker.remove();
+          if (marker && marker.setVisible) {
+            marker.setVisible(visible);
+          }
         }
-      } else {
-        marker.setVisible(visible);
+      } catch (error) {
+        console.warn('⚠️ Error toggling marker:', error);
       }
     });
   },
@@ -477,10 +625,18 @@ window.MapView = {
   clearMarkers() {
     Object.values(this.markers).forEach(markerArray => {
       markerArray.forEach(marker => {
-        if (this.isLeaflet) {
-          marker.remove();
-        } else {
-          marker.setMap(null);
+        try {
+          if (this.isLeaflet) {
+            if (marker && marker.remove) {
+              marker.remove();
+            }
+          } else {
+            if (marker && marker.setMap) {
+              marker.setMap(null);
+            }
+          }
+        } catch (error) {
+          console.warn('⚠️ Error removing marker:', error);
         }
       });
       markerArray.length = 0;

@@ -9,7 +9,7 @@ session_start();
 function checkAuthentication() {
     $isAuthenticated = false;
     
-    // Check session
+    // Check session first
     if (isset($_SESSION['authenticated']) && $_SESSION['authenticated'] === true) {
         // Check session timeout (2 hours)
         if (isset($_SESSION['login_time']) && (time() - $_SESSION['login_time'] < 7200)) {
@@ -18,16 +18,17 @@ function checkAuthentication() {
         } else {
             // Session expired
             session_destroy();
+            session_start();
         }
     }
     
-    // Check remember me cookie
+    // If not authenticated via session, check remember me cookie
     if (!$isAuthenticated && isset($_COOKIE['remember_token']) && !empty($_COOKIE['remember_token'])) {
-        if (isset($_SESSION['remember_token']) && $_SESSION['remember_token'] === $_COOKIE['remember_token']) {
-            $_SESSION['authenticated'] = true;
-            $_SESSION['login_time'] = time();
-            $isAuthenticated = true;
-        }
+        // Cookie exists, authenticate automatically
+        $_SESSION['authenticated'] = true;
+        $_SESSION['login_time'] = time();
+        $_SESSION['remember_token'] = $_COOKIE['remember_token'];
+        $isAuthenticated = true;
     }
     
     if (!$isAuthenticated) {

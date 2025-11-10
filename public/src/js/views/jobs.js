@@ -73,7 +73,7 @@ window.JobsView = {
               <!-- Row 1: Date & Status -->
               <div class="form-group">
                 <label>Ημερομηνία <span class="required">*</span></label>
-                <input type="text" id="jobDate" placeholder="ΗΗ/ΜΜ/ΕΕΕΕ" pattern="\\d{2}/\\d{2}/\\d{4}" required>
+                <input type="text" id="jobDate" placeholder="ΗΗ/ΜΜ/ΕΕΕΕ" inputmode="numeric" autocomplete="off" required>
               </div>
 
               <div class="form-group">
@@ -120,7 +120,7 @@ window.JobsView = {
 
               <div class="form-group">
                 <label>Επόμενη Επίσκεψη</label>
-                <input type="text" id="jobNextVisit" placeholder="ΗΗ/ΜΜ/ΕΕΕΕ" pattern="\\d{2}/\\d{2}/\\d{4}">
+                <input type="text" id="jobNextVisit" placeholder="ΗΗ/ΜΜ/ΕΕΕΕ" inputmode="numeric" autocomplete="off">
               </div>
             </div>
           </div>
@@ -589,6 +589,10 @@ window.JobsView = {
     jobDate.value = `${dd}/${mm}/${yyyy}`;
     jobStatus.value = 'Υποψήφιος';
     
+    // Re-initialize date pickers after setting values
+    Utils.initDatePicker('#jobDate');
+    Utils.initDatePicker('#jobNextVisit');
+    
     // Load default billing rate from settings
     const pricingSettings = JSON.parse(localStorage.getItem('pricing_settings') || '{}');
     const defaultBillingRate = pricingSettings.hourlyRate || 50;
@@ -826,6 +830,8 @@ window.JobsView = {
       return;
     }
 
+    console.log('✅ Validation passed');
+
     try {
       // Save or update
       if (this.currentEdit) {
@@ -834,7 +840,8 @@ window.JobsView = {
         Toast.success('Η εργασία ενημερώθηκε!');
       } else {
         console.log('➕ Creating new job');
-        await State.create('jobs', jobData);
+        const result = await State.create('jobs', jobData);
+        console.log('✅ Job created with result:', result);
         Toast.success('Η εργασία δημιουργήθηκε!');
       }
 
@@ -1223,7 +1230,7 @@ window.JobsView = {
       <div class="form-grid">
         <div class="form-group span-2">
           <label>Επιλέξτε Εργάτη <span class="required">*</span></label>
-          <select id="modalWorkerSelect" required>
+          <select id="modalWorkerSelect">
             <option value="">Επιλέξτε εργάτη...</option>
             ${activeWorkers.map(w => `
               <option value="${w.id}" data-rate="${w.hourlyRate}">
@@ -1235,7 +1242,7 @@ window.JobsView = {
 
         <div class="form-group">
           <label>Ώρες Εργασίας <span class="required">*</span></label>
-          <input type="number" id="modalWorkerHours" step="0.5" min="0.5" value="1" required>
+          <input type="number" id="modalWorkerHours" step="0.5" min="0.5" value="1">
         </div>
 
         <div class="form-group">
@@ -1307,15 +1314,21 @@ window.JobsView = {
 
   addWorkerToJob(workerId, hours) {
     const workers = State.read('workers') || [];
-    const worker = workers.find(w => w.id === workerId);
+    console.log('🔍 addWorkerToJob - workerId:', workerId, 'type:', typeof workerId);
+    console.log('👥 Available workers:', workers.map(w => ({ id: w.id, name: w.name, type: typeof w.id })));
+    
+    // Convert workerId to number for comparison
+    const numericWorkerId = Number(workerId);
+    const worker = workers.find(w => Number(w.id) === numericWorkerId);
 
     if (!worker) {
+      console.error('❌ Worker not found! workerId:', workerId);
       Toast.error('Ο εργάτης δεν βρέθηκε');
       return;
     }
 
     // Check if worker already assigned
-    const existingIndex = this.assignedWorkers.findIndex(w => w.workerId === workerId);
+    const existingIndex = this.assignedWorkers.findIndex(w => Number(w.workerId) === numericWorkerId);
     
     if (existingIndex !== -1) {
       Toast.warning(`Ο ${worker.name} είναι ήδη ανατεθειμένος. Επεξεργαστείτε τις ώρες του.`);
@@ -1427,7 +1440,7 @@ window.JobsView = {
 
         <div class="form-group">
           <label>Ώρες Εργασίας <span class="required">*</span></label>
-          <input type="number" id="editWorkerHours" step="0.5" min="0.5" value="${worker.hoursAllocated}" required>
+          <input type="number" id="editWorkerHours" step="0.5" min="0.5" value="${worker.hoursAllocated}">
         </div>
 
         <div class="form-group">
@@ -1506,9 +1519,9 @@ window.JobsView = {
       <div class="form-grid">
         <div class="form-group span-2">
           <label>Όνομα Χρώματος <span class="required">*</span></label>
-          <input type="text" id="newPaintName" list="paintNamesList" placeholder="π.χ. Λευκό Ματ Ακρυλικό" required>
+          <input type="text" id="newPaintName" list="paintNamesList" placeholder="π.χ. Λευκό Ματ Ακρυλικό">
           <datalist id="paintNamesList">
-            ${(State.read('paints') || []).map(p => `<option value="${p.name}">`).join('')}
+            ${(State.read('inventory') || []).map(p => `<option value="${p.name}">`).join('')}
           </datalist>
         </div>
 

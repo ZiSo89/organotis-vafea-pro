@@ -42,8 +42,15 @@
     };
     
     // Load Google Maps on demand (only when needed)
+    let googleMapsPromise = null; // Track loading state
+    
     window.loadGoogleMaps = function() {
-      return new Promise((resolve, reject) => {
+      // Return existing promise if already loading or loaded
+      if (googleMapsPromise) {
+        return googleMapsPromise;
+      }
+      
+      googleMapsPromise = new Promise((resolve, reject) => {
         // Check if already loaded
         if (typeof google !== 'undefined' && google.maps) {
           console.log('📍 Google Maps already loaded');
@@ -51,20 +58,40 @@
           return;
         }
         
+        // Check if script is already being loaded
+        const existingScript = document.querySelector('script[src*="maps.googleapis.com"]');
+        if (existingScript) {
+          console.log('📍 Google Maps script already in DOM, waiting for load...');
+          // Wait for existing script to load
+          existingScript.addEventListener('load', () => resolve());
+          existingScript.addEventListener('error', () => reject('Failed to load'));
+          return;
+        }
+        
         // Only load on desktop or when explicitly requested
         if (window.innerWidth <= 768) {
           console.log('📍 Skipping Google Maps on mobile');
+          googleMapsPromise = null; // Reset promise for future attempts
           reject('Mobile device');
           return;
         }
         
+        console.log('📍 Loading Google Maps API...');
         const script = document.createElement('script');
         script.src = 'https://maps.googleapis.com/maps/api/js?key=AIzaSyDbO_6f6Y_y_2_2MreK0XTWAIsZw-2AKWQ&libraries=geometry,places&callback=initMap';
         script.async = true;
-        script.onload = () => resolve();
-        script.onerror = () => reject('Failed to load');
+        script.onload = () => {
+          console.log('✅ Google Maps API loaded');
+          resolve();
+        };
+        script.onerror = () => {
+          googleMapsPromise = null; // Reset promise on error
+          reject('Failed to load');
+        };
         document.head.appendChild(script);
       });
+      
+      return googleMapsPromise;
     };
   </script>
   
@@ -199,10 +226,10 @@
     
     <!-- Header -->
     <header class="header">
-      <img src="assets/icons/logo.png" alt="Οργανωτής Βαφέα" class="header-logo">
       <button id="mobileMenuBtn" class="mobile-menu-btn" aria-label="Menu">
         <i class="fas fa-bars"></i>
       </button>
+      <img src="assets/icons/logo.png" alt="Οργανωτής Βαφέα" class="header-logo">
     </header>
 
     <!-- Content Area -->
