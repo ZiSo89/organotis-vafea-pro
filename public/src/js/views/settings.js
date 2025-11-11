@@ -897,10 +897,39 @@ window.SettingsView = {
           <p style="color: var(--color-text-muted); margin-bottom: 15px;">
             Συγχρονίστε τα δεδομένα σας μεταξύ του server και της τοπικής βάσης για λειτουργία offline.
           </p>
+          
+          <!-- Server URL Configuration -->
+          <div style="margin-bottom: 20px; padding: 15px; background: var(--color-bg-light); border-radius: 8px; border: 1px solid var(--color-border);">
+            <h4 style="margin: 0 0 10px 0; font-size: 14px; color: var(--color-text);">
+              <i class="fas fa-server"></i> Διεύθυνση Server
+            </h4>
+            <div style="display: flex; gap: 10px; align-items: center;">
+              <input 
+                type="text" 
+                id="serverUrlInput" 
+                class="form-control" 
+                placeholder="π.χ. http://localhost:8000 ή https://yourserver.com"
+                style="flex: 1;"
+              />
+              <button class="btn btn-primary" id="saveServerUrlBtn" style="white-space: nowrap;">
+                <i class="fas fa-save"></i> Αποθήκευση
+              </button>
+            </div>
+            <div style="margin-top: 8px; font-size: 12px; color: var(--color-text-muted);">
+              <i class="fas fa-info-circle"></i> 
+              <strong>Localhost:</strong> http://localhost:8000 (για τοπικό server) <br>
+              <strong>Online:</strong> https://yourserver.com (για παραγωγή)
+            </div>
+          </div>
+          
           <div id="syncStatus" style="margin-bottom: 15px; padding: 10px; background: var(--color-bg); border-radius: 8px;">
             <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
               <span>Κατάσταση:</span>
               <span id="onlineStatus"><i class="fas fa-circle"></i> Έλεγχος...</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+              <span>Server URL:</span>
+              <span id="currentServerUrl" style="font-family: monospace; font-size: 12px; color: var(--color-primary);">-</span>
             </div>
             <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
               <span>Τελευταία Λήψη:</span>
@@ -986,7 +1015,14 @@ window.SettingsView = {
     if (OfflineService.isElectron()) {
       syncCard.style.display = 'block';
       
+      // Load current server URL
+      const serverUrlInput = document.getElementById('serverUrlInput');
+      if (serverUrlInput) {
+        serverUrlInput.value = this.getServerUrl();
+      }
+      
       // Attach event listeners
+      document.getElementById('saveServerUrlBtn')?.addEventListener('click', () => this.saveServerUrl());
       document.getElementById('downloadBtn')?.addEventListener('click', () => this.syncDownload());
       document.getElementById('uploadBtn')?.addEventListener('click', () => this.syncUpload());
       document.getElementById('refreshStatusBtn')?.addEventListener('click', () => this.updateSyncStatus());
@@ -998,11 +1034,17 @@ window.SettingsView = {
 
   async updateSyncStatus() {
     const onlineStatus = document.getElementById('onlineStatus');
+    const currentServerUrl = document.getElementById('currentServerUrl');
     const lastDownload = document.getElementById('lastDownload');
     const lastUpload = document.getElementById('lastUpload');
     const pendingChanges = document.getElementById('pendingChanges');
 
     try {
+      // Show current server URL
+      if (currentServerUrl) {
+        currentServerUrl.textContent = this.getServerUrl();
+      }
+      
       // Check online status
       const isOnline = await OfflineService.checkOnline();
       if (onlineStatus) {
@@ -1036,29 +1078,41 @@ window.SettingsView = {
     }
   },
 
+  getServerUrl() {
+    // Get server URL from localStorage, default to localhost for development
+    return localStorage.getItem('syncServerUrl') || 'http://localhost:8000';
+  },
+
+  setServerUrl(url) {
+    localStorage.setItem('syncServerUrl', url);
+  },
+
   async syncDownload() {
-    // For Electron, use a proper HTTP URL for sync
-    const serverUrl = 'http://localhost:8000';
+    const serverUrl = this.getServerUrl();
     
     try {
+      Toast.info(`Λήψη από ${serverUrl}...`);
       const result = await OfflineService.downloadFromServer(serverUrl);
       
       if (result.success) {
+        Toast.success(`✅ Ληφθηκαν ${result.totalRecords} εγγραφές`);
         await this.updateSyncStatus();
         
         // Reload state data
         if (typeof State !== 'undefined' && State.loadAll) {
           await State.loadAll();
         }
+      } else {
+        Toast.error(`❌ Αποτυχία: ${result.errors.join(', ')}`);
       }
     } catch (error) {
       console.error('Download error:', error);
+      Toast.error('❌ Σφάλμα λήψης: ' + error.message);
     }
   },
 
   async syncUpload() {
-    // For Electron, use a proper HTTP URL for sync
-    const serverUrl = 'http://localhost:8000';
+    const serverUrl = this.getServerUrl();
     
     const pending = await OfflineService.getPendingCount();
     if (pending === 0) {
@@ -1066,18 +1120,44 @@ window.SettingsView = {
       return;
     }
     
-    if (!confirm(`Θα σταλούν ${pending} αλλαγές στον server. Συνέχεια;`)) {
+    if (!confirm(`Θα σταλούν ${pending} αλλαγές στον ${serverUrl}. Συνέχεια;`)) {
       return;
     }
     
     try {
+      Toast.info(`Αποστολή στον ${serverUrl}...`);
       const result = await OfflineService.uploadToServer(serverUrl);
       
       if (result.success) {
+        Toast.success(`✅ Στάλθηκαν ${result.totalRecords} αλλαγές`);
         await this.updateSyncStatus();
+      } else {
+        Toast.error(`❌ Αποτυχία: ${result.errors.join(', ')}`);
       }
     } catch (error) {
       console.error('Upload error:', error);
+      Toast.error('❌ Σφάλμα αποστολής: ' + error.message);
+    }
+  },
+
+  saveServerUrl() {
+    const input = document.getElementById('serverUrlInput');
+    if (!input) return;
+    
+    const url = input.value.trim();
+    if (!url) {
+      Toast.error('Παρακαλώ εισάγετε URL');
+      return;
+    }
+    
+    // Validate URL format
+    try {
+      new URL(url);
+      this.setServerUrl(url);
+      Toast.success('✅ Το Server URL αποθηκεύτηκε');
+      this.updateSyncStatus();
+    } catch (error) {
+      Toast.error('❌ Μη έγκυρο URL');
     }
   }
 };
