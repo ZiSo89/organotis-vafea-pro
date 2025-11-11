@@ -8,8 +8,8 @@
 define('DB_HOST', 'localhost');
 define('DB_PORT', '3306');
 define('DB_NAME', 'painter_app');
-define('DB_USER', 'root');
-define('DB_PASS', '');
+define('DB_USER', 'painter_user');
+define('DB_PASS', '~cjN4bOZcq77jqy@');
 define('DB_CHARSET', 'utf8mb4');
 
 // Δημιουργία σύνδεσης με τη database

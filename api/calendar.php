@@ -9,10 +9,6 @@ ini_set('display_errors', 0); // Disable display to avoid breaking JSON
 ini_set('log_errors', 1);
 
 require_once '../config/database.php';
-require_once '../config/logger.php';
-
-// Initialize logger
-Logger::init('calendar.log');
 
 // Set headers after all processing
 function sendResponse($data, $code = 200) {
@@ -34,6 +30,12 @@ $action = $_GET['action'] ?? null;
 // Handle sync action
 if ($action === 'sync') {
     handleSync($conn);
+    exit;
+}
+
+// Handle list action for Electron sync
+if ($action === 'list') {
+    handleList($conn);
     exit;
 }
 
@@ -64,11 +66,6 @@ function handleGet($conn) {
         // Get query parameters
         $start = $_GET['start'] ?? null;
         $end = $_GET['end'] ?? null;
-        
-        Logger::separator();
-        Logger::info("📥 GET /api/calendar.php");
-        Logger::info("  - start: " . ($start ?? 'NULL'));
-        Logger::info("  - end: " . ($end ?? 'NULL'));
         
         // Build query - παίρνουμε τις επισκέψεις από calendar_events
         $query = "
@@ -120,8 +117,6 @@ function handleGet($conn) {
         $stmt->execute();
         $calendarEvents = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
-        Logger::info("📊 Found " . count($calendarEvents) . " events in database");
-        
         // Μετατροπή σε FullCalendar format
         $events = [];
         foreach ($calendarEvents as $event) {
@@ -137,31 +132,20 @@ function handleGet($conn) {
             $start = substr($event['start_date'], 0, 10); // Get only YYYY-MM-DD part
             $end = $event['end_date'] ? substr($event['end_date'], 0, 10) : $start;
             
-            Logger::debug("  Event ID " . $event['id'] . ":");
-            Logger::debug("    - title: " . $event['title']);
-            Logger::debug("    - start_date (raw): " . $event['start_date']);
-            Logger::debug("    - start_date (clean): " . $start);
-            Logger::debug("    - start_time: " . ($event['start_time'] ?? 'NULL'));
-            Logger::debug("    - end_time: " . ($event['end_time'] ?? 'NULL'));
-            Logger::debug("    - all_day: " . $event['all_day']);
-            
             if (!$event['all_day']) {
                 if ($event['start_time']) {
                     $start .= 'T' . $event['start_time'];
-                    Logger::debug("    - Formatted start: " . $start);
                 }
                 
                 // If we have an end_time, use it; otherwise use start_time + 1 hour as default
                 if ($event['end_time']) {
                     $end .= 'T' . $event['end_time'];
-                    Logger::debug("    - Formatted end: " . $end);
                 } else if ($event['start_time']) {
                     // Add 1 hour to start_time for default end
                     $startDateOnly = substr($event['start_date'], 0, 10);
                     $endDateTime = new DateTime($startDateOnly . ' ' . $event['start_time']);
                     $endDateTime->modify('+1 hour');
                     $end = $endDateTime->format('Y-m-d\TH:i:s');
-                    Logger::debug("    - Formatted end (auto +1h): " . $end);
                 }
             }
             
@@ -189,14 +173,9 @@ function handleGet($conn) {
             ];
         }
         
-        Logger::info("✅ Returning " . count($events) . " formatted events");
-        Logger::separator();
-        
         sendResponse($events);
         
     } catch(PDOException $e) {
-        Logger::error("❌ Database Error: " . $e->getMessage());
-        Logger::separator();
         sendResponse(['error' => $e->getMessage()], 500);
     }
 }
@@ -207,29 +186,13 @@ function handleGet($conn) {
 function handlePost($conn) {
     try {
         $rawInput = file_get_contents('php://input');
-        Logger::separator();
-        Logger::info("📥 POST /api/calendar.php - CREATE EVENT");
-        Logger::debug("Raw Input: " . $rawInput);
-        
         $data = json_decode($rawInput, true);
-        Logger::debug("Parsed Data: " . json_encode($data, JSON_PRETTY_PRINT));
         
         // Validation
         if (!isset($data['title']) || !isset($data['start_date'])) {
-            Logger::error("❌ Validation Error: Missing required fields");
             sendResponse(['error' => 'Missing required fields'], 400);
             return;
         }
-        
-        Logger::info("✅ Validation passed");
-        Logger::info("Fields to insert:");
-        Logger::info("  - title: " . $data['title']);
-        Logger::info("  - start_date: " . $data['start_date']);
-        Logger::info("  - end_date: " . ($data['end_date'] ?? 'NULL'));
-        Logger::info("  - start_time: " . ($data['start_time'] ?? 'NULL'));
-        Logger::info("  - end_time: " . ($data['end_time'] ?? 'NULL'));
-        Logger::info("  - all_day: " . ($data['all_day'] ?? 0));
-        Logger::info("  - status: " . ($data['status'] ?? 'pending'));
         
         // Insert new calendar event
         $query = "
@@ -279,13 +242,9 @@ function handlePost($conn) {
         $stmt->bindValue(':description', $data['description'] ?? null);
         $stmt->bindValue(':color', $data['color'] ?? null);
         
-        Logger::info("🔄 Executing INSERT query...");
         $stmt->execute();
         
         $newId = $conn->lastInsertId();
-        
-        Logger::info("✅ Event created successfully! ID: " . $newId);
-        Logger::separator();
         
         sendResponse([
             'success' => true,
@@ -294,9 +253,6 @@ function handlePost($conn) {
         ], 201);
         
     } catch(PDOException $e) {
-        Logger::error("❌ Database Error: " . $e->getMessage());
-        Logger::error("❌ Stack trace: " . $e->getTraceAsString());
-        Logger::separator();
         sendResponse(['error' => $e->getMessage()], 500);
     }
 }
@@ -560,6 +516,48 @@ function handleSync($conn) {
         
     } catch(PDOException $e) {
         sendResponse(['error' => $e->getMessage()], 500);
+    }
+}
+
+/* ========================================
+   LIST - Λίστα όλων των events για sync
+   ======================================== */
+function handleList($conn) {
+    try {
+        $query = "
+            SELECT 
+                id,
+                title,
+                start_date AS startDate,
+                end_date AS endDate,
+                start_time AS startTime,
+                end_time AS endTime,
+                all_day AS allDay,
+                client_id AS clientId,
+                job_id AS jobId,
+                address,
+                description,
+                status,
+                color,
+                created_at AS createdAt,
+                updated_at AS updatedAt
+            FROM calendar_events
+            ORDER BY id ASC
+        ";
+        
+        $stmt = $conn->query($query);
+        $events = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        sendResponse([
+            'success' => true,
+            'data' => $events
+        ]);
+        
+    } catch(PDOException $e) {
+        sendResponse([
+            'success' => false,
+            'message' => $e->getMessage()
+        ], 500);
     }
 }
 

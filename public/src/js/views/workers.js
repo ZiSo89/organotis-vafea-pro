@@ -267,10 +267,21 @@ window.WorkersView = {
             let monthlyEarnings = 0;
 
             jobs.forEach(job => {
-              if (job.assignedWorkers && job.date) {
+              // Parse assignedWorkers if it's a string
+              let assignedWorkers = job.assignedWorkers;
+              if (typeof assignedWorkers === 'string') {
+                try {
+                  assignedWorkers = JSON.parse(assignedWorkers);
+                } catch (e) {
+                  console.error('Error parsing assignedWorkers for job', job.id, e);
+                  assignedWorkers = [];
+                }
+              }
+              
+              if (Array.isArray(assignedWorkers) && job.date) {
                 const jobDate = new Date(job.date);
                 if (jobDate.getMonth() === thisMonth && jobDate.getFullYear() === thisYear) {
-                  const workerAssignment = job.assignedWorkers.find(w => w.workerId === worker.id);
+                  const workerAssignment = assignedWorkers.find(w => w.workerId === worker.id);
                   if (workerAssignment) {
                     monthlyHours += workerAssignment.hoursAllocated || 0;
                     // laborCost is what you PAY the worker (their hourlyRate × hours)
@@ -414,9 +425,20 @@ window.WorkersView = {
 
     // Get worker's work history from jobs
     const jobs = State.read('jobs') || [];
-    const workerJobs = jobs.filter(job => 
-      job.assignedWorkers && job.assignedWorkers.some(w => w.workerId === id)
-    );
+    const workerJobs = jobs.filter(job => {
+      // Parse assignedWorkers if it's a string
+      let assignedWorkers = job.assignedWorkers;
+      if (typeof assignedWorkers === 'string') {
+        try {
+          assignedWorkers = JSON.parse(assignedWorkers);
+        } catch (e) {
+          console.error('Error parsing assignedWorkers for job', job.id, e);
+          return false;
+        }
+      }
+      
+      return Array.isArray(assignedWorkers) && assignedWorkers.some(w => w.workerId === id);
+    });
 
     const statusBadge = worker.status === 'active' 
       ? '<span class="status-pill status-active">Ενεργός</span>'
@@ -483,7 +505,22 @@ window.WorkersView = {
               <tbody>
                 ${workerJobs.map(job => {
                   const client = State.data.clients.find(c => c.id === job.clientId);
-                  const workerAssignment = job.assignedWorkers.find(w => w.workerId === id);
+                  
+                  // Parse assignedWorkers if it's a string
+                  let assignedWorkers = job.assignedWorkers;
+                  if (typeof assignedWorkers === 'string') {
+                    try {
+                      assignedWorkers = JSON.parse(assignedWorkers);
+                    } catch (e) {
+                      console.error('Error parsing assignedWorkers for job', job.id, e);
+                      assignedWorkers = [];
+                    }
+                  }
+                  
+                  const workerAssignment = Array.isArray(assignedWorkers) 
+                    ? assignedWorkers.find(w => w.workerId === id)
+                    : null;
+                    
                   return `
                     <tr>
                       <td><strong>${job.id}</strong></td>

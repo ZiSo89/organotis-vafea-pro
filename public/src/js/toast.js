@@ -75,14 +75,17 @@ const Toast = {
 
   // Shortcuts
   success(message, duration) {
+    console.log('✅ Toast Success:', message);
     return this.show(message, 'success', duration);
   },
 
   error(message, duration) {
+    console.error('🔴 Toast Error:', message);
     return this.show(message, 'error', duration);
   },
 
   warning(message, duration) {
+    console.warn('⚠️ Toast Warning:', message);
     return this.show(message, 'warning', duration);
   },
 

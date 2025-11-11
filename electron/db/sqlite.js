@@ -35,6 +35,10 @@ class SQLiteDB {
     if (!row) return row;
     
     const converted = {};
+    
+    // Fields that should be parsed as JSON
+    const jsonFields = ['assignedWorkers', 'paints', 'items', 'materials', 'tasks'];
+    
     for (const key in row) {
       if (row.hasOwnProperty(key)) {
         // Skip internal sync fields
@@ -42,7 +46,19 @@ class SQLiteDB {
           converted[key] = row[key];
         } else {
           const camelKey = this.snakeToCamel(key);
-          converted[camelKey] = row[key];
+          let value = row[key];
+          
+          // Parse JSON fields
+          if (jsonFields.includes(camelKey) && typeof value === 'string' && value) {
+            try {
+              value = JSON.parse(value);
+            } catch (e) {
+              console.error(`Failed to parse JSON field ${camelKey}:`, value, e);
+              value = []; // Default to empty array on parse error
+            }
+          }
+          
+          converted[camelKey] = value;
         }
       }
     }
@@ -244,6 +260,29 @@ class SQLiteDB {
         FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
       );
 
+      -- Calendar Events Table
+      CREATE TABLE IF NOT EXISTS calendar_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        start_date TEXT NOT NULL,
+        end_date TEXT,
+        start_time TEXT,
+        end_time TEXT,
+        all_day INTEGER DEFAULT 0,
+        client_id INTEGER,
+        job_id INTEGER,
+        address TEXT,
+        description TEXT,
+        status TEXT,
+        color TEXT,
+        created_at TEXT DEFAULT (datetime('now', 'localtime')),
+        updated_at TEXT DEFAULT (datetime('now', 'localtime')),
+        _sync_status TEXT DEFAULT 'synced',
+        _sync_timestamp INTEGER DEFAULT 0,
+        FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE SET NULL,
+        FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE SET NULL
+      );
+
       -- Sync Metadata Table
       CREATE TABLE IF NOT EXISTS sync_metadata (
         key TEXT PRIMARY KEY,
@@ -261,6 +300,9 @@ class SQLiteDB {
       CREATE INDEX IF NOT EXISTS idx_invoices_job_id ON invoices(job_id);
       CREATE INDEX IF NOT EXISTS idx_invoices_client_id ON invoices(client_id);
       CREATE INDEX IF NOT EXISTS idx_offers_client_id ON offers(client_id);
+      CREATE INDEX IF NOT EXISTS idx_calendar_start_date ON calendar_events(start_date);
+      CREATE INDEX IF NOT EXISTS idx_calendar_client_id ON calendar_events(client_id);
+      CREATE INDEX IF NOT EXISTS idx_calendar_job_id ON calendar_events(job_id);
       CREATE INDEX IF NOT EXISTS idx_sync_status ON clients(_sync_status);
     `);
 

@@ -5,9 +5,15 @@
 
 class APIService {
     constructor() {
-        this.baseURL = window.location.origin.includes('localhost:8000') 
-            ? 'http://localhost:8000/api'
-            : '/api';
+        // In Electron, use the configured server URL, otherwise use relative paths
+        if (typeof window.electronAPI !== 'undefined') {
+            this.baseURL = localStorage.getItem('syncServerUrl') || 'https://nikolpaintmaster.e-gata.gr';
+        } else {
+            this.baseURL = window.location.origin.includes('localhost:8000') 
+                ? 'http://localhost:8000/api'
+                : '/api';
+        }
+        
         this.authChecked = false;
         this.offlineMode = false;
         this.isElectron = typeof window.electronAPI !== 'undefined';
@@ -16,6 +22,8 @@ class APIService {
         if (this.isElectron) {
             this.checkOnlineStatus();
         }
+        
+        console.log('🌐 API Service initialized with baseURL:', this.baseURL);
     }
 
     /**

@@ -145,14 +145,32 @@ window.StatisticsView = {
 
   async loadAvailableYears() {
     try {
-      const response = await API.get('/api/statistics.php?action=available_years');
-      if (response.success) {
-        const years = response.data;
-        const select = document.getElementById('yearFilter');
+      // Χρήση Electron API για τοπικά δεδομένα
+      if (typeof window.electronAPI !== 'undefined') {
+        const jobs = await window.electronAPI.db.query("SELECT DISTINCT strftime('%Y', date) as year FROM jobs WHERE date IS NOT NULL ORDER BY year DESC");
+        const years = jobs.map(j => j.year).filter(y => y);
         
+        if (years.length === 0) {
+          years.push(new Date().getFullYear().toString());
+        }
+        
+        const select = document.getElementById('yearFilter');
         select.innerHTML = years.map(year => 
           `<option value="${year}" ${year == this.currentYear ? 'selected' : ''}>${year}</option>`
         ).join('');
+        
+        console.log('📅 Available years:', years);
+      } else {
+        // Fallback για web version
+        const response = await API.get('/api/statistics.php?action=available_years');
+        if (response.success) {
+          const years = response.data;
+          const select = document.getElementById('yearFilter');
+          
+          select.innerHTML = years.map(year => 
+            `<option value="${year}" ${year == this.currentYear ? 'selected' : ''}>${year}</option>`
+          ).join('');
+        }
       }
     } catch (error) {
       console.error('Σφάλμα φόρτωσης ετών:', error);
@@ -189,49 +207,267 @@ window.StatisticsView = {
 
   async loadStatistics() {
     try {
-      // Φόρτωση όλων των δεδομένων παράλληλα
-      const [summary, revenue, jobsType, jobsStatus, materials, topJobs] = await Promise.all([
-        API.get(`/api/statistics.php?action=summary&year=${this.currentYear}`),
-        API.get(`/api/statistics.php?action=revenue&year=${this.currentYear}`),
-        API.get(`/api/statistics.php?action=jobs_by_type&year=${this.currentYear}`),
-        API.get(`/api/statistics.php?action=jobs_status&year=${this.currentYear}`),
-        API.get(`/api/statistics.php?action=materials_usage&year=${this.currentYear}`),
-        API.get(`/api/statistics.php?action=top_jobs&limit=10&year=${this.currentYear}`)
-      ]);
+      console.log('📊 Loading statistics for year:', this.currentYear);
+      
+      if (typeof window.electronAPI !== 'undefined') {
+        console.log('🔌 Using Electron API for statistics');
+        // Υπολογισμός στατιστικών από SQLite
+        await this.loadStatisticsFromElectron();
+      } else {
+        console.log('🌐 Using Web API for statistics');
+        // Φόρτωση από server
+        const [summary, revenue, jobsType, jobsStatus, materials, topJobs] = await Promise.all([
+          API.get(`/api/statistics.php?action=summary&year=${this.currentYear}`),
+          API.get(`/api/statistics.php?action=revenue&year=${this.currentYear}`),
+          API.get(`/api/statistics.php?action=jobs_by_type&year=${this.currentYear}`),
+          API.get(`/api/statistics.php?action=jobs_status&year=${this.currentYear}`),
+          API.get(`/api/statistics.php?action=materials_usage&year=${this.currentYear}`),
+          API.get(`/api/statistics.php?action=top_jobs&limit=10&year=${this.currentYear}`)
+        ]);
 
-      // Ενημέρωση summary cards
-      this.updateSummaryCards(summary.data);
+        console.log('✅ API responses received:', {summary, revenue, jobsType, jobsStatus, materials, topJobs});
 
-      // Δημιουργία γραφημάτων
-      this.createRevenueChart(revenue.data);
-      this.createJobsTypeChart(jobsType.data);
-      this.createJobsStatusChart(jobsStatus.data);
-      this.createMaterialsChart(materials.data);
-      this.createTopJobsChart(topJobs.data);
+        // Ενημέρωση summary cards
+        this.updateSummaryCards(summary.data);
 
+        // Δημιουργία γραφημάτων
+        this.createRevenueChart(revenue.data);
+        this.createJobsTypeChart(jobsType.data);
+        this.createJobsStatusChart(jobsStatus.data);
+        this.createMaterialsChart(materials.data);
+        this.createTopJobsChart(topJobs.data);
+      }
     } catch (error) {
-      console.error('Σφάλμα φόρτωσης στατιστικών:', error);
-      showToast('Σφάλμα φόρτωσης στατιστικών', 'error');
+      console.error('❌ Σφάλμα φόρτωσης στατιστικών:', error);
+      console.error('Error stack:', error.stack);
+      if (typeof Toast !== 'undefined') {
+        Toast.error('Σφάλμα φόρτωσης στατιστικών');
+      }
+    }
+  },
+
+  async loadStatisticsFromElectron() {
+    try {
+      console.log('🗄️ Loading statistics from SQLite for year:', this.currentYear);
+      
+      // Convert year to string for SQL comparison
+      const yearString = String(this.currentYear);
+      
+      // Summary
+      console.log('📈 Querying summary data...');
+      const jobs = await window.electronAPI.db.query(`
+        SELECT 
+          COUNT(*) as total_jobs,
+          SUM(CASE WHEN status = 'Ολοκληρώθηκε' THEN 1 ELSE 0 END) as completed_jobs,
+          SUM(total_cost) as total_revenue,
+          SUM(total_cost - materials_cost) as total_profit
+        FROM jobs 
+        WHERE strftime('%Y', date) = ?
+      `, [yearString]);
+      
+      console.log('✅ Summary data:', jobs[0]);
+      console.log('   - totalJobs:', jobs[0]?.totalJobs);
+      console.log('   - completedJobs:', jobs[0]?.completedJobs);
+      console.log('   - totalRevenue:', jobs[0]?.totalRevenue);
+      console.log('   - totalProfit:', jobs[0]?.totalProfit);
+      
+      // Also check what statuses exist
+      const statuses = await window.electronAPI.db.query(`
+        SELECT DISTINCT status FROM jobs WHERE strftime('%Y', date) = ?
+      `, [yearString]);
+      console.log('📊 Available statuses in DB:', statuses);
+      
+      this.updateSummaryCards(jobs[0] || {});
+
+      // Revenue by month
+      console.log('📊 Querying revenue by month...');
+      const revenue = await window.electronAPI.db.query(`
+        SELECT 
+          strftime('%m', date) as month,
+          SUM(total_cost) as revenue,
+          SUM(total_cost - materials_cost) as profit
+        FROM jobs 
+        WHERE strftime('%Y', date) = ?
+        GROUP BY month
+        ORDER BY month
+      `, [yearString]);
+      
+      console.log('✅ Revenue data:', revenue);
+      console.log('📊 Revenue data details:', JSON.stringify(revenue, null, 2));
+      this.createRevenueChart(revenue);
+
+      // Jobs by type
+      console.log('🔧 Querying jobs by type...');
+      const jobsType = await window.electronAPI.db.query(`
+        SELECT type, COUNT(*) as count
+        FROM jobs 
+        WHERE strftime('%Y', date) = ?
+        GROUP BY type
+      `, [yearString]);
+      
+      console.log('✅ Jobs by type:', jobsType);
+      console.log('📊 Jobs by type details:', JSON.stringify(jobsType, null, 2));
+      this.createJobsTypeChart(jobsType);
+
+      // Jobs by status
+      console.log('📋 Querying jobs by status...');
+      const jobsStatus = await window.electronAPI.db.query(`
+        SELECT status, COUNT(*) as count
+        FROM jobs 
+        WHERE strftime('%Y', date) = ?
+        GROUP BY status
+      `, [yearString]);
+      
+      console.log('✅ Jobs by status:', jobsStatus);
+      console.log('📊 Jobs by status details:', JSON.stringify(jobsStatus, null, 2));
+      this.createJobsStatusChart(jobsStatus);
+
+      // Materials usage - Get paints from jobs
+      console.log('📦 Querying top paints/materials...');
+      const jobsWithPaints = await window.electronAPI.db.query(`
+        SELECT 
+          j.id,
+          j.title,
+          j.paints,
+          j.materials_cost,
+          j.total_cost
+        FROM jobs j
+        WHERE strftime('%Y', j.date) = ?
+        AND j.paints IS NOT NULL 
+        AND j.paints != ''
+        AND j.paints != '[]'
+        ORDER BY j.materials_cost DESC
+        LIMIT 50
+      `, [yearString]);
+      
+      console.log('✅ Jobs with paints:', jobsWithPaints.length);
+      
+      // Parse and aggregate paints
+      const paintsMap = new Map();
+      jobsWithPaints.forEach(job => {
+        try {
+          console.log('  Processing job:', job.id, 'Paints:', job.paints);
+          const paints = typeof job.paints === 'string' ? JSON.parse(job.paints) : job.paints;
+          console.log('  Parsed paints:', paints);
+          
+          if (Array.isArray(paints)) {
+            paints.forEach(paint => {
+              console.log('    Paint item:', paint);
+              const key = paint.name || paint.color || 'Άγνωστο';
+              if (!paintsMap.has(key)) {
+                paintsMap.set(key, {
+                  name: key,
+                  totalQuantity: 0,
+                  totalCost: 0,
+                  jobs: 0,
+                  unit: paint.unit || 'λίτρα'
+                });
+              }
+              const existing = paintsMap.get(key);
+              const quantity = parseFloat(paint.quantity || 0);
+              const cost = parseFloat(paint.cost || paint.price || paint.totalPrice || 0);
+              
+              existing.totalQuantity += quantity;
+              existing.totalCost += cost;
+              existing.jobs++;
+              
+              console.log('    Added to', key, '- Qty:', quantity, 'Cost:', cost, 'Total now:', existing);
+            });
+          }
+        } catch (error) {
+          console.error('❌ Error parsing paints for job:', job.id, error);
+        }
+      });
+      
+      const aggregatedPaints = Array.from(paintsMap.values())
+        .sort((a, b) => {
+          // Ταξινόμηση με βάση το κόστος αν υπάρχει, αλλιώς με την ποσότητα
+          if (b.totalCost > 0 || a.totalCost > 0) {
+            return b.totalCost - a.totalCost;
+          }
+          return b.totalQuantity - a.totalQuantity;
+        })
+        .slice(0, 10);
+      
+      console.log('📊 Aggregated paints (top 10):', aggregatedPaints);
+      this.createMaterialsChart(aggregatedPaints);
+
+      // Top jobs
+      console.log('🏆 Querying top jobs...');
+      const topJobs = await window.electronAPI.db.query(`
+        SELECT 
+          title, 
+          total_cost as revenue,
+          materials_cost,
+          (total_cost - materials_cost) as profit,
+          type
+        FROM jobs 
+        WHERE strftime('%Y', date) = ?
+        ORDER BY total_cost DESC
+        LIMIT 10
+      `, [yearString]);
+      
+      console.log('✅ Top jobs:', topJobs);
+      console.log('📊 Top jobs details:', JSON.stringify(topJobs, null, 2));
+      this.createTopJobsChart(topJobs);
+      
+      console.log('✅ All statistics loaded successfully!');
+    } catch (error) {
+      console.error('❌ Error in loadStatisticsFromElectron:', error);
+      console.error('Error stack:', error.stack);
+      throw error;
     }
   },
 
   updateSummaryCards(data) {
-    document.getElementById('totalRevenue').textContent = 
-      `€${(data.total_revenue || 0).toLocaleString('el-GR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
-    document.getElementById('totalProfit').textContent = 
-      `€${(data.total_profit || 0).toLocaleString('el-GR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
-    document.getElementById('totalJobs').textContent = data.total_jobs || 0;
-    document.getElementById('completedJobs').textContent = data.completed_jobs || 0;
+    console.log('📋 Updating summary cards with data:', data);
+    
+    const totalRevenueEl = document.getElementById('totalRevenue');
+    const totalProfitEl = document.getElementById('totalProfit');
+    const totalJobsEl = document.getElementById('totalJobs');
+    const completedJobsEl = document.getElementById('completedJobs');
+    
+    // Support both camelCase (from Electron/SQLite) and snake_case (from API)
+    const totalRevenue = data.totalRevenue || data.total_revenue || 0;
+    const totalProfit = data.totalProfit || data.total_profit || 0;
+    const totalJobs = data.totalJobs || data.total_jobs || 0;
+    const completedJobs = data.completedJobs || data.completed_jobs || 0;
+    
+    if (totalRevenueEl) {
+      totalRevenueEl.textContent = `€${totalRevenue.toLocaleString('el-GR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
+      console.log('✅ Total revenue updated:', totalRevenueEl.textContent);
+    }
+    
+    if (totalProfitEl) {
+      totalProfitEl.textContent = `€${totalProfit.toLocaleString('el-GR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
+      console.log('✅ Total profit updated:', totalProfitEl.textContent);
+    }
+    
+    if (totalJobsEl) {
+      totalJobsEl.textContent = totalJobs;
+      console.log('✅ Total jobs updated:', totalJobsEl.textContent);
+    }
+    
+    if (completedJobsEl) {
+      completedJobsEl.textContent = completedJobs;
+      console.log('✅ Completed jobs updated:', completedJobsEl.textContent);
+    }
   },
 
   createRevenueChart(data) {
+    console.log('📈 Creating revenue chart with data:', data);
+    
     // Καταστροφή προηγούμενου chart
     if (this.charts.revenue) {
+      console.log('🔄 Destroying previous revenue chart');
       this.charts.revenue.destroy();
     }
 
     const ctx = document.getElementById('revenueMonthChart');
-    if (!ctx) return;
+    if (!ctx) {
+      console.error('❌ Revenue chart canvas not found!');
+      return;
+    }
 
     // Δημιουργία πλήρους dataset για όλους τους μήνες
     const months = [
@@ -247,6 +483,13 @@ window.StatisticsView = {
       revenueData[monthIndex] = item.revenue;
       profitData[monthIndex] = item.profit;
     });
+    
+    // Υπολογισμός συνολικών
+    const totalRevenue = revenueData.reduce((sum, val) => sum + val, 0);
+    const totalProfit = profitData.reduce((sum, val) => sum + val, 0);
+    
+    console.log('📊 Chart data prepared:', {revenueData, profitData});
+    console.log('💰 Total Revenue:', totalRevenue, 'Total Profit:', totalProfit);
 
     this.charts.revenue = new Chart(ctx, {
       type: 'line',
@@ -258,14 +501,20 @@ window.StatisticsView = {
           borderColor: 'rgb(59, 130, 246)',
           backgroundColor: 'rgba(59, 130, 246, 0.1)',
           fill: true,
-          tension: 0.4
+          tension: 0.4,
+          datalabels: {
+            display: false
+          }
         }, {
           label: 'Κέρδη',
           data: profitData,
           borderColor: 'rgb(34, 197, 94)',
           backgroundColor: 'rgba(34, 197, 94, 0.1)',
           fill: true,
-          tension: 0.4
+          tension: 0.4,
+          datalabels: {
+            display: false
+          }
         }]
       },
       options: {
@@ -279,8 +528,25 @@ window.StatisticsView = {
             callbacks: {
               label: function(context) {
                 return context.dataset.label + ': €' + context.parsed.y.toLocaleString('el-GR', {minimumFractionDigits: 2});
+              },
+              footer: function(tooltipItems) {
+                return 'Συνολικά Έσοδα: €' + totalRevenue.toLocaleString('el-GR', {minimumFractionDigits: 0}) + '\n' +
+                       'Συνολικά Κέρδη: €' + totalProfit.toLocaleString('el-GR', {minimumFractionDigits: 0});
               }
             }
+          },
+          title: {
+            display: true,
+            text: 'Συνολικά Έσοδα: €' + totalRevenue.toLocaleString('el-GR', {minimumFractionDigits: 0}) + 
+                  ' | Συνολικά Κέρδη: €' + totalProfit.toLocaleString('el-GR', {minimumFractionDigits: 0}),
+            font: {
+              size: 14,
+              weight: 'bold'
+            },
+            color: '#1f2937'
+          },
+          datalabels: {
+            display: false
           }
         },
         scales: {
@@ -298,12 +564,15 @@ window.StatisticsView = {
   },
 
   createJobsTypeChart(data) {
+    console.log('🥧 Creating Jobs Type Chart with data:', data);
+    
     if (this.charts.jobsType) {
       this.charts.jobsType.destroy();
     }
 
     const ctx = document.getElementById('jobsTypeChart');
     if (!ctx || !data || data.length === 0) {
+      console.warn('⚠️ Cannot create Jobs Type Chart - no data or canvas not found');
       if (ctx) {
         ctx.parentElement.innerHTML = '<p class="text-muted text-center">Δεν υπάρχουν δεδομένα</p>';
       }
@@ -318,16 +587,28 @@ window.StatisticsView = {
       'rgb(168, 85, 247)',   // Purple
       'rgb(236, 72, 153)',   // Pink
     ];
+    
+    // Support both formats: type (Electron), job_type (Online), or category
+    const labels = data.map(item => {
+      const label = item.type || item.job_type || item.category || 'Άγνωστο';
+      console.log('  Item:', item, '-> Label:', label);
+      return label;
+    });
+    console.log('📊 Chart labels:', labels);
+    console.log('✅ Jobs Type Chart created successfully');
 
     this.charts.jobsType = new Chart(ctx, {
       type: 'doughnut',
       data: {
-        labels: data.map(item => item.job_type),
+        labels: labels,
         datasets: [{
-          data: data.map(item => item.revenue),
+          data: data.map(item => item.count),
           backgroundColor: colors,
           borderWidth: 2,
-          borderColor: '#fff'
+          borderColor: '#fff',
+          datalabels: {
+            display: false
+          }
         }]
       },
       options: {
@@ -347,6 +628,9 @@ window.StatisticsView = {
                        ' (' + percentage + '%)';
               }
             }
+          },
+          datalabels: {
+            display: false
           }
         }
       }
@@ -354,12 +638,15 @@ window.StatisticsView = {
   },
 
   createJobsStatusChart(data) {
+    console.log('📊 Creating Jobs Status Chart with data:', data);
+    
     if (this.charts.jobsStatus) {
       this.charts.jobsStatus.destroy();
     }
 
     const ctx = document.getElementById('jobsStatusChart');
     if (!ctx || !data || data.length === 0) {
+      console.warn('⚠️ Cannot create Jobs Status Chart - no data or canvas not found');
       if (ctx) {
         ctx.parentElement.innerHTML = '<p class="text-muted text-center">Δεν υπάρχουν δεδομένα</p>';
       }
@@ -367,24 +654,42 @@ window.StatisticsView = {
     }
 
     const statusColors = {
-      'Ολοκληρωμένες': 'rgb(34, 197, 94)',       // Green
+      // Exact statuses from database
+      'Ολοκληρώθηκε': 'rgb(34, 197, 94)',         // Green
       'Σε εξέλιξη': 'rgb(59, 130, 246)',          // Blue
       'Εκκρεμείς': 'rgb(249, 115, 22)',           // Orange
-      'Ακυρωμένες': 'rgb(239, 68, 68)',           // Red
-      'Προγραμματισμένες': 'rgb(168, 85, 247)',   // Purple
-      'Υποψήφιες': 'rgb(236, 72, 153)',           // Pink
+      'Ακυρωμένη': 'rgb(239, 68, 68)',            // Red
+      'Προγραμματισμένη': 'rgb(168, 85, 247)',    // Purple
+      'Υποψήφιος': 'rgb(236, 72, 153)',           // Pink
+      
+      // Alternative plural forms (for API compatibility)
+      'Ολοκληρωμένες': 'rgb(34, 197, 94)',
+      'Προγραμματισμένες': 'rgb(168, 85, 247)',
+      'Υποψήφιες': 'rgb(236, 72, 153)',
+      'Ακυρωμένες': 'rgb(239, 68, 68)',
+      
+      // Default
       'Άλλες': 'rgb(156, 163, 175)'               // Gray
     };
+    
+    console.log('✅ Jobs Status Chart created successfully');
 
     this.charts.jobsStatus = new Chart(ctx, {
       type: 'doughnut',
       data: {
-        labels: data.map(item => item.status_label),
+        // Support both 'status' (from Electron) and 'status_label' (from API)
+        labels: data.map(item => item.status || item.status_label),
         datasets: [{
           data: data.map(item => item.count),
-          backgroundColor: data.map(item => statusColors[item.status_label] || 'rgb(156, 163, 175)'),
+          backgroundColor: data.map(item => {
+            const statusKey = item.status || item.status_label;
+            return statusColors[statusKey] || 'rgb(156, 163, 175)';
+          }),
           borderWidth: 2,
-          borderColor: '#fff'
+          borderColor: '#fff',
+          datalabels: {
+            display: false
+          }
         }]
       },
       options: {
@@ -403,6 +708,9 @@ window.StatisticsView = {
                 return context.label + ': ' + value + ' εργασίες (' + percentage + '%)';
               }
             }
+          },
+          datalabels: {
+            display: false
           }
         }
       }
@@ -410,12 +718,15 @@ window.StatisticsView = {
   },
 
   createMaterialsChart(data) {
+    console.log('📦 Creating Materials Chart with data:', data);
+    
     if (this.charts.materials) {
       this.charts.materials.destroy();
     }
 
     const ctx = document.getElementById('materialsChart');
     if (!ctx || !data || data.length === 0) {
+      console.log('⚠️ No materials data available');
       if (ctx) {
         ctx.parentElement.innerHTML = '<p class="text-muted text-center">Δεν υπάρχουν δεδομένα</p>';
       }
@@ -425,21 +736,68 @@ window.StatisticsView = {
     // Top 10
     const topMaterials = data.slice(0, 10);
     
-    // Έλεγχος αν έχουμε κόστος ή χρήσεις
-    const hasCost = topMaterials.some(item => item.total_cost > 0);
-    const chartData = topMaterials.map(item => hasCost ? item.total_cost : item.total_quantity);
-    const label = hasCost ? 'Κόστος' : 'Χρήσεις';
+    console.log('📊 Processing materials data:', topMaterials);
+    
+    // Για χρώματα από paints, δείχνουμε πόσες φορές χρησιμοποιήθηκαν (jobs count)
+    // Για υλικά από job_materials, δείχνουμε το κόστος
+    const hasJobsCount = topMaterials.some(item => (item.jobs || 0) > 0);
+    const hasCost = topMaterials.some(item => {
+      const cost = item.total_cost || item.totalCost || 0;
+      console.log('  Item:', item.name, 'Cost:', cost, 'Quantity:', item.totalQuantity || item.total_quantity, 'Jobs:', item.jobs);
+      return cost > 0;
+    });
+    
+    const chartData = topMaterials.map(item => {
+      const totalCost = item.total_cost || item.totalCost || 0;
+      const totalQuantity = item.total_quantity || item.totalQuantity || 0;
+      const jobsCount = item.jobs || item.jobs_count || 0;
+      
+      // Προτεραιότητα: jobs count (για χρώματα) > κόστος > ποσότητα
+      let value;
+      if (hasJobsCount && jobsCount > 0) {
+        value = jobsCount;
+      } else if (hasCost && totalCost > 0) {
+        value = totalCost;
+      } else {
+        value = totalQuantity;
+      }
+      
+      console.log('  Chart data for', item.name, ':', value, '(using', hasJobsCount ? 'jobs count' : hasCost ? 'cost' : 'quantity', ')');
+      return value;
+    });
+    
+    const label = hasJobsCount ? 'Χρήσεις (Εργασίες)' : hasCost ? 'Κόστος (€)' : 'Ποσότητα';
+
+    console.log('📊 Chart will display:', hasJobsCount ? 'Jobs Count' : hasCost ? 'Cost' : 'Quantity');
+    console.log('📊 Chart data array:', chartData);
+    
+    // Έλεγχος αν έχουμε έστω ένα μη-μηδενικό στοιχείο
+    const hasData = chartData.some(val => val > 0);
+    if (!hasData) {
+      console.warn('⚠️ All chart values are zero - this might indicate no paints data');
+      console.warn('⚠️ Top materials data:', topMaterials);
+      // Δείξε το γράφημα ακόμα και με μηδενικά για debugging
+      // if (ctx) {
+      //   ctx.parentElement.innerHTML = '<p class="text-muted text-center">Δεν υπάρχουν δεδομένα</p>';
+      // }
+      // return;
+    }
+    
+    console.log('✅ Materials Chart created successfully');
 
     this.charts.materials = new Chart(ctx, {
       type: 'bar',
       data: {
-        labels: topMaterials.map(item => item.name),
+        labels: topMaterials.map(item => item.name || 'Άγνωστο'),
         datasets: [{
           label: label,
           data: chartData,
           backgroundColor: 'rgba(59, 130, 246, 0.8)',
           borderColor: 'rgb(59, 130, 246)',
-          borderWidth: 1
+          borderWidth: 1,
+          datalabels: {
+            display: false
+          }
         }]
       },
       options: {
@@ -455,19 +813,28 @@ window.StatisticsView = {
               label: function(context) {
                 const item = topMaterials[context.dataIndex];
                 const labels = [];
+                const totalCost = item.total_cost || item.totalCost || 0;
+                const totalQuantity = item.total_quantity || item.totalQuantity || 0;
+                const unit = item.unit || 'λίτρα';
+                const jobs = item.jobs || item.jobs_count || 0;
                 
-                if (hasCost) {
-                  labels.push('Κόστος: €' + context.parsed.x.toLocaleString('el-GR', {minimumFractionDigits: 2}));
-                  labels.push('Ποσότητα: ' + item.total_quantity + ' ' + item.unit);
-                } else {
-                  labels.push('Χρήσεις: ' + context.parsed.x);
+                // Πάντα δείχνουμε τις εργασίες αν υπάρχουν
+                if (jobs > 0) {
+                  labels.push('Εργασίες: ' + jobs);
+                }
+                if (totalQuantity > 0) {
+                  labels.push('Ποσότητα: ' + totalQuantity.toLocaleString('el-GR', {minimumFractionDigits: 2}) + ' ' + unit);
+                }
+                if (totalCost > 0) {
+                  labels.push('Κόστος: €' + totalCost.toLocaleString('el-GR', {minimumFractionDigits: 2}));
                 }
                 
-                labels.push('Εργασίες: ' + item.jobs_count);
-                
-                return labels;
+                return labels.length > 0 ? labels : ['Χρήσεις: ' + context.parsed.x];
               }
             }
+          },
+          datalabels: {
+            display: false
           }
         },
         scales: {
@@ -475,7 +842,16 @@ window.StatisticsView = {
             beginAtZero: true,
             ticks: {
               callback: function(value) {
-                return hasCost ? '€' + value.toLocaleString('el-GR') : value;
+                // Αν δείχνουμε χρήσεις (jobs count), δείξε ακέραιο αριθμό
+                // Αν δείχνουμε κόστος, δείξε με €
+                // Αλλιώς δείξε την ποσότητα
+                if (hasJobsCount) {
+                  return Math.round(value);
+                } else if (hasCost) {
+                  return '€' + value.toLocaleString('el-GR');
+                } else {
+                  return value.toLocaleString('el-GR');
+                }
               }
             }
           }
@@ -485,17 +861,22 @@ window.StatisticsView = {
   },
 
   createTopJobsChart(data) {
+    console.log('🏆 Creating Top Jobs Chart with data:', data);
+    
     if (this.charts.topJobs) {
       this.charts.topJobs.destroy();
     }
 
     const ctx = document.getElementById('topJobsChart');
     if (!ctx || !data || data.length === 0) {
+      console.warn('⚠️ Cannot create Top Jobs Chart - no data or canvas not found');
       if (ctx) {
         ctx.parentElement.innerHTML = '<p class="text-muted text-center">Δεν υπάρχουν δεδομένα</p>';
       }
       return;
     }
+    
+    console.log('✅ Top Jobs Chart created successfully');
 
     this.charts.topJobs = new Chart(ctx, {
       type: 'bar',
@@ -503,10 +884,23 @@ window.StatisticsView = {
         labels: data.map(item => item.title),
         datasets: [{
           label: 'Κέρδος',
-          data: data.map(item => item.profit),
+          data: data.map(item => {
+            // Support both formats: with profit field or calculate from revenue - materials_cost
+            if (item.profit !== undefined) {
+              return item.profit;
+            } else if (item.revenue !== undefined && item.materialsCost !== undefined) {
+              return item.revenue - item.materialsCost;
+            } else if (item.revenue !== undefined && item.materials_cost !== undefined) {
+              return item.revenue - item.materials_cost;
+            }
+            return 0;
+          }),
           backgroundColor: 'rgba(34, 197, 94, 0.8)',
           borderColor: 'rgb(34, 197, 94)',
-          borderWidth: 1
+          borderWidth: 1,
+          datalabels: {
+            display: false
+          }
         }]
       },
       options: {
@@ -520,18 +914,36 @@ window.StatisticsView = {
             callbacks: {
               title: function(context) {
                 const item = data[context[0].dataIndex];
-                return item.title + ' - ' + item.client_name;
+                // Support both clientName and client_name
+                const clientName = item.clientName || item.client_name;
+                return clientName ? item.title + ' - ' + clientName : item.title;
               },
               label: function(context) {
                 const item = data[context.dataIndex];
-                return [
-                  'Κέρδος: €' + item.profit.toLocaleString('el-GR', {minimumFractionDigits: 2}),
-                  'Έσοδα: €' + item.revenue.toLocaleString('el-GR', {minimumFractionDigits: 2}),
-                  'Υλικά: €' + item.materials_cost.toLocaleString('el-GR', {minimumFractionDigits: 2}),
-                  'Τύπος: ' + (item.type || 'N/A')
-                ];
+                const labels = [];
+                
+                // Calculate profit
+                const profit = item.profit !== undefined 
+                  ? item.profit 
+                  : (item.revenue || 0) - (item.materialsCost || item.materials_cost || 0);
+                
+                const revenue = item.revenue || 0;
+                const materialsCost = item.materialsCost || item.materials_cost || 0;
+                
+                labels.push('Κέρδος: €' + profit.toLocaleString('el-GR', {minimumFractionDigits: 2}));
+                labels.push('Έσοδα: €' + revenue.toLocaleString('el-GR', {minimumFractionDigits: 2}));
+                labels.push('Υλικά: €' + materialsCost.toLocaleString('el-GR', {minimumFractionDigits: 2}));
+                
+                if (item.type) {
+                  labels.push('Τύπος: ' + item.type);
+                }
+                
+                return labels;
               }
             }
+          },
+          datalabels: {
+            display: false
           }
         },
         scales: {

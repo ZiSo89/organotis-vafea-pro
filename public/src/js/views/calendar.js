@@ -320,8 +320,15 @@ window.CalendarView = {
       console.log(`📅 LOAD EVENTS: ${startStr} to ${endStr}`);
       console.log('📅 ═══════════════════════════════════════');
       
-      // Fetch events from calendar API
-      const url = `/api/calendar.php?start=${startStr}&end=${endStr}`;
+      // Build URL - use online server in Electron
+      let url = `/api/calendar.php?start=${startStr}&end=${endStr}`;
+      
+      // In Electron, use the online server URL
+      if (typeof window.electronAPI !== 'undefined') {
+        const serverUrl = localStorage.getItem('syncServerUrl') || 'https://nikolpaintmaster.e-gata.gr';
+        url = `${serverUrl}/api/calendar.php?start=${startStr}&end=${endStr}`;
+      }
+      
       console.log('🌐 Fetching:', url);
       
       const response = await fetch(url, {
@@ -391,7 +398,17 @@ window.CalendarView = {
       const start = today.toISOString().split('T')[0];
       const end = futureDate.toISOString().split('T')[0];
       
-      const events = await API.get(`/api/calendar.php?start=${start}&end=${end}`);
+      // Build URL - use online server in Electron
+      let url = `/api/calendar.php?start=${start}&end=${end}`;
+      
+      // In Electron, use the online server URL
+      if (typeof window.electronAPI !== 'undefined') {
+        const serverUrl = localStorage.getItem('syncServerUrl') || 'https://nikolpaintmaster.e-gata.gr';
+        url = `${serverUrl}/api/calendar.php?start=${start}&end=${end}`;
+      }
+      
+      const response = await fetch(url, { credentials: 'include' });
+      const events = await response.json();
       
       // Filter future events and sort by date
       const upcomingEvents = events

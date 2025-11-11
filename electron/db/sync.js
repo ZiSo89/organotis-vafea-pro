@@ -17,7 +17,8 @@ class SyncManager {
       // 'job_materials', // Disabled - endpoint not available
       'invoices',
       'templates',
-      'offers'
+      'offers',
+      'calendar_events'
     ];
   }
 
@@ -226,7 +227,9 @@ class SyncManager {
   // Fetch data from server for a table
   async fetchTableData(serverUrl, table) {
     return new Promise((resolve, reject) => {
-      const url = `${serverUrl}/api/${table}.php?action=list`;
+      // Special case: calendar_events uses calendar.php endpoint
+      const endpoint = table === 'calendar_events' ? 'calendar' : table;
+      const url = `${serverUrl}/api/${endpoint}.php?action=list`;
       console.log(`🌐 Fetching: ${url}`);
       
       const protocol = url.startsWith('https') ? https : http;
@@ -234,7 +237,8 @@ class SyncManager {
       const options = {
         headers: {
           'X-Sync-API-Key': 'electron-sync-key-2025'
-        }
+        },
+        rejectUnauthorized: false
       };
       
       protocol.get(url, options, (res) => {
@@ -247,9 +251,12 @@ class SyncManager {
         res.on('end', () => {
           try {
             const json = JSON.parse(data);
+            console.log(`📦 Response for ${table}:`, JSON.stringify(json).substring(0, 300));
             if (json.success) {
               resolve(json.data || []);
             } else {
+              console.error(`❌ Server returned error for ${table}:`, json.message);
+              console.error(`📄 Full response:`, data);
               reject(new Error(json.message || 'Failed to fetch data'));
             }
           } catch (error) {
