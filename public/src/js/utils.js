@@ -136,7 +136,9 @@ const Utils = {
     if (!amount && amount !== 0) return '-';
     return new Intl.NumberFormat('el-GR', {
       style: 'currency',
-      currency: 'EUR'
+      currency: 'EUR',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
     }).format(amount);
   },
 

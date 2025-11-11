@@ -6,6 +6,7 @@ window.MapView = {
   map: null,
   isLeaflet: false,
   isInitializing: false, // Prevent multiple simultaneous initializations
+  currentInfoWindow: null, // Track currently open InfoWindow
   markers: {
     clients: [],
     upcoming: [],
@@ -20,6 +21,64 @@ window.MapView = {
     const mapHeight = isMobile ? '450px' : '600px';
     
     container.innerHTML = `
+      <style>
+        /* Custom Leaflet popup styles */
+        .leaflet-popup-content-wrapper {
+          background: white !important;
+          border-radius: 8px;
+          box-shadow: 0 3px 14px rgba(0,0,0,0.4);
+          padding: 0 !important;
+          position: relative;
+        }
+        .leaflet-popup-content {
+          margin: 0 !important;
+          background: white;
+          width: auto !important;
+          min-width: 200px;
+        }
+        .leaflet-popup-tip {
+          background: white !important;
+        }
+        /* Hide default close button completely on mobile */
+        @media (max-width: 768px) {
+          .leaflet-popup-close-button {
+            display: none !important;
+          }
+        }
+        /* Desktop close button styling */
+        @media (min-width: 769px) {
+          .leaflet-popup-close-button {
+            position: absolute !important;
+            top: 8px !important;
+            right: 8px !important;
+            color: #666 !important;
+            font-size: 18px !important;
+            font-weight: bold !important;
+            width: 20px !important;
+            height: 20px !important;
+            padding: 0 !important;
+            line-height: 18px !important;
+            text-align: center !important;
+            border: none !important;
+            background: white !important;
+            z-index: 10000 !important;
+            cursor: pointer !important;
+          }
+          .leaflet-popup-close-button:hover {
+            color: #333 !important;
+          }
+        }
+        .leaflet-container {
+          font-family: inherit !important;
+        }
+        /* Fix popup positioning on mobile */
+        @media (max-width: 768px) {
+          .leaflet-popup {
+            margin-bottom: 20px !important;
+          }
+        }
+      </style>
+      
       <div class="view-header">
         <h1><i class="fas fa-map-marked-alt"></i> Χάρτης</h1>
       </div>
@@ -231,6 +290,23 @@ window.MapView = {
       // Small delay to ensure cleanup is complete
       setTimeout(() => {
         try {
+          // Check map container
+          const mapContainer = document.getElementById('map');
+          if (!mapContainer) {
+            console.error('❌ Map container not found!');
+            this.isInitializing = false;
+            return;
+          }
+          
+          const containerHeight = mapContainer.offsetHeight;
+          const containerWidth = mapContainer.offsetWidth;
+          
+          if (containerHeight === 0 || containerWidth === 0) {
+            console.error('❌ Map container has zero size!');
+            this.isInitializing = false;
+            return;
+          }
+          
           // Create new Leaflet map
           this.map = L.map('map').setView([40.8473, 25.8753], 14);
           this.isLeaflet = true;
@@ -240,9 +316,15 @@ window.MapView = {
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
             maxZoom: 19
           }).addTo(this.map);
+          
+          // Force Leaflet to recalculate size immediately
+          this.map.invalidateSize();
 
-          this.loadMap();
-          this.isInitializing = false;
+          // Wait for tiles to load before adding markers
+          setTimeout(() => {
+            this.loadMap();
+            this.isInitializing = false;
+          }, 300);
         } catch (innerError) {
           console.error('❌ Error creating Leaflet map:', innerError);
           this.isInitializing = false;
@@ -295,6 +377,13 @@ window.MapView = {
       });
       this.isLeaflet = false;
 
+      // Close InfoWindow when clicking on the map
+      this.map.addListener('click', () => {
+        if (this.currentInfoWindow) {
+          this.currentInfoWindow.close();
+        }
+      });
+
       this.loadMap();
       this.isInitializing = false;
     } catch (error) {
@@ -304,10 +393,20 @@ window.MapView = {
   },
 
   async loadMap(forceRefresh = false) {
-    if (!this.map) return;
+    if (!this.map) {
+      console.warn('⚠️ Map not initialized yet');
+      return;
+    }
 
     // Clear existing markers
     this.clearMarkers();
+
+    // Check if State.data exists
+    if (!State.data) {
+      console.error('❌ State.data is null!');
+      Toast.error('Δεν υπάρχουν δεδομένα');
+      return;
+    }
 
     const clients = State.data.clients || [];
     const jobs = State.data.jobs || [];
@@ -332,14 +431,11 @@ window.MapView = {
       return visitDate.getTime() === today.getTime();
     });
 
-    let addedMarkers = 0;
-
     // Add client markers (blue)
     if (document.getElementById('showClients').checked) {
       for (const client of clients) {
         if (client.address && client.city) {
           await this.addMarker(client, 'clients', '#2196F3');
-          addedMarkers++;
         }
       }
     }
@@ -350,7 +446,6 @@ window.MapView = {
         const client = clients.find(c => c.id === job.clientId);
         if (client && client.address && client.city) {
           await this.addMarker(client, 'upcoming', '#4CAF50', job);
-          addedMarkers++;
         }
       }
     }
@@ -361,14 +456,15 @@ window.MapView = {
         const client = clients.find(c => c.id === job.clientId);
         if (client && client.address && client.city) {
           await this.addMarker(client, 'today', '#F44336', job);
-          addedMarkers++;
         }
       }
     }
 
     // Update request count
-    document.getElementById('geocodeCount').textContent = 
-      `Requests: ${this.requestCount}/${this.maxRequests}`;
+    const countElement = document.getElementById('geocodeCount');
+    if (countElement) {
+      countElement.textContent = `Requests: ${this.requestCount}/${this.maxRequests}`;
+    }
 
     // Fit bounds to show all markers
     this.fitBounds();
@@ -393,7 +489,7 @@ window.MapView = {
     }
 
     if (!location || location === 'ZERO_RESULTS') {
-      console.warn('Could not geocode:', address);
+      console.warn('❌ Could not geocode:', address);
       return;
     }
 
@@ -401,45 +497,63 @@ window.MapView = {
     let marker;
     
     if (this.isLeaflet) {
-      // Leaflet marker
-      const icon = L.divIcon({
-        className: 'custom-marker',
-        html: `<div style="background-color: ${color}; width: 20px; height: 20px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`,
-        iconSize: [20, 20],
-        iconAnchor: [10, 10]
-      });
+      // Use default Leaflet marker
+      marker = L.marker([location.lat, location.lng]).addTo(this.map);
       
-      marker = L.marker([location.lat, location.lng], { icon }).addTo(this.map);
-      
-      // Popup content
+      // Popup content with white background
       const encodedAddress = encodeURIComponent(address);
       const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodedAddress}`;
       
       const popupContent = job ? `
-        <div style="padding: 8px; min-width: 200px;">
-          <h3 style="margin: 0 0 8px 0; color: #333; font-size: 14px;">${client.name}</h3>
-          <p style="margin: 0 0 4px 0; font-size: 12px;"><strong>📅 Επίσκεψη:</strong> ${Utils.formatDate(job.nextVisit)}</p>
-          <p style="margin: 0 0 4px 0; font-size: 12px;"><strong>📊 Κατάσταση:</strong> ${job.status}</p>
-          <p style="margin: 0 0 8px 0; font-size: 12px;"><strong>📍</strong> ${address}</p>
+        <div style="padding: 12px; min-width: 200px; background: white; position: relative;">
+          <h3 style="margin: 0 0 8px 0; color: #333; font-size: 14px; font-weight: bold; padding-right: 24px;">${client.name}</h3>
+          <p style="margin: 0 0 4px 0; font-size: 12px; color: #666;"><strong>📅 Επίσκεψη:</strong> ${Utils.formatDate(job.nextVisit)}</p>
+          <p style="margin: 0 0 4px 0; font-size: 12px; color: #666;"><strong>📊 Κατάσταση:</strong> ${job.status}</p>
+          <p style="margin: 0 0 10px 0; font-size: 11px; color: #888;">📍 ${address}</p>
           <button onclick="window.open('${mapsUrl}', '_blank')" 
-                  style="width: 100%; padding: 6px 10px; background: #4285F4; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                  style="width: 100%; padding: 8px 12px; background: #4285F4; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 500;">
             <i class="fas fa-route"></i> Οδηγίες
           </button>
         </div>
       ` : `
-        <div style="padding: 8px; min-width: 200px;">
-          <h3 style="margin: 0 0 8px 0; color: #333; font-size: 14px;">${client.name}</h3>
-          <p style="margin: 0 0 4px 0; font-size: 12px;"><strong>📞</strong> ${client.phone || '-'}</p>
-          <p style="margin: 0 0 4px 0; font-size: 12px;"><strong>📧</strong> ${client.email || '-'}</p>
-          <p style="margin: 0 0 8px 0; font-size: 12px;"><strong>📍</strong> ${address}</p>
+        <div style="padding: 12px; min-width: 200px; background: white; position: relative;">
+          <h3 style="margin: 0 0 8px 0; color: #333; font-size: 14px; font-weight: bold; padding-right: 24px;">${client.name}</h3>
+          <p style="margin: 0 0 4px 0; font-size: 12px; color: #666;"><strong>📞</strong> ${client.phone || '-'}</p>
+          <p style="margin: 0 0 4px 0; font-size: 12px; color: #666;"><strong>📧</strong> ${client.email || '-'}</p>
+          <p style="margin: 0 0 10px 0; font-size: 11px; color: #888;">📍 ${address}</p>
           <button onclick="window.open('${mapsUrl}', '_blank')" 
-                  style="width: 100%; padding: 6px 10px; background: #4285F4; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                  style="width: 100%; padding: 8px 12px; background: #4285F4; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 500;">
             <i class="fas fa-route"></i> Οδηγίες
           </button>
         </div>
       `;
       
-      marker.bindPopup(popupContent);
+      // Bind popup with auto-pan to ensure it's visible
+      const isMobile = Utils.isMobile();
+      marker.bindPopup(popupContent, {
+        maxWidth: 250,
+        minWidth: 200,
+        closeButton: !isMobile, // Close button only on desktop
+        autoClose: true, // Close when clicking another marker
+        closeOnClick: true, // Close when clicking on the map
+        autoPan: true,
+        autoPanPaddingTopLeft: [20, 100],
+        autoPanPaddingBottomRight: [20, 150],
+        keepInView: true,
+        className: 'custom-popup'
+      });
+      
+      // Force pan on popup open to ensure it's fully visible
+      marker.on('popupopen', (e) => {
+        if (isMobile) {
+          setTimeout(() => {
+            const px = this.map.project(e.popup._latlng);
+            px.y -= 180; // Offset upwards
+            px.x += 40; // Offset right to show the right edge
+            this.map.panTo(this.map.unproject(px), {animate: true, duration: 0.3});
+          }, 100);
+        }
+      });
       
     } else {
       // Google Maps marker
@@ -462,8 +576,12 @@ window.MapView = {
       const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodedAddress}`;
       
       const infoContent = job ? `
-        <div style="padding: 12px; min-width: 250px;">
-          <h3 style="margin: 0 0 12px 0; color: #333;">${client.name}</h3>
+        <div style="padding: 12px; min-width: 250px; position: relative;">
+          <button class="custom-close-btn" type="button"
+                  style="position: absolute; top: 8px; right: 8px; width: 24px; height: 24px; border-radius: 50%; background: rgba(0,0,0,0.05); border: none; color: #999; font-size: 16px; cursor: pointer; line-height: 24px; padding: 0; z-index: 1000;">
+            ×
+          </button>
+          <h3 style="margin: 0 0 12px 0; color: #333; padding-right: 30px;">${client.name}</h3>
           <p style="margin: 0 0 6px 0;"><strong>📅 Επίσκεψη:</strong> ${Utils.formatDate(job.nextVisit)}</p>
           <p style="margin: 0 0 6px 0;"><strong>📊 Κατάσταση:</strong> ${job.status}</p>
           <p style="margin: 0 0 12px 0;"><strong>📍 Διεύθυνση:</strong><br>${address}</p>
@@ -479,8 +597,12 @@ window.MapView = {
           </div>
         </div>
       ` : `
-        <div style="padding: 12px; min-width: 250px;">
-          <h3 style="margin: 0 0 12px 0; color: #333;">${client.name}</h3>
+        <div style="padding: 12px; min-width: 250px; position: relative;">
+          <button class="custom-close-btn" type="button"
+                  style="position: absolute; top: 8px; right: 8px; width: 24px; height: 24px; border-radius: 50%; background: rgba(0,0,0,0.05); border: none; color: #999; font-size: 16px; cursor: pointer; line-height: 24px; padding: 0; z-index: 1000;">
+            ×
+          </button>
+          <h3 style="margin: 0 0 12px 0; color: #333; padding-right: 30px;">${client.name}</h3>
           <p style="margin: 0 0 6px 0;"><strong>📞 Τηλέφωνο:</strong> ${client.phone || '-'}</p>
           <p style="margin: 0 0 6px 0;"><strong>📧 Email:</strong> ${client.email || '-'}</p>
           <p style="margin: 0 0 12px 0;"><strong>📍 Διεύθυνση:</strong><br>${address}</p>
@@ -502,7 +624,25 @@ window.MapView = {
       });
 
       marker.addListener('click', () => {
+        // Close any open InfoWindows first
+        if (this.currentInfoWindow) {
+          this.currentInfoWindow.close();
+        }
+        
         infoWindow.open(this.map, marker);
+        this.currentInfoWindow = infoWindow;
+        
+        // Add close button functionality after InfoWindow opens
+        google.maps.event.addListenerOnce(infoWindow, 'domready', () => {
+          const closeBtn = document.querySelector('.custom-close-btn');
+          if (closeBtn) {
+            closeBtn.onclick = (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              infoWindow.close();
+            };
+          }
+        });
       });
     }
 
@@ -613,7 +753,9 @@ window.MapView = {
       
       if (allMarkers.length > 0) {
         const group = L.featureGroup(allMarkers);
-        this.map.fitBounds(group.getBounds().pad(0.1));
+        const bounds = group.getBounds();
+        
+        this.map.fitBounds(bounds.pad(0.1));
         
         // Don't zoom in too much
         if (this.map.getZoom() > 15) {

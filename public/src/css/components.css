@@ -871,11 +871,28 @@
 
 @media (max-width: 768px) {
   .stats-summary {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--spacing-sm);
+  }
+  
+  .stat-card {
+    flex-direction: column;
+    text-align: center;
+    padding: var(--spacing-md);
+  }
+  
+  .stat-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 1.25rem;
+  }
+  
+  .stat-label {
+    font-size: 0.75rem;
   }
   
   .stat-value {
-    font-size: 1.5rem;
+    font-size: 1.25rem;
   }
   
   .charts-grid {

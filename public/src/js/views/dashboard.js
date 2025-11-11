@@ -118,6 +118,11 @@ window.DashboardView = {
           </div>
         </div>
       </div>
+      
+      <!-- Scroll to Top Button -->
+      <button id="scrollToTopBtn" class="scroll-to-top" title="Επιστροφή στην αρχή">
+        <i class="fas fa-arrow-up"></i>
+      </button>
     `;
 
     // Render charts
@@ -125,6 +130,9 @@ window.DashboardView = {
     
     // Setup dark mode toggle
     this.setupDarkModeToggle();
+    
+    // Setup scroll to top button
+    this.setupScrollToTop();
     
     // Setup event delegation for activity items
     this.setupActivityListeners(container);
@@ -689,6 +697,34 @@ window.DashboardView = {
     toggle.addEventListener('change', this.themeToggleHandler);
   },
 
+  setupScrollToTop() {
+    const scrollBtn = document.getElementById('scrollToTopBtn');
+    if (!scrollBtn) return;
+
+    // Show/hide button based on scroll position
+    const toggleButton = () => {
+      if (window.scrollY > 300) {
+        scrollBtn.classList.add('visible');
+      } else {
+        scrollBtn.classList.remove('visible');
+      }
+    };
+
+    // Scroll to top when clicked
+    scrollBtn.addEventListener('click', () => {
+      window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      });
+    });
+
+    // Listen to scroll events
+    window.addEventListener('scroll', toggleButton);
+    
+    // Initial check
+    toggleButton();
+  },
+
   initDashboardMap() {
     // Use Leaflet for mobile
     if (Utils.isMobile()) {
@@ -755,7 +791,14 @@ window.DashboardView = {
         zoom: 13,
         mapTypeControl: false,
         fullscreenControl: true,
-        streetViewControl: false
+        streetViewControl: false,
+        gestureHandling: 'greedy'
+      });
+
+      // Add click event to navigate to full map
+      mapElement.style.cursor = 'pointer';
+      map.addListener('click', () => {
+        window.location.hash = 'map';
       });
 
     const clients = State.data.clients || [];
@@ -840,33 +883,12 @@ window.DashboardView = {
         }
       });
 
-      markerCount++;
-
-      // Build job list for info window
-      const jobList = clientJobs.map(job => 
-        `<div style="margin: 5px 0; padding: 5px; background: #f8f9fa; border-radius: 4px;">
-          <strong>${job.id}</strong> - ${job.status}<br>
-          ${job.nextVisit ? `Επόμενη: ${Utils.dateToGreek(job.nextVisit)}` : 'Χωρίς προγραμματισμό'}
-        </div>`
-      ).join('');
-
-      const infoWindow = new google.maps.InfoWindow({
-        content: `
-          <div style="padding: 8px; max-width: 250px;">
-            <strong style="color: ${color};">${label}</strong><br>
-            <strong>${client.name}</strong><br>
-            ${client.address || ''}<br>
-            <div style="margin-top: 8px; max-height: 150px; overflow-y: auto;">
-              <small><strong>Εργασίες (${clientJobs.length}):</strong></small>
-              ${jobList}
-            </div>
-          </div>
-        `
-      });
-
+      // Add click event to navigate to full map
       marker.addListener('click', () => {
-        infoWindow.open(map, marker);
+        window.location.hash = 'map';
       });
+
+      markerCount++;
     }
     
     } catch (error) {
@@ -923,8 +945,21 @@ window.DashboardView = {
       // Create Leaflet map
       const map = L.map(mapElement, {
         zoomControl: true,
-        attributionControl: false
+        attributionControl: false,
+        scrollWheelZoom: false, // Disable scroll zoom
+        dragging: true
       }).setView([40.8475, 25.8747], 13);
+
+      // Add click event to navigate to full map
+      mapElement.style.cursor = 'pointer';
+      mapElement.addEventListener('click', (e) => {
+        // Only navigate if clicking on the map, not on controls
+        if (e.target.classList.contains('leaflet-container') || 
+            e.target.classList.contains('leaflet-tile') ||
+            e.target.closest('.leaflet-tile-pane')) {
+          window.location.hash = 'map';
+        }
+      });
 
       // Add OpenStreetMap tiles
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -996,46 +1031,16 @@ window.DashboardView = {
           priority = 1;
         }
 
-        // Create custom icon
-        const icon = L.divIcon({
-          className: 'custom-leaflet-marker',
-          html: `<div style="
-            width: ${priority === 3 ? 20 : priority === 2 ? 18 : 16}px;
-            height: ${priority === 3 ? 20 : priority === 2 ? 18 : 16}px;
-            background-color: ${color};
-            border: 2px solid white;
-            border-radius: 50%;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-          "></div>`,
-          iconSize: [20, 20],
-          iconAnchor: [10, 10]
+        // Create marker with default Leaflet icon (no custom divIcon)
+        const marker = L.marker([coordinates.lat, coordinates.lng]).addTo(map);
+        
+        // Add click event to navigate to full map
+        marker.on('click', () => {
+          window.location.hash = 'map';
         });
-
-        // Add marker
-        const marker = L.marker([coordinates.lat, coordinates.lng], { icon }).addTo(map);
+        
         bounds.push([coordinates.lat, coordinates.lng]);
         markerCount++;
-
-        // Build job list
-        const jobList = clientJobs.map(job => 
-          `<div style="margin: 5px 0; padding: 5px; background: #f8f9fa; border-radius: 4px;">
-            <strong>${job.id}</strong> - ${job.status}<br>
-            ${job.nextVisit ? `Επόμενη: ${Utils.dateToGreek(job.nextVisit)}` : 'Χωρίς προγραμματισμό'}
-          </div>`
-        ).join('');
-
-        // Bind popup
-        marker.bindPopup(`
-          <div style="padding: 8px; max-width: 250px;">
-            <strong style="color: ${color};">${label}</strong><br>
-            <strong>${client.name}</strong><br>
-            ${client.address || ''}<br>
-            <div style="margin-top: 8px; max-height: 150px; overflow-y: auto;">
-              <small><strong>Εργασίες (${clientJobs.length}):</strong></small>
-              ${jobList}
-            </div>
-          </div>
-        `);
       }
 
       // Fit map to show all markers

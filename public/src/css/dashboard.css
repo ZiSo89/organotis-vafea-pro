@@ -464,7 +464,8 @@
   
   .dashboard-widgets,
   .dashboard-widgets-single-row {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--spacing-sm);
   }
   
   .grid-2,
@@ -477,4 +478,61 @@
   .widget-value {
     font-size: var(--font-size-2xl);
   }
+  
+  /* Make widgets more compact on mobile */
+  .widget-compact {
+    padding: var(--spacing-md);
+    min-height: 80px;
+  }
+  
+  .widget-icon {
+    font-size: 1.5rem;
+  }
+  
+  .widget-value {
+    font-size: var(--font-size-xl);
+  }
+  
+  .widget-label {
+    font-size: var(--font-size-xs);
+  }
+}
+
+/* Scroll to Top Button */
+.scroll-to-top {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  width: 50px;
+  height: 50px;
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  font-size: 1.5rem;
+  cursor: pointer;
+  box-shadow: var(--shadow-lg);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(100px);
+  transition: all 0.3s ease;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.scroll-to-top:hover {
+  background: var(--color-primary-dark);
+  transform: translateY(0) scale(1.1);
+}
+
+.scroll-to-top.visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.scroll-to-top:active {
+  transform: translateY(0) scale(0.95);
 }

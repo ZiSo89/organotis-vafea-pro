@@ -115,10 +115,18 @@ window.StatisticsView = {
         </div>
         
       </div>
+      
+      <!-- Scroll to Top Button -->
+      <button id="scrollToTopBtn" class="scroll-to-top" title="Επιστροφή στην αρχή">
+        <i class="fas fa-arrow-up"></i>
+      </button>
     `;
 
     // Event Listeners
     this.attachEventListeners();
+    
+    // Setup scroll to top button
+    this.setupScrollToTop();
     
     // Φόρτωση δεδομένων
     await this.loadAvailableYears();
@@ -151,6 +159,34 @@ window.StatisticsView = {
     }
   },
 
+  setupScrollToTop() {
+    const scrollBtn = document.getElementById('scrollToTopBtn');
+    if (!scrollBtn) return;
+
+    // Show/hide button based on scroll position
+    const toggleButton = () => {
+      if (window.scrollY > 300) {
+        scrollBtn.classList.add('visible');
+      } else {
+        scrollBtn.classList.remove('visible');
+      }
+    };
+
+    // Scroll to top when clicked
+    scrollBtn.addEventListener('click', () => {
+      window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      });
+    });
+
+    // Listen to scroll events
+    window.addEventListener('scroll', toggleButton);
+    
+    // Initial check
+    toggleButton();
+  },
+
   async loadStatistics() {
     try {
       // Φόρτωση όλων των δεδομένων παράλληλα
@@ -181,9 +217,9 @@ window.StatisticsView = {
 
   updateSummaryCards(data) {
     document.getElementById('totalRevenue').textContent = 
-      `€${(data.total_revenue || 0).toLocaleString('el-GR', {minimumFractionDigits: 2})}`;
+      `€${(data.total_revenue || 0).toLocaleString('el-GR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
     document.getElementById('totalProfit').textContent = 
-      `€${(data.total_profit || 0).toLocaleString('el-GR', {minimumFractionDigits: 2})}`;
+      `€${(data.total_profit || 0).toLocaleString('el-GR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
     document.getElementById('totalJobs').textContent = data.total_jobs || 0;
     document.getElementById('completedJobs').textContent = data.completed_jobs || 0;
   },
