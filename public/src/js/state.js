@@ -35,15 +35,70 @@ const State = {
    */
   async init() {
     try {
-      // Load data from API
-      this.data = await this.loadFromAPI();
+      // Check if running in Electron
+      const isElectron = typeof window.electronAPI !== 'undefined';
+      
+      if (isElectron) {
+        // Load from SQLite in Electron
+        this.data = await this.loadFromSQLite();
+      } else {
+        // Load from API in web version
+        this.data = await this.loadFromAPI();
+      }
       
       // Setup auto-save (every 30 seconds - but now it's just for indicators)
       this.setupAutoSave();
     } catch (error) {
-      console.error('❌ Failed to load data from API:', error);
+      console.error('❌ Failed to load data:', error);
       Toast.error('Σφάλμα φόρτωσης δεδομένων');
       throw error;
+    }
+  },
+
+  /**
+   * Load all data from SQLite (Electron)
+   */
+  async loadFromSQLite() {
+    try {
+      console.log('📂 Loading data from SQLite...');
+      
+      // Use OfflineService directly in Electron (already extracts data properly)
+      const [clients, workers, materials, jobs, offers, invoices, templates] = await Promise.all([
+        window.OfflineService.getClients(),
+        window.OfflineService.getWorkers(),
+        window.OfflineService.getMaterials(),
+        window.OfflineService.getJobs(),
+        window.OfflineService.getOffers(),
+        window.OfflineService.getInvoices(),
+        window.OfflineService.getTemplates(),
+      ]);
+
+      console.log('✅ Data loaded from SQLite via OfflineService');
+
+      return {
+        clients: clients?.data || [],
+        workers: workers?.data || [],
+        inventory: materials?.data || [], // materials -> inventory
+        jobs: jobs?.data || [],
+        offers: offers?.data || [],
+        invoices: invoices?.data || [],
+        templates: templates?.data || [],
+        timesheets: [],
+      };
+    } catch (error) {
+      console.error('Error loading from SQLite:', error);
+      
+      // Return empty data structure on error
+      return {
+        clients: [],
+        workers: [],
+        inventory: [],
+        jobs: [],
+        offers: [],
+        invoices: [],
+        templates: [],
+        timesheets: [],
+      };
     }
   },
 
@@ -61,6 +116,12 @@ const State = {
         API.getInvoices(),
         API.getTemplates(),
       ]);
+
+      console.log('🔍 DEBUG loadFromAPI:');
+      console.log('  clients type:', Array.isArray(clients) ? 'Array' : typeof clients);
+      console.log('  clients data:', clients);
+      console.log('  workers type:', Array.isArray(workers) ? 'Array' : typeof workers);
+      console.log('  materials type:', Array.isArray(materials) ? 'Array' : typeof materials);
 
       return {
         clients: clients || [],

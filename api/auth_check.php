@@ -6,8 +6,17 @@
 
 session_start();
 
+// Sync API key for Electron offline sync
+const SYNC_API_KEY = 'electron-sync-key-2025';
+
 function checkAuthentication() {
     $isAuthenticated = false;
+    
+    // Check for sync API key header (for Electron sync)
+    $syncKey = $_SERVER['HTTP_X_SYNC_API_KEY'] ?? '';
+    if ($syncKey === SYNC_API_KEY) {
+        return true;
+    }
     
     // Check session first
     if (isset($_SESSION['authenticated']) && $_SESSION['authenticated'] === true) {

@@ -891,6 +891,43 @@ window.SettingsView = {
           </div>
         </div>
 
+        <!-- Sync Card (Electron Only) -->
+        <div class="card" id="syncCard" style="display: none;">
+          <h3><i class="fas fa-sync"></i> Συγχρονισμός Δεδομένων</h3>
+          <p style="color: var(--color-text-muted); margin-bottom: 15px;">
+            Συγχρονίστε τα δεδομένα σας μεταξύ του server και της τοπικής βάσης για λειτουργία offline.
+          </p>
+          <div id="syncStatus" style="margin-bottom: 15px; padding: 10px; background: var(--color-bg); border-radius: 8px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+              <span>Κατάσταση:</span>
+              <span id="onlineStatus"><i class="fas fa-circle"></i> Έλεγχος...</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+              <span>Τελευταία Λήψη:</span>
+              <span id="lastDownload">-</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+              <span>Τελευταία Αποστολή:</span>
+              <span id="lastUpload">-</span>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+              <span>Εκκρεμείς Αλλαγές:</span>
+              <span id="pendingChanges">0</span>
+            </div>
+          </div>
+          <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+            <button class="btn btn-primary" id="downloadBtn">
+              <i class="fas fa-cloud-download-alt"></i> Λήψη από Server
+            </button>
+            <button class="btn btn-success" id="uploadBtn">
+              <i class="fas fa-cloud-upload-alt"></i> Αποστολή στον Server
+            </button>
+            <button class="btn btn-secondary" id="refreshStatusBtn">
+              <i class="fas fa-sync"></i> Ανανέωση Κατάστασης
+            </button>
+          </div>
+        </div>
+
         <div class="card">
           <h3><i class="fas fa-palette"></i> Εμφάνιση</h3>
           <div class="button-group">
@@ -932,5 +969,115 @@ window.SettingsView = {
     
     // Theme toggle button
     document.getElementById('toggleThemeBtn')?.addEventListener('click', () => Theme.toggle());
+    
+    // Initialize sync UI if in Electron
+    this.initSyncUI();
+  },
+
+  /* ========================================
+     Sync Functions (Electron Only)
+     ======================================== */
+
+  async initSyncUI() {
+    const syncCard = document.getElementById('syncCard');
+    if (!syncCard) return;
+
+    // Show sync card only in Electron
+    if (OfflineService.isElectron()) {
+      syncCard.style.display = 'block';
+      
+      // Attach event listeners
+      document.getElementById('downloadBtn')?.addEventListener('click', () => this.syncDownload());
+      document.getElementById('uploadBtn')?.addEventListener('click', () => this.syncUpload());
+      document.getElementById('refreshStatusBtn')?.addEventListener('click', () => this.updateSyncStatus());
+      
+      // Initial status update
+      await this.updateSyncStatus();
+    }
+  },
+
+  async updateSyncStatus() {
+    const onlineStatus = document.getElementById('onlineStatus');
+    const lastDownload = document.getElementById('lastDownload');
+    const lastUpload = document.getElementById('lastUpload');
+    const pendingChanges = document.getElementById('pendingChanges');
+
+    try {
+      // Check online status
+      const isOnline = await OfflineService.checkOnline();
+      if (onlineStatus) {
+        const color = isOnline ? 'var(--color-success)' : 'var(--color-error)';
+        const text = isOnline ? 'Online' : 'Offline';
+        onlineStatus.innerHTML = `<i class="fas fa-circle" style="color: ${color};"></i> ${text}`;
+      }
+
+      // Get sync status
+      const status = await OfflineService.getSyncStatus();
+      if (status) {
+        if (lastDownload) {
+          lastDownload.textContent = status.lastDownload 
+            ? new Date(status.lastDownload).toLocaleString('el-GR')
+            : 'Ποτέ';
+        }
+        if (lastUpload) {
+          lastUpload.textContent = status.lastUpload 
+            ? new Date(status.lastUpload).toLocaleString('el-GR')
+            : 'Ποτέ';
+        }
+        if (pendingChanges) {
+          pendingChanges.textContent = status.totalPending || 0;
+          pendingChanges.style.color = status.totalPending > 0 
+            ? 'var(--color-warning)' 
+            : 'var(--color-success)';
+        }
+      }
+    } catch (error) {
+      console.error('Error updating sync status:', error);
+    }
+  },
+
+  async syncDownload() {
+    // For Electron, use a proper HTTP URL for sync
+    const serverUrl = 'http://localhost:8000';
+    
+    try {
+      const result = await OfflineService.downloadFromServer(serverUrl);
+      
+      if (result.success) {
+        await this.updateSyncStatus();
+        
+        // Reload state data
+        if (typeof State !== 'undefined' && State.loadAll) {
+          await State.loadAll();
+        }
+      }
+    } catch (error) {
+      console.error('Download error:', error);
+    }
+  },
+
+  async syncUpload() {
+    // For Electron, use a proper HTTP URL for sync
+    const serverUrl = 'http://localhost:8000';
+    
+    const pending = await OfflineService.getPendingCount();
+    if (pending === 0) {
+      Toast.info('Δεν υπάρχουν εκκρεμείς αλλαγές');
+      return;
+    }
+    
+    if (!confirm(`Θα σταλούν ${pending} αλλαγές στον server. Συνέχεια;`)) {
+      return;
+    }
+    
+    try {
+      const result = await OfflineService.uploadToServer(serverUrl);
+      
+      if (result.success) {
+        await this.updateSyncStatus();
+      }
+    } catch (error) {
+      console.error('Upload error:', error);
+    }
   }
 };

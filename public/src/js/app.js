@@ -4,12 +4,22 @@
 
 // Αναμονή για DOM ready
 document.addEventListener('DOMContentLoaded', async () => {
-  // Check authentication first
-  const isAuthenticated = await API.checkAuth();
+  // Skip authentication check in Electron
+  const isElectron = typeof window.electronAPI !== 'undefined';
   
-  if (!isAuthenticated) {
-    window.location.href = 'login.html';
-    return;
+  if (isElectron) {
+    console.log('🖥️ Running in Electron - Offline Mode');
+    console.log('📱 SQLite Database Active');
+  }
+  
+  if (!isElectron) {
+    // Check authentication only for web version
+    const isAuthenticated = await API.checkAuth();
+    
+    if (!isAuthenticated) {
+      window.location.href = 'login.html';
+      return;
+    }
   }
 
   // Initialize theme FIRST (before anything else)

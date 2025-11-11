@@ -315,9 +315,50 @@ window.CalendarView = {
       
       console.log(`🔄 Loading events: ${startStr} to ${endStr}`);
       
-      const response = await API.get(`/api/calendar.php?start=${startStr}&end=${endStr}`);
+      // Get all jobs and filter by date range
+      const jobs = await API.getJobs();
       
-      console.log(`✅ Loaded ${response.length} events`);
+      // Convert jobs to calendar events
+      const events = jobs
+        .filter(job => {
+          // Filter jobs that have next_visit or start_date within range
+          const visitDate = job.nextVisit || job.next_visit || job.startDate || job.start_date;
+          if (!visitDate) return false;
+          
+          const jobDate = visitDate.split(' ')[0]; // Remove time part if exists
+          return jobDate >= startStr && jobDate <= endStr;
+        })
+        .map(job => {
+          const visitDate = job.nextVisit || job.next_visit || job.startDate || job.start_date;
+          const statusColors = {
+            'Υποψήφιος': '#6b7280',
+            'Προγραμματισμένη': '#3b82f6',
+            'Σε εξέλιξη': '#f59e0b',
+            'Ολοκληρώθηκε': '#10b981',
+            'pending': '#6b7280',
+            'scheduled': '#3b82f6',
+            'in-progress': '#f59e0b',
+            'completed': '#10b981'
+          };
+          
+          return {
+            id: job.id,
+            title: job.title || 'Εργασία',
+            start: visitDate,
+            backgroundColor: statusColors[job.status] || '#6b7280',
+            borderColor: statusColors[job.status] || '#6b7280',
+            extendedProps: {
+              job_id: job.id,
+              client_id: job.clientId || job.client_id,
+              client_name: job.clientName || job.client_name,
+              address: job.address,
+              status: job.status,
+              description: job.description
+            }
+          };
+        });
+      
+      console.log(`✅ Loaded ${events.length} events from jobs`);
       
       // Προσθήκη ελληνικών αργιών
       const holidays = this.greekHolidays
@@ -332,7 +373,7 @@ window.CalendarView = {
           allDay: true
         }));
       
-      return [...response, ...holidays];
+      return [...events, ...holidays];
       
     } catch (error) {
       console.error('❌ Error loading events:', error);
@@ -350,18 +391,37 @@ window.CalendarView = {
       const futureDate = new Date();
       futureDate.setDate(futureDate.getDate() + 30);
       
-      const startStr = today.toISOString().split('T')[0];
-      const endStr = futureDate.toISOString().split('T')[0];
+      // Get all jobs
+      const jobs = await API.getJobs();
       
-      const events = await API.get(`/api/calendar.php?start=${startStr}&end=${endStr}`);
-      
-      // Φιλτράρισμα μόνο μελλοντικών
-      const upcoming = events
-        .filter(e => new Date(e.start) >= today)
+      // Filter and map to events
+      const events = jobs
+        .filter(job => {
+          const visitDate = job.nextVisit || job.next_visit || job.startDate || job.start_date;
+          if (!visitDate) return false;
+          
+          const jobDate = new Date(visitDate.split(' ')[0]);
+          return jobDate >= today;
+        })
+        .map(job => {
+          const visitDate = job.nextVisit || job.next_visit || job.startDate || job.start_date;
+          return {
+            id: job.id,
+            title: job.title || 'Εργασία',
+            start: visitDate,
+            extendedProps: {
+              job_id: job.id,
+              client_id: job.clientId || job.client_id,
+              client_name: job.clientName || job.client_name,
+              address: job.address,
+              status: job.status
+            }
+          };
+        })
         .sort((a, b) => new Date(a.start) - new Date(b.start))
         .slice(0, 10);
       
-      this.renderUpcomingVisits(upcoming);
+      this.renderUpcomingVisits(events);
       
     } catch (error) {
       console.error('Error loading upcoming visits:', error);
@@ -605,7 +665,7 @@ window.CalendarView = {
      ======================================== */
   async deleteEventById(eventId) {
     try {
-      await API.delete(`/api/calendar.php?id=${eventId}`);
+      await API.deleteJob(eventId);
       Toast.show('Η επίσκεψη διαγράφηκε', 'success');
       
       // Remove from calendar if exists
@@ -718,8 +778,7 @@ window.CalendarView = {
     let jobs = [];
     
     try {
-      const response = await API.get('/api/jobs.php');
-      jobs = Array.isArray(response) ? response : (response.data || []);
+      jobs = await API.getJobs();
     } catch (error) {
       console.error('Error loading jobs:', error);
     }
@@ -868,14 +927,25 @@ window.CalendarView = {
     try {
       // Αν επιλέχθηκε εργασία, ενημέρωσε το next_visit της εργασίας
       if (selectedJobId) {
-        await API.put('/api/calendar.php', {
-          id: selectedJobId,
-          next_visit: data.start_date
+        await API.updateJob(selectedJobId, {
+          nextVisit: data.start_date
         });
         Toast.show('Η επόμενη επίσκεψη προστέθηκε στην εργασία', 'success');
       } else {
         // Αλλιώς δημιούργησε νέα εργασία
-        await API.post('/api/calendar.php', data);
+        // Convert snake_case to camelCase for API
+        const jobData = {
+          title: data.title,
+          clientName: data.client_name,
+          clientPhone: data.client_phone,
+          startDate: data.start_date,
+          endDate: data.end_date,
+          address: data.address,
+          description: data.description,
+          status: data.status,
+          nextVisit: data.start_date
+        };
+        await API.createJob(jobData);
         Toast.show('Η επίσκεψη δημιουργήθηκε επιτυχώς', 'success');
       }
       
@@ -989,18 +1059,18 @@ window.CalendarView = {
       return;
     }
     
-    const data = {
-      id: event.id,
+    const jobData = {
       title: document.getElementById('editVisitTitle').value,
-      start_date: document.getElementById('editVisitStartDate').value,
-      end_date: document.getElementById('editVisitEndDate').value || null,
+      startDate: document.getElementById('editVisitStartDate').value,
+      endDate: document.getElementById('editVisitEndDate').value || null,
+      nextVisit: document.getElementById('editVisitStartDate').value,
       address: document.getElementById('editVisitAddress').value,
       description: document.getElementById('editVisitDescription').value,
       status: document.getElementById('editVisitStatus').value
     };
     
     try {
-      await API.put('/api/calendar.php', data);
+      await API.updateJob(event.id, jobData);
       Toast.show('Η επίσκεψη ενημερώθηκε επιτυχώς', 'success');
       Modal.hide();
       
@@ -1019,13 +1089,13 @@ window.CalendarView = {
      ======================================== */
   async updateEventDates(event) {
     try {
-      const data = {
-        id: event.id,
-        start_date: event.start.toISOString().split('T')[0],
-        end_date: event.end ? event.end.toISOString().split('T')[0] : null
+      const jobData = {
+        startDate: event.start.toISOString().split('T')[0],
+        endDate: event.end ? event.end.toISOString().split('T')[0] : null,
+        nextVisit: event.start.toISOString().split('T')[0]
       };
       
-      await API.put('/api/calendar.php', data);
+      await API.updateJob(event.id, jobData);
       Toast.show('Η επίσκεψη ενημερώθηκε', 'success');
       await this.loadUpcomingVisits();
       
@@ -1041,7 +1111,7 @@ window.CalendarView = {
      ======================================== */
   async deleteEvent(event) {
     try {
-      await API.delete(`/api/calendar.php?id=${event.id}`);
+      await API.deleteJob(event.id);
       Toast.show('Η επίσκεψη διαγράφηκε', 'success');
       event.remove();
       await this.loadUpcomingVisits();

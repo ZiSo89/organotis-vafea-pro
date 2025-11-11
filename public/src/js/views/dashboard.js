@@ -284,7 +284,8 @@ window.DashboardView = {
     return `
       <ul class="activities-list">
         ${upcomingJobs.map(job => {
-          const client = State.data.clients.find(c => Number(c.id) === Number(job.clientId));
+          const clients = State.data?.clients || [];
+          const client = clients.find(c => Number(c.id) === Number(job.clientId));
           const clientName = client ? client.name : 'Άγνωστος πελάτης';
           const visitDate = new Date(job.nextVisit);
           visitDate.setHours(0, 0, 0, 0);

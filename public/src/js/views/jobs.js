@@ -555,7 +555,7 @@ window.JobsView = {
   },
 
   getClientName(clientId) {
-    const client = State.data.clients.find(c => c.id === clientId);
+    const client = State.data.clients.find(c => Number(c.id) === Number(clientId));
     return client ? client.name : 'Άγνωστος';
   },
 
