@@ -13,6 +13,23 @@ const Sidebar = {
     this.setupNavigation();
     this.setupMobileMenu();
     this.handleResize();
+    this.setInitialIcon();
+  },
+  
+  setInitialIcon() {
+    const toggleBtn = document.getElementById('sidebarToggle');
+    if (toggleBtn) {
+      const icon = toggleBtn.querySelector('i');
+      if (icon) {
+        // Set correct initial icon based on device type
+        icon.classList.remove('fa-bars', 'fa-chevron-left', 'fa-chevron-right', 'fa-times');
+        if (this.isMobile) {
+          icon.classList.add('fa-bars');
+        } else {
+          icon.classList.add('fa-chevron-left');
+        }
+      }
+    }
   },
 
   setupToggle() {
@@ -32,14 +49,27 @@ const Sidebar = {
     const icon = toggleBtn.querySelector('i');
     if (!icon) return;
     
-    const isOpen = this.element.classList.contains('open');
-    
-    if (isOpen) {
-      icon.classList.remove('fa-bars');
-      icon.classList.add('fa-times');
+    if (this.isMobile) {
+      const isOpen = this.element.classList.contains('open');
+      
+      if (isOpen) {
+        icon.classList.remove('fa-bars');
+        icon.classList.add('fa-times');
+      } else {
+        icon.classList.remove('fa-times');
+        icon.classList.add('fa-bars');
+      }
     } else {
-      icon.classList.remove('fa-times');
-      icon.classList.add('fa-bars');
+      // Desktop: show chevrons for collapsed state
+      const isCollapsed = this.element.classList.contains('collapsed');
+      
+      if (isCollapsed) {
+        icon.classList.remove('fa-chevron-left');
+        icon.classList.add('fa-chevron-right');
+      } else {
+        icon.classList.remove('fa-chevron-right');
+        icon.classList.add('fa-chevron-left');
+      }
     }
   },
 
@@ -49,6 +79,13 @@ const Sidebar = {
     } else {
       this.isCollapsed = !this.isCollapsed;
       this.element.classList.toggle('collapsed');
+      
+      // Refresh calendar after sidebar animation completes
+      setTimeout(() => {
+        if (window.CalendarView && window.CalendarView.calendar) {
+          window.CalendarView.calendar.updateSize();
+        }
+      }, 300); // Wait for CSS transition to complete
     }
   },
 
@@ -117,17 +154,31 @@ const Sidebar = {
         this.element.classList.remove('open', 'collapsed');
         this.isCollapsed = false;
         
-        // Reset icon to burger when switching breakpoints
+        // Update icon based on new breakpoint
         const toggleBtn = document.getElementById('sidebarToggle');
         if (toggleBtn) {
           const icon = toggleBtn.querySelector('i');
           if (icon) {
-            icon.classList.remove('fa-times');
-            icon.classList.add('fa-bars');
+            icon.classList.remove('fa-times', 'fa-chevron-left', 'fa-chevron-right');
+            if (this.isMobile) {
+              icon.classList.add('fa-bars');
+            } else {
+              icon.classList.add('fa-chevron-left');
+            }
           }
         }
       }
     });
+    
+    // Set initial icon based on screen size
+    const toggleBtn = document.getElementById('sidebarToggle');
+    if (toggleBtn) {
+      const icon = toggleBtn.querySelector('i');
+      if (icon && !this.isMobile) {
+        icon.classList.remove('fa-bars');
+        icon.classList.add('fa-chevron-left');
+      }
+    }
   },
 
   setActive(section) {

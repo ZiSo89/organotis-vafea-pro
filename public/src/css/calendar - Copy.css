@@ -27,26 +27,6 @@
   width: 420px;
   min-width: 420px;
   box-sizing: border-box;
-  max-height: calc(100vh - 50px); /* 200px μεγαλύτερο από το προηγούμενο */
-}
-
-/* Custom scrollbar for upcoming visits panel */
-.upcoming-visits-panel::-webkit-scrollbar {
-  width: 8px;
-}
-
-.upcoming-visits-panel::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.05);
-  border-radius: 4px;
-}
-
-.upcoming-visits-panel::-webkit-scrollbar-thumb {
-  background: var(--color-primary);
-  border-radius: 4px;
-}
-
-.upcoming-visits-panel::-webkit-scrollbar-thumb:hover {
-  background: var(--color-primary-dark);
 }
 
 .upcoming-visits-header {
@@ -309,11 +289,23 @@
   cursor: default !important; /* Βέλος (default cursor) */
 }
 
-/* Hover effect ONLY for month view (daygrid) */
-.fc .fc-daygrid-event:hover {
-  filter: brightness(0.92) !important; /* Ελαφρά σκούρεμα */
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important; /* Ελαφριά σκιά */
-  transition: filter 0.2s ease, box-shadow 0.2s ease; /* Smooth transition */
+/* Disable ALL hover effects from library */
+.fc .fc-event:hover,
+.fc .fc-daygrid-event:hover,
+.fc .fc-timegrid-event:hover,
+.fc .fc-event-main:hover {
+  background-color: inherit !important;
+  border-color: inherit !important;
+  box-shadow: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+}
+
+/* Disable hover on calendar cells/days */
+.fc .fc-daygrid-day:hover,
+.fc .fc-timegrid-slot:hover,
+.fc .fc-daygrid-day-frame:hover {
+  background-color: inherit !important;
 }
 
 /* Force default cursor on all event elements */

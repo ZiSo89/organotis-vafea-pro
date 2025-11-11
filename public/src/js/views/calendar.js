@@ -57,7 +57,12 @@ window.CalendarView = {
       <div class="calendar-container">
         <!-- Λίστα Επόμενων Επισκέψεων -->
         <div class="upcoming-visits-panel">
-          <h2><i class="fas fa-clock"></i> Επόμενες Επισκέψεις</h2>
+          <div class="upcoming-visits-header">
+            <h2><i class="fas fa-clock"></i> Επόμενες Επισκέψεις</h2>
+            <button class="btn btn-primary btn-sm" id="syncCalendarBtn" title="Συγχρονισμός με Εργασίες">
+              <i class="fas fa-sync-alt"></i> Συγχρονισμός
+            </button>
+          </div>
           <div id="upcomingVisitsList" class="upcoming-visits-list">
             <div class="loading">Φόρτωση...</div>
           </div>
@@ -79,6 +84,10 @@ window.CalendarView = {
     // Event listeners
     document.getElementById('addVisitBtn').addEventListener('click', () => {
       this.showAddVisitModal();
+    });
+    
+    document.getElementById('syncCalendarBtn').addEventListener('click', () => {
+      this.syncJobsToCalendar();
     });
   },
 
@@ -109,12 +118,22 @@ window.CalendarView = {
       firstDay: 1, // Δευτέρα
       weekNumbers: !isMobile, // Κρύψε week numbers σε mobile
       weekText: 'Εβδ.',
-      editable: !isMobile, // Απενεργοποίηση drag σε mobile
+      editable: false, // Απενεργοποίηση drag & drop για να μην τρεμοπαίζει ο cursor
       selectable: true,
-      selectMirror: true,
+      selectMirror: false, // Απενεργοποίηση mirror για να μην αναβοσβήνει
+      selectOverlap: false, // Δεν επιτρέπεται select πάνω από υπάρχοντα events
       dayMaxEvents: isMobile ? 3 : true, // Περιορισμός events σε mobile
       moreLinkClick: 'popover', // Click on "more" shows popover
       eventMaxStack: isMobile ? 3 : 2, // Max events visible before showing "more"
+      
+      // Event display settings for better visibility
+      eventDisplay: 'block', // Makes events fill the entire cell width
+      displayEventTime: true, // Show time on events (will be hidden in month view via CSS)
+      eventTimeFormat: { // Format for time display
+        hour: '2-digit',
+        minute: '2-digit',
+        meridiem: false
+      },
       
       // Touch-friendly settings
       longPressDelay: 500,
@@ -150,39 +169,24 @@ window.CalendarView = {
       // Event mouse enter - show tooltip
       eventMouseEnter: (info) => {
         const props = info.event.extendedProps || {};
-        const tooltip = `${info.event.title}${props.client_name ? '\n👤 ' + props.client_name : ''}${props.address ? '\n📍 ' + props.address : ''}`;
+        // Use original_title to avoid duplicate client names
+        const title = props.original_title || info.event.title;
+        const tooltip = `${title}${props.client_name ? '\n👤 ' + props.client_name : ''}${props.address ? '\n📍 ' + props.address : ''}`;
         info.el.title = tooltip;
       },
       
-      // Date click - Δημιουργία νέας επίσκεψης (only deliberate)
-      dateClick: (info) => {
-        if (this.isSwipeInProgress) {
-          return;
-        }
-        
-        setTimeout(() => {
-          if (!this.isSwipeInProgress) {
-            this.showAddVisitModal(info.dateStr);
-          }
-        }, 100);
-      },
-      
-      // Event drag & drop
-      eventDrop: async (info) => {
-        await this.updateEventDates(info.event);
-      },
-      
-      // Event resize
-      eventResize: async (info) => {
-        await this.updateEventDates(info.event);
-      },
-      
-      // Date select
+      // Date select - Δημιουργία νέας επίσκεψης με date range
       select: (info) => {
         if (this.isSwipeInProgress) {
           return;
         }
-        this.showAddVisitModal(info.startStr, info.endStr);
+        
+        // Small delay to distinguish from scroll/swipe
+        setTimeout(() => {
+          if (!this.isSwipeInProgress) {
+            this.showAddVisitModal(info.startStr, info.endStr);
+          }
+        }, 100);
       }
     });
     
@@ -300,8 +304,7 @@ window.CalendarView = {
       this.calendar.changeView('timeGridDay');
     }
     
-    // Update calendar options based on screen size
-    this.calendar.setOption('editable', !isMobile);
+    // Update calendar options based on screen size (editable always false)
     this.calendar.setOption('weekNumbers', !isMobile);
   },
 
@@ -313,52 +316,37 @@ window.CalendarView = {
       const startStr = start.toISOString().split('T')[0];
       const endStr = end.toISOString().split('T')[0];
       
-      console.log(`🔄 Loading events: ${startStr} to ${endStr}`);
+      console.log('� ═══════════════════════════════════════');
+      console.log(`📅 LOAD EVENTS: ${startStr} to ${endStr}`);
+      console.log('📅 ═══════════════════════════════════════');
       
-      // Get all jobs and filter by date range
-      const jobs = await API.getJobs();
+      // Fetch events from calendar API
+      const url = `/api/calendar.php?start=${startStr}&end=${endStr}`;
+      console.log('🌐 Fetching:', url);
       
-      // Convert jobs to calendar events
-      const events = jobs
-        .filter(job => {
-          // Filter jobs that have next_visit or start_date within range
-          const visitDate = job.nextVisit || job.next_visit || job.startDate || job.start_date;
-          if (!visitDate) return false;
-          
-          const jobDate = visitDate.split(' ')[0]; // Remove time part if exists
-          return jobDate >= startStr && jobDate <= endStr;
-        })
-        .map(job => {
-          const visitDate = job.nextVisit || job.next_visit || job.startDate || job.start_date;
-          const statusColors = {
-            'Υποψήφιος': '#6b7280',
-            'Προγραμματισμένη': '#3b82f6',
-            'Σε εξέλιξη': '#f59e0b',
-            'Ολοκληρώθηκε': '#10b981',
-            'pending': '#6b7280',
-            'scheduled': '#3b82f6',
-            'in-progress': '#f59e0b',
-            'completed': '#10b981'
-          };
-          
-          return {
-            id: job.id,
-            title: job.title || 'Εργασία',
-            start: visitDate,
-            backgroundColor: statusColors[job.status] || '#6b7280',
-            borderColor: statusColors[job.status] || '#6b7280',
-            extendedProps: {
-              job_id: job.id,
-              client_id: job.clientId || job.client_id,
-              client_name: job.clientName || job.client_name,
-              address: job.address,
-              status: job.status,
-              description: job.description
-            }
-          };
+      const response = await fetch(url, {
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to load calendar events');
+      }
+      
+      const events = await response.json();
+      
+      console.log(`✅ Loaded ${events.length} calendar events`);
+      
+      // Log each event in detail
+      events.forEach((event, index) => {
+        console.log(`📌 Event ${index + 1}:`, {
+          id: event.id,
+          title: event.title,
+          start: event.start,
+          end: event.end,
+          allDay: event.allDay,
+          extendedProps: event.extendedProps
         });
-      
-      console.log(`✅ Loaded ${events.length} events from jobs`);
+      });
       
       // Προσθήκη ελληνικών αργιών
       const holidays = this.greekHolidays
@@ -373,10 +361,16 @@ window.CalendarView = {
           allDay: true
         }));
       
+      console.log(`🇬🇷 Added ${holidays.length} Greek holidays`);
+      console.log('📅 ═══════════════════════════════════════');
+      
       return [...events, ...holidays];
       
     } catch (error) {
+      console.error('❌ ═══════════════════════════════════════');
       console.error('❌ Error loading events:', error);
+      console.error('❌ Stack:', error.stack);
+      console.error('❌ ═══════════════════════════════════════');
       Toast.show('Σφάλμα φόρτωσης επισκέψεων', 'error');
       return [];
     }
@@ -388,40 +382,27 @@ window.CalendarView = {
   async loadUpcomingVisits() {
     try {
       const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
       const futureDate = new Date();
       futureDate.setDate(futureDate.getDate() + 30);
       
-      // Get all jobs
-      const jobs = await API.getJobs();
+      // Get calendar events from the API
+      const start = today.toISOString().split('T')[0];
+      const end = futureDate.toISOString().split('T')[0];
       
-      // Filter and map to events
-      const events = jobs
-        .filter(job => {
-          const visitDate = job.nextVisit || job.next_visit || job.startDate || job.start_date;
-          if (!visitDate) return false;
-          
-          const jobDate = new Date(visitDate.split(' ')[0]);
-          return jobDate >= today;
-        })
-        .map(job => {
-          const visitDate = job.nextVisit || job.next_visit || job.startDate || job.start_date;
-          return {
-            id: job.id,
-            title: job.title || 'Εργασία',
-            start: visitDate,
-            extendedProps: {
-              job_id: job.id,
-              client_id: job.clientId || job.client_id,
-              client_name: job.clientName || job.client_name,
-              address: job.address,
-              status: job.status
-            }
-          };
+      const events = await API.get(`/api/calendar.php?start=${start}&end=${end}`);
+      
+      // Filter future events and sort by date
+      const upcomingEvents = events
+        .filter(event => {
+          const eventDate = new Date(event.start);
+          return eventDate >= today;
         })
         .sort((a, b) => new Date(a.start) - new Date(b.start))
-        .slice(0, 10);
+        .slice(0, 10); // Show only next 10 visits
       
-      this.renderUpcomingVisits(events);
+      this.renderUpcomingVisits(upcomingEvents);
       
     } catch (error) {
       console.error('Error loading upcoming visits:', error);
@@ -460,9 +441,17 @@ window.CalendarView = {
     container.innerHTML = visits.map(visit => {
       const startDate = new Date(visit.start);
       const props = visit.extendedProps || {};
-      const normalizedStatus = this.normalizeStatus(props.status);
       
-      console.log(`  - Rendering visit ID: ${visit.id}, Title: ${visit.title}`);
+      // Normalize status - handle both from API and from calendar
+      const status = props.status || visit.status || 'pending';
+      const normalizedStatus = this.normalizeStatus(status);
+      
+      // Extract client info
+      const clientName = props.client_name || visit.client_name || '';
+      const clientPhone = props.client_phone || visit.client_phone || '';
+      const address = props.address || visit.address || '';
+      
+      console.log(`  - Rendering visit ID: ${visit.id}, Title: ${visit.title}, Status: ${status}`);
       
       return `
         <div class="visit-item" data-event-id="${visit.id}" style="cursor: pointer;">
@@ -473,13 +462,13 @@ window.CalendarView = {
           <div class="visit-info">
             <div class="visit-title">${visit.title}</div>
             <div class="visit-details">
-              ${props.address ? `<span><i class="fas fa-map-marker-alt"></i> ${props.address}</span>` : ''}
-              ${props.client_phone ? `<span><i class="fas fa-phone"></i> ${props.client_phone}</span>` : ''}
+              ${address ? `<span><i class="fas fa-map-marker-alt"></i> ${address}</span>` : ''}
+              ${clientPhone ? `<span><i class="fas fa-phone"></i> ${clientPhone}</span>` : ''}
             </div>
             <div class="visit-time">${this.formatDateTime(startDate)}</div>
           </div>
           <div class="visit-status">
-            <span class="status-badge status-${normalizedStatus}">${this.getStatusText(props.status)}</span>
+            <span class="status-badge status-${normalizedStatus}">${this.getStatusText(status)}</span>
           </div>
         </div>
       `;
@@ -569,11 +558,22 @@ window.CalendarView = {
      Show Event Details from Raw Data
      ======================================== */
   showEventDetailsFromData(visitData) {
+    console.log('🔍 showEventDetailsFromData called with:', visitData);
+    
     const props = visitData.extendedProps || {};
-    const normalizedStatus = this.normalizeStatus(props.status);
+    
+    // Get status from multiple possible sources
+    const status = props.status || visitData.status || 'pending';
+    const normalizedStatus = this.normalizeStatus(status);
+    
+    // Use original_title if available (without client name), otherwise use visitData.title
+    const displayTitle = props.original_title || visitData.title;
+    
+    console.log('  Status:', status, '→ Normalized:', normalizedStatus);
+    console.log('  Title:', displayTitle);
     
     Modal.show({
-      title: visitData.title,
+      title: displayTitle,
       content: `
         <div class="event-details">
           <div class="detail-row">
@@ -584,6 +584,12 @@ window.CalendarView = {
             <div class="detail-row">
               <strong><i class="fas fa-calendar-check"></i> Λήξη:</strong>
               <span>${this.formatDateTime(visitData.end)}</span>
+            </div>
+          ` : ''}
+          ${!visitData.allDay && (props.start_time || props.end_time) ? `
+            <div class="detail-row">
+              <strong><i class="fas fa-clock"></i> Ώρα:</strong>
+              <span>${this.formatTime(props.start_time) || ''}${props.end_time ? ' - ' + this.formatTime(props.end_time) : ''}</span>
             </div>
           ` : ''}
           ${props.client_name ? `
@@ -612,7 +618,7 @@ window.CalendarView = {
           ` : ''}
           <div class="detail-row">
             <strong><i class="fas fa-flag"></i> Κατάσταση:</strong>
-            <span class="status-badge status-${normalizedStatus}">${this.getStatusText(props.status)}</span>
+            <span class="status-badge status-${normalizedStatus}">${this.getStatusText(status)}</span>
           </div>
           ${props.total_cost ? `
             <div class="detail-row">
@@ -634,6 +640,7 @@ window.CalendarView = {
               title: visitData.title,
               start: new Date(visitData.start),
               end: visitData.end ? new Date(visitData.end) : null,
+              allDay: visitData.allDay || false,
               extendedProps: props
             };
             setTimeout(() => {
@@ -644,11 +651,11 @@ window.CalendarView = {
         {
           text: 'Διαγραφή',
           className: 'btn-danger',
-          onClick: async () => {
-            if (confirm('Είστε σίγουροι ότι θέλετε να διαγράψετε αυτή την επίσκεψη;')) {
-              await this.deleteEventById(visitData.id);
-              Modal.hide();
-            }
+          onClick: () => {
+            Modal.hide();
+            setTimeout(() => {
+              this.showDeleteConfirmation(visitData.id);
+            }, 350);
           }
         },
         {
@@ -661,12 +668,50 @@ window.CalendarView = {
   },
 
   /* ========================================
+     Show Delete Confirmation Modal
+     ======================================== */
+  showDeleteConfirmation(eventId) {
+    Modal.show({
+      title: 'Επιβεβαίωση Διαγραφής',
+      content: `
+        <div class="confirmation-dialog">
+          <i class="fas fa-exclamation-triangle" style="font-size: 3rem; color: var(--danger); margin-bottom: 1rem;"></i>
+          <p style="font-size: 1.1rem; margin-bottom: 0.5rem;">Είστε σίγουροι ότι θέλετε να διαγράψετε αυτή την επίσκεψη;</p>
+          <p style="color: var(--text-secondary); font-size: 0.9rem;">Η ενέργεια αυτή δεν μπορεί να αναιρεθεί.</p>
+        </div>
+      `,
+      buttons: [
+        {
+          text: 'Διαγραφή',
+          className: 'btn-danger',
+          onClick: async () => {
+            await this.deleteEventById(eventId);
+            Modal.hide();
+          }
+        },
+        {
+          text: 'Ακύρωση',
+          className: 'btn-secondary',
+          onClick: () => Modal.hide()
+        }
+      ]
+    });
+  },
+
+  /* ========================================
      Delete Event by ID
      ======================================== */
   async deleteEventById(eventId) {
     try {
-      await API.deleteJob(eventId);
-      Toast.show('Η επίσκεψη διαγράφηκε', 'success');
+      // Delete from calendar_events (NOT from jobs!)
+      const response = await fetch(`/api/calendar.php?id=${eventId}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+      
+      if (!response.ok) throw new Error('Failed to delete event');
+      
+      Toast.show('Η επίσκεψη διαγράφηκε (η εργασία παραμένει)', 'success');
       
       // Remove from calendar if exists
       const event = this.calendar.getEventById(eventId);
@@ -687,11 +732,22 @@ window.CalendarView = {
      Show Event Details Modal
      ======================================== */
   showEventDetails(event) {
+    console.log('🔍 showEventDetails called with event:', event);
+    
     const props = event.extendedProps || {};
-    const normalizedStatus = this.normalizeStatus(props.status);
+    
+    // Get status from multiple possible sources
+    const status = props.status || event.status || 'pending';
+    const normalizedStatus = this.normalizeStatus(status);
+    
+    // Use original_title if available (without client name), otherwise use event.title
+    const displayTitle = props.original_title || event.title;
+    
+    console.log('  Status:', status, '→ Normalized:', normalizedStatus);
+    console.log('  Title:', displayTitle);
     
     Modal.show({
-      title: event.title,
+      title: displayTitle,
       content: `
         <div class="event-details">
           <div class="detail-row">
@@ -702,6 +758,12 @@ window.CalendarView = {
             <div class="detail-row">
               <strong><i class="fas fa-calendar-check"></i> Λήξη:</strong>
               <span>${this.formatDateTime(event.end)}</span>
+            </div>
+          ` : ''}
+          ${!event.allDay && (props.start_time || props.end_time) ? `
+            <div class="detail-row">
+              <strong><i class="fas fa-clock"></i> Ώρα:</strong>
+              <span>${this.formatTime(props.start_time) || ''}${props.end_time ? ' - ' + this.formatTime(props.end_time) : ''}</span>
             </div>
           ` : ''}
           ${props.client_name ? `
@@ -730,7 +792,7 @@ window.CalendarView = {
           ` : ''}
           <div class="detail-row">
             <strong><i class="fas fa-flag"></i> Κατάσταση:</strong>
-            <span class="status-badge status-${normalizedStatus}">${this.getStatusText(props.status)}</span>
+            <span class="status-badge status-${normalizedStatus}">${this.getStatusText(status)}</span>
           </div>
           ${props.total_cost ? `
             <div class="detail-row">
@@ -754,11 +816,11 @@ window.CalendarView = {
         {
           text: 'Διαγραφή',
           className: 'btn-danger',
-          onClick: async () => {
-            if (confirm('Είστε σίγουροι ότι θέλετε να διαγράψετε αυτή την επίσκεψη;')) {
-              await this.deleteEvent(event);
-              Modal.hide();
-            }
+          onClick: () => {
+            Modal.hide();
+            setTimeout(() => {
+              this.showDeleteConfirmation(event.id);
+            }, 350);
           }
         },
         {
@@ -774,18 +836,21 @@ window.CalendarView = {
      Show Add Visit Modal
      ======================================== */
   async showAddVisitModal(startDate = null, endDate = null) {
-    // Load jobs for dropdown
+    // Load jobs and clients for dropdown
     let jobs = [];
+    let clients = [];
     
     try {
       jobs = await API.getJobs();
+      clients = await API.getClients();
     } catch (error) {
-      console.error('Error loading jobs:', error);
+      console.error('Error loading data:', error);
     }
     
     const today = new Date().toISOString().split('T')[0];
-    const defaultStart = startDate || today;
-    const defaultEnd = endDate || defaultStart;
+    // Extract only date part (YYYY-MM-DD) from datetime strings
+    const defaultStart = startDate ? startDate.split('T')[0] : today;
+    const defaultEnd = endDate ? endDate.split('T')[0] : defaultStart;
     
     Modal.show({
       title: 'Νέα Επίσκεψη',
@@ -794,33 +859,42 @@ window.CalendarView = {
           <div class="form-group">
             <label for="visitJob">Σχετίζεται με Εργασία</label>
             <select id="visitJob" class="form-control">
-              <option value="">-- Νέα Εργασία (Ανεξάρτητη) --</option>
+              <option value="">-- Νέα Επίσκεψη (Ανεξάρτητη) --</option>
               ${jobs.map(j => `<option value="${j.id}" 
                 data-title="${j.title}" 
+                data-client-id="${j.clientId || j.client_id || ''}"
                 data-client="${j.clientName || ''}"
-                data-phone="${j.clientPhone || ''}"
                 data-address="${j.address || ''}"
                 data-description="${(j.description || '').replace(/"/g, '&quot;')}"
                 data-status="${j.status || 'pending'}"
-                data-cost="${j.total_cost || ''}"
-              >${j.clientName || 'Χωρίς πελάτη'} (${j.title})</option>`).join('')}
+              >${j.clientName || 'Χωρίς πελάτη'} - ${j.title}</option>`).join('')}
             </select>
-            <small class="form-text">Επιλέξτε εργασία για αυτόματη συμπλήρωση στοιχείων</small>
+            <small class="form-text">Επιλέξτε εργασία για να συνδέσετε την επίσκεψη με αυτήν</small>
+          </div>
+          
+          <div class="form-group" id="clientSelectGroup">
+            <label for="visitClient">Πελάτης</label>
+            <select id="visitClient" class="form-control">
+              <option value="">-- Χωρίς Πελάτη --</option>
+              ${clients.map(c => `<option value="${c.id}"
+                data-address="${c.address || ''}"
+              >${c.name}</option>`).join('')}
+            </select>
+          </div>
+          
+          <div class="form-group" id="clientTextGroup" style="display: none;">
+            <label for="visitClientText">Πελάτης από Εργασία</label>
+            <input type="text" id="visitClientText" class="form-control" readonly>
+          </div>
+          
+          <div class="form-group" id="clientTextGroup" style="display: none;">
+            <label for="visitClientText">Πελάτης από Εργασία</label>
+            <input type="text" id="visitClientText" class="form-control" readonly>
           </div>
           
           <div class="form-group">
             <label for="visitTitle">Τίτλος *</label>
             <input type="text" id="visitTitle" class="form-control" placeholder="π.χ. Βαφή Διαμερίσματος" required>
-          </div>
-          
-          <div class="form-group">
-            <label for="visitClient">Πελάτης</label>
-            <input type="text" id="visitClient" class="form-control" placeholder="Όνομα πελάτη">
-          </div>
-          
-          <div class="form-group">
-            <label for="visitPhone">Τηλέφωνο</label>
-            <input type="text" id="visitPhone" class="form-control" placeholder="Τηλέφωνο πελάτη">
           </div>
           
           <div class="form-group">
@@ -838,14 +912,22 @@ window.CalendarView = {
               <label for="visitStatus">Κατάσταση</label>
               <select id="visitStatus" class="form-control">
                 <option value="pending">Σε Αναμονή</option>
+                <option value="confirmed">Επιβεβαιωμένη</option>
                 <option value="in_progress">Σε Εξέλιξη</option>
                 <option value="completed">Ολοκληρωμένη</option>
+                <option value="cancelled">Ακυρωμένη</option>
               </select>
             </div>
             
             <div class="form-group">
-              <label for="visitCost">Κόστος (€)</label>
-              <input type="number" id="visitCost" class="form-control" placeholder="0.00" step="0.01">
+              <label for="visitAllDay">
+                Ολοήμερη
+                <i class="fas fa-info-circle" title="Αν είναι ενεργό, η επίσκεψη διαρκεί όλη τη μέρα χωρίς συγκεκριμένη ώρα"></i>
+              </label>
+              <label class="toggle-switch">
+                <input type="checkbox" id="visitAllDay" checked>
+                <span class="toggle-slider"></span>
+              </label>
             </div>
           </div>
           
@@ -856,8 +938,23 @@ window.CalendarView = {
             </div>
             
             <div class="form-group">
-              <label for="visitEndDate">Ημερομηνία Λήξης</label>
+              <label for="visitEndDate">
+                Ημερομηνία Λήξης
+                <i class="fas fa-info-circle" title="Προαιρετικό. Χρησιμοποιήστε για επισκέψεις που διαρκούν πολλές μέρες"></i>
+              </label>
               <input type="date" id="visitEndDate" class="form-control" value="${defaultEnd}">
+            </div>
+          </div>
+          
+          <div class="form-row" id="visitTimeRow" style="display: none;">
+            <div class="form-group">
+              <label for="visitStartTime">Ώρα Έναρξης</label>
+              <input type="time" id="visitStartTime" class="form-control" value="09:00">
+            </div>
+            
+            <div class="form-group">
+              <label for="visitEndTime">Ώρα Λήξης</label>
+              <input type="time" id="visitEndTime" class="form-control" value="17:00">
             </div>
           </div>
         </form>
@@ -880,26 +977,52 @@ window.CalendarView = {
     
     // Auto-fill when job is selected
     const jobSelect = document.getElementById('visitJob');
+    const clientSelectGroup = document.getElementById('clientSelectGroup');
+    const clientTextGroup = document.getElementById('clientTextGroup');
+    const clientText = document.getElementById('visitClientText');
+    const clientSelect = document.getElementById('visitClient');
+    
     jobSelect.addEventListener('change', (e) => {
       const selectedOption = e.target.options[e.target.selectedIndex];
       if (selectedOption.value) {
+        // Job selected - show readonly client field and auto-fill data
+        clientSelectGroup.style.display = 'none';
+        clientTextGroup.style.display = 'block';
+        clientText.value = selectedOption.dataset.client || '';
+        
         document.getElementById('visitTitle').value = selectedOption.dataset.title || '';
-        document.getElementById('visitClient').value = selectedOption.dataset.client || '';
-        document.getElementById('visitPhone').value = selectedOption.dataset.phone || '';
         document.getElementById('visitAddress').value = selectedOption.dataset.address || '';
         document.getElementById('visitDescription').value = selectedOption.dataset.description || '';
         document.getElementById('visitStatus').value = selectedOption.dataset.status || 'pending';
-        document.getElementById('visitCost').value = selectedOption.dataset.cost || '';
       } else {
-        // Clear fields
+        // Independent visit - show client dropdown and clear fields
+        clientSelectGroup.style.display = 'block';
+        clientTextGroup.style.display = 'none';
+        
         document.getElementById('visitTitle').value = '';
-        document.getElementById('visitClient').value = '';
-        document.getElementById('visitPhone').value = '';
         document.getElementById('visitAddress').value = '';
         document.getElementById('visitDescription').value = '';
         document.getElementById('visitStatus').value = 'pending';
-        document.getElementById('visitCost').value = '';
       }
+    });
+    
+    // Auto-fill address when client is selected from dropdown
+    clientSelect.addEventListener('change', (e) => {
+      const selectedOption = e.target.options[e.target.selectedIndex];
+      if (selectedOption.value) {
+        const selectedClient = clients.find(c => c.id == selectedOption.value);
+        if (selectedClient && selectedClient.address) {
+          document.getElementById('visitAddress').value = selectedClient.address;
+        }
+      }
+    });
+    
+    // Toggle time fields based on all-day checkbox
+    const allDayCheckbox = document.getElementById('visitAllDay');
+    const timeRow = document.getElementById('visitTimeRow');
+    
+    allDayCheckbox.addEventListener('change', (e) => {
+      timeRow.style.display = e.target.checked ? 'none' : 'flex';
     });
   },
 
@@ -907,6 +1030,10 @@ window.CalendarView = {
      Create Visit
      ======================================== */
   async createVisit() {
+    console.log('🆕 ═══════════════════════════════════════');
+    console.log('🆕 CREATE VISIT - START');
+    console.log('🆕 ═══════════════════════════════════════');
+    
     const form = document.getElementById('addVisitForm');
     if (!form.checkValidity()) {
       Toast.show('Συμπληρώστε όλα τα υποχρεωτικά πεδία', 'error');
@@ -914,49 +1041,94 @@ window.CalendarView = {
     }
     
     const selectedJobId = document.getElementById('visitJob').value;
+    let clientId = null;
+    
+    if (selectedJobId) {
+      // Get client_id from selected job's data attribute
+      const jobOption = document.querySelector(`#visitJob option[value="${selectedJobId}"]`);
+      clientId = jobOption?.dataset.clientId || null;
+    } else {
+      // Get client_id from dropdown
+      const clientSelect = document.getElementById('visitClient');
+      clientId = clientSelect?.value || null;
+    }
+    
+    const allDayCheckbox = document.getElementById('visitAllDay');
+    const isAllDay = allDayCheckbox ? allDayCheckbox.checked : false;
+    
+    console.log('📋 Form Values:');
+    console.log('  - Title:', document.getElementById('visitTitle').value);
+    console.log('  - Start Date:', document.getElementById('visitStartDate').value);
+    console.log('  - End Date:', document.getElementById('visitEndDate').value);
+    console.log('  - All Day:', isAllDay);
+    console.log('  - Start Time:', document.getElementById('visitStartTime')?.value);
+    console.log('  - End Time:', document.getElementById('visitEndTime')?.value);
     
     const data = {
       title: document.getElementById('visitTitle').value,
       start_date: document.getElementById('visitStartDate').value,
       end_date: document.getElementById('visitEndDate').value || null,
+      client_id: clientId || null,
+      job_id: selectedJobId || null,
       address: document.getElementById('visitAddress').value,
       description: document.getElementById('visitDescription').value,
-      status: document.getElementById('visitStatus').value
+      status: document.getElementById('visitStatus').value,
+      all_day: isAllDay ? 1 : 0
     };
     
+    // Add or clear time fields based on all-day status
+    if (!isAllDay) {
+      // Not all-day: include time values
+      data.start_time = document.getElementById('visitStartTime').value || null;
+      data.end_time = document.getElementById('visitEndTime').value || null;
+    } else {
+      // All-day: explicitly clear time fields
+      data.start_time = null;
+      data.end_time = null;
+    }
+    
+    console.log('📤 Data to Send:', JSON.stringify(data, null, 2));
+    
     try {
-      // Αν επιλέχθηκε εργασία, ενημέρωσε το next_visit της εργασίας
-      if (selectedJobId) {
-        await API.updateJob(selectedJobId, {
-          nextVisit: data.start_date
-        });
-        Toast.show('Η επόμενη επίσκεψη προστέθηκε στην εργασία', 'success');
-      } else {
-        // Αλλιώς δημιούργησε νέα εργασία
-        // Convert snake_case to camelCase for API
-        const jobData = {
-          title: data.title,
-          clientName: data.client_name,
-          clientPhone: data.client_phone,
-          startDate: data.start_date,
-          endDate: data.end_date,
-          address: data.address,
-          description: data.description,
-          status: data.status,
-          nextVisit: data.start_date
-        };
-        await API.createJob(jobData);
-        Toast.show('Η επίσκεψη δημιουργήθηκε επιτυχώς', 'success');
+      // Δημιουργία νέας επίσκεψης στο calendar_events
+      console.log('🌐 Sending POST to /api/calendar.php...');
+      const response = await fetch('/api/calendar.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(data)
+      });
+      
+      console.log('📡 Response Status:', response.status);
+      
+      if (!response.ok) {
+        const error = await response.json();
+        console.error('❌ Server Error:', error);
+        throw new Error(error.error || 'Failed to create event');
       }
+      
+      const result = await response.json();
+      console.log('✅ Server Response:', result);
+      
+      Toast.show('Η επίσκεψη δημιουργήθηκε επιτυχώς', 'success');
       
       Modal.hide();
       
       // Reload calendar
+      console.log('🔄 Reloading calendar...');
       this.calendar.refetchEvents();
       await this.loadUpcomingVisits();
       
+      console.log('🆕 ═══════════════════════════════════════');
+      console.log('🆕 CREATE VISIT - END (SUCCESS)');
+      console.log('🆕 ═══════════════════════════════════════');
+      
     } catch (error) {
-      console.error('Error creating visit:', error);
+      console.error('❌ ═══════════════════════════════════════');
+      console.error('❌ CREATE VISIT - ERROR');
+      console.error('❌ Error:', error);
+      console.error('❌ Stack:', error.stack);
+      console.error('❌ ═══════════════════════════════════════');
       Toast.show('Σφάλμα δημιουργίας επίσκεψης', 'error');
     }
   },
@@ -969,53 +1141,103 @@ window.CalendarView = {
     const startDate = event.start.toISOString().split('T')[0];
     const endDate = event.end ? event.end.toISOString().split('T')[0] : '';
     
-    // Use snake_case field names from API
-    const clientName = props.client_name || props.clientName || '';
-    const clientPhone = props.client_phone || props.clientPhone || '';
-    const totalCost = props.total_cost || props.totalCost || '';
+    // Get jobs and clients for dropdowns
+    let jobs = [];
+    let clients = [];
+    
+    try {
+      jobs = await API.getJobs();
+      clients = await API.getClients();
+    } catch (error) {
+      console.error('Error loading data:', error);
+    }
+    
+    const clientId = props.client_id || '';
+    const jobId = props.job_id || '';
+    
+    console.log('Edit Modal Debug:', { clientId, jobId, props, clientIdType: typeof clientId });
+    
+    // Use original_title (without client name) for editing
+    const originalTitle = props.original_title || event.title;
+    
+    // Normalize status for comparison
+    const normalizedStatus = this.normalizeStatus(props.status || 'pending');
+    
+    // Check if event is all-day (handle both boolean and number)
+    const isAllDay = Boolean(event.allDay);
+    
+    console.log('Edit Modal - allDay:', event.allDay, 'isAllDay:', isAllDay, 'start_time:', props.start_time, 'end_time:', props.end_time);
     
     Modal.show({
       title: 'Επεξεργασία Επίσκεψης',
       content: `
         <form id="editVisitForm" class="form">
           <div class="form-group">
-            <label for="editVisitTitle">Τίτλος *</label>
-            <input type="text" id="editVisitTitle" class="form-control" value="${event.title}" required>
+            <label for="editVisitJob">Σχετίζεται με Εργασία</label>
+            <select id="editVisitJob" class="form-control">
+              <option value="">-- Ανεξάρτητη Επίσκεψη --</option>
+              ${jobs.map(j => `<option value="${j.id}" ${j.id == jobId ? 'selected' : ''}
+                data-title="${j.title}" 
+                data-client-id="${j.clientId || j.client_id || ''}"
+                data-client="${j.clientName || ''}"
+                data-address="${j.address || ''}"
+              >${j.clientName || 'Χωρίς πελάτη'} - ${j.title}</option>`).join('')}
+            </select>
+            <small class="form-text">Η επίσκεψη συνδέεται με αυτή την εργασία</small>
           </div>
           
-          <div class="form-group">
+          <div class="form-group" id="editClientSelectGroup">
             <label for="editVisitClient">Πελάτης</label>
-            <input type="text" id="editVisitClient" class="form-control" value="${clientName}">
+            <select id="editVisitClient" class="form-control">
+              <option value="">-- Χωρίς Πελάτη --</option>
+              ${clients.map(c => `<option value="${c.id}" ${c.id == clientId ? 'selected' : ''}
+                data-phone="${c.phone || ''}"
+                data-address="${c.address || ''}"
+              >${c.name}</option>`).join('')}
+            </select>
+          </div>
+          
+          <div class="form-group" id="editClientTextGroup" style="display: none;">
+            <label for="editVisitClientText">Πελάτης από Εργασία</label>
+            <input type="text" id="editVisitClientText" class="form-control" readonly>
           </div>
           
           <div class="form-group">
-            <label for="editVisitPhone">Τηλέφωνο</label>
-            <input type="text" id="editVisitPhone" class="form-control" value="${clientPhone}">
+            <label for="editVisitTitle">Τίτλος *</label>
+            <input type="text" id="editVisitTitle" class="form-control" value="${originalTitle}" placeholder="π.χ. Βαφή Διαμερίσματος" required>
           </div>
           
           <div class="form-group">
             <label for="editVisitAddress">Διεύθυνση</label>
-            <input type="text" id="editVisitAddress" class="form-control" value="${props.address || ''}">
+            <input type="text" id="editVisitAddress" class="form-control" value="${props.address || ''}" placeholder="Διεύθυνση">
           </div>
           
           <div class="form-group">
             <label for="editVisitDescription">Περιγραφή</label>
-            <textarea id="editVisitDescription" class="form-control" rows="3">${props.description || ''}</textarea>
+            <textarea id="editVisitDescription" class="form-control" rows="3" placeholder="Περιγραφή εργασίας">${props.description || ''}</textarea>
           </div>
           
           <div class="form-row">
             <div class="form-group">
               <label for="editVisitStatus">Κατάσταση</label>
               <select id="editVisitStatus" class="form-control">
-                <option value="pending" ${props.status === 'pending' ? 'selected' : ''}>Σε Αναμονή</option>
-                <option value="in_progress" ${props.status === 'in_progress' ? 'selected' : ''}>Σε Εξέλιξη</option>
-                <option value="completed" ${props.status === 'completed' ? 'selected' : ''}>Ολοκληρωμένη</option>
+                <option value="pending" ${normalizedStatus === 'pending' ? 'selected' : ''}>Σε Αναμονή</option>
+                <option value="confirmed" ${normalizedStatus === 'confirmed' ? 'selected' : ''}>Επιβεβαιωμένη</option>
+                <option value="in_progress" ${normalizedStatus === 'in_progress' ? 'selected' : ''}>Σε Εξέλιξη</option>
+                <option value="completed" ${normalizedStatus === 'completed' ? 'selected' : ''}>Ολοκληρωμένη</option>
+                <option value="cancelled" ${normalizedStatus === 'cancelled' ? 'selected' : ''}>Ακυρωμένη</option>
               </select>
             </div>
             
             <div class="form-group">
-              <label for="editVisitCost">Κόστος (€)</label>
-              <input type="number" id="editVisitCost" class="form-control" value="${totalCost}" step="0.01">
+              <label for="editVisitAllDay">
+                Ολοήμερη
+                <i class="fas fa-info-circle" title="Αν είναι ενεργό, η επίσκεψη διαρκεί όλη τη μέρα χωρίς συγκεκριμένη ώρα"></i>
+              </label>
+              <label class="toggle-switch">
+                <input type="checkbox" id="editVisitAllDay" ${isAllDay ? 'checked' : ''}>
+                <span class="toggle-slider"></span>
+              </label>
             </div>
           </div>
           
@@ -1026,8 +1248,23 @@ window.CalendarView = {
             </div>
             
             <div class="form-group">
-              <label for="editVisitEndDate">Ημερομηνία Λήξης</label>
+              <label for="editVisitEndDate">
+                Ημερομηνία Λήξης
+                <i class="fas fa-info-circle" title="Προαιρετικό. Χρησιμοποιήστε για επισκέψεις που διαρκούν πολλές μέρες"></i>
+              </label>
               <input type="date" id="editVisitEndDate" class="form-control" value="${endDate}">
+            </div>
+          </div>
+          
+          <div class="form-row" id="editVisitTimeRow" style="display: ${isAllDay ? 'none' : 'flex'};">
+            <div class="form-group">
+              <label for="editVisitStartTime">Ώρα Έναρξης</label>
+              <input type="time" id="editVisitStartTime" class="form-control" value="${props.start_time || '09:00'}">
+            </div>
+            
+            <div class="form-group">
+              <label for="editVisitEndTime">Ώρα Λήξης</label>
+              <input type="time" id="editVisitEndTime" class="form-control" value="${props.end_time || '17:00'}">
             </div>
           </div>
         </form>
@@ -1047,6 +1284,66 @@ window.CalendarView = {
         }
       ]
     });
+    
+    // Auto-fill when job is selected
+    const jobSelect = document.getElementById('editVisitJob');
+    const clientSelectGroup = document.getElementById('editClientSelectGroup');
+    const clientTextGroup = document.getElementById('editClientTextGroup');
+    const clientText = document.getElementById('editVisitClientText');
+    const clientSelect = document.getElementById('editVisitClient');
+    
+    // Initialize: if job is selected, show readonly client field
+    if (jobId) {
+      const selectedJob = jobs.find(j => j.id == jobId);
+      if (selectedJob) {
+        clientSelectGroup.style.display = 'none';
+        clientTextGroup.style.display = 'block';
+        clientText.value = selectedJob.clientName || '';
+      }
+    } else {
+      // No job - show client dropdown
+      clientSelectGroup.style.display = 'block';
+      clientTextGroup.style.display = 'none';
+      // Ensure client is selected in dropdown
+      if (clientId) {
+        console.log('Setting client dropdown to:', clientId, 'Available clients:', clients.map(c => ({ id: c.id, name: c.name })));
+        clientSelect.value = String(clientId); // Force string comparison
+        console.log('Client dropdown value after set:', clientSelect.value, 'Selected:', clientSelect.selectedIndex);
+      }
+    }
+    
+    jobSelect.addEventListener('change', (e) => {
+      const selectedOption = e.target.options[e.target.selectedIndex];
+      if (selectedOption.value) {
+        // Job selected - show readonly client field
+        clientSelectGroup.style.display = 'none';
+        clientTextGroup.style.display = 'block';
+        clientText.value = selectedOption.dataset.client || '';
+      } else {
+        // Independent visit - show client dropdown
+        clientSelectGroup.style.display = 'block';
+        clientTextGroup.style.display = 'none';
+      }
+    });
+    
+    // Auto-fill address when client is selected
+    clientSelect.addEventListener('change', (e) => {
+      const selectedOption = e.target.options[e.target.selectedIndex];
+      if (selectedOption.value) {
+        const address = selectedOption.dataset.address;
+        if (address) {
+          document.getElementById('editVisitAddress').value = address;
+        }
+      }
+    });
+    
+    // Toggle time fields based on all-day checkbox
+    const allDayCheckbox = document.getElementById('editVisitAllDay');
+    const timeRow = document.getElementById('editVisitTimeRow');
+    
+    allDayCheckbox.addEventListener('change', (e) => {
+      timeRow.style.display = e.target.checked ? 'none' : 'flex';
+    });
   },
 
   /* ========================================
@@ -1059,18 +1356,61 @@ window.CalendarView = {
       return;
     }
     
-    const jobData = {
+    const jobElement = document.getElementById('editVisitJob');
+    const clientElement = document.getElementById('editVisitClient');
+    const allDayElement = document.getElementById('editVisitAllDay');
+    
+    const jobId = jobElement ? jobElement.value || null : null;
+    let clientId = null;
+    
+    if (jobId) {
+      // If job selected, get client_id from job's data attribute
+      const selectedOption = jobElement.options[jobElement.selectedIndex];
+      clientId = selectedOption.dataset.clientId || null;
+    } else {
+      // If independent visit, get client_id from client select
+      clientId = clientElement ? clientElement.value || null : null;
+    }
+    
+    const isAllDay = allDayElement ? allDayElement.checked : false;
+    
+    const eventData = {
+      id: event.id,
       title: document.getElementById('editVisitTitle').value,
-      startDate: document.getElementById('editVisitStartDate').value,
-      endDate: document.getElementById('editVisitEndDate').value || null,
-      nextVisit: document.getElementById('editVisitStartDate').value,
+      start_date: document.getElementById('editVisitStartDate').value,
+      end_date: document.getElementById('editVisitEndDate').value || null,
+      job_id: jobId,
+      client_id: clientId,
       address: document.getElementById('editVisitAddress').value,
       description: document.getElementById('editVisitDescription').value,
-      status: document.getElementById('editVisitStatus').value
+      status: document.getElementById('editVisitStatus').value,
+      all_day: isAllDay ? 1 : 0
     };
     
+    // Add or clear time fields based on all-day status
+    if (!isAllDay) {
+      // Not all-day: include time values
+      eventData.start_time = document.getElementById('editVisitStartTime').value || null;
+      eventData.end_time = document.getElementById('editVisitEndTime').value || null;
+    } else {
+      // All-day: explicitly clear time fields
+      eventData.start_time = null;
+      eventData.end_time = null;
+    }
+    
     try {
-      await API.updateJob(event.id, jobData);
+      const response = await fetch('/api/calendar.php', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(eventData)
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to update event');
+      }
+      
       Toast.show('Η επίσκεψη ενημερώθηκε επιτυχώς', 'success');
       Modal.hide();
       
@@ -1089,13 +1429,21 @@ window.CalendarView = {
      ======================================== */
   async updateEventDates(event) {
     try {
-      const jobData = {
-        startDate: event.start.toISOString().split('T')[0],
-        endDate: event.end ? event.end.toISOString().split('T')[0] : null,
-        nextVisit: event.start.toISOString().split('T')[0]
+      const eventData = {
+        id: event.id,
+        start_date: event.start.toISOString().split('T')[0],
+        end_date: event.end ? event.end.toISOString().split('T')[0] : null
       };
       
-      await API.updateJob(event.id, jobData);
+      const response = await fetch('/api/calendar.php', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(eventData)
+      });
+      
+      if (!response.ok) throw new Error('Failed to update event');
+      
       Toast.show('Η επίσκεψη ενημερώθηκε', 'success');
       await this.loadUpcomingVisits();
       
@@ -1111,8 +1459,15 @@ window.CalendarView = {
      ======================================== */
   async deleteEvent(event) {
     try {
-      await API.deleteJob(event.id);
-      Toast.show('Η επίσκεψη διαγράφηκε', 'success');
+      // Delete from calendar_events (NOT from jobs!)
+      const response = await fetch(`/api/calendar.php?id=${event.id}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+      
+      if (!response.ok) throw new Error('Failed to delete event');
+      
+      Toast.show('Η επίσκεψη διαγράφηκε (η εργασία παραμένει)', 'success');
       event.remove();
       await this.loadUpcomingVisits();
       
@@ -1162,6 +1517,7 @@ window.CalendarView = {
     
     const statusMap = {
       'pending': 'Σε Αναμονή',
+      'confirmed': 'Επιβεβαιωμένη',
       'in_progress': 'Σε Εξέλιξη',
       'in-progress': 'Σε Εξέλιξη',
       'completed': 'Ολοκληρωμένη',
@@ -1170,9 +1526,64 @@ window.CalendarView = {
       'ολοκληρώθηκε': 'Ολοκληρωμένη',
       'υποψήφιος': 'Σε Αναμονή',
       'σε αναμονή': 'Σε Αναμονή',
+      'επιβεβαιωμένη': 'Επιβεβαιωμένη',
       'ακυρώθηκε': 'Ακυρωμένη'
     };
     
     return statusMap[normalized] || status;
+  },
+  
+  /* ========================================
+     Συγχρονισμός Εργασιών με Ημερολόγιο
+     ======================================== */
+  async syncJobsToCalendar() {
+    try {
+      // Εμφάνιση loading
+      const btn = document.getElementById('syncCalendarBtn');
+      const originalHTML = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Συγχρονισμός...';
+      
+      // Καλούμε το API sync endpoint
+      const response = await API.get('/api/calendar.php?action=sync');
+      
+      if (response.success) {
+        Toast.show(`✅ ${response.message}`, 'success');
+        
+        // Ανανέωση του ημερολογίου
+        if (this.calendar) {
+          this.calendar.refetchEvents();
+        }
+        
+        // Ανανέωση της λίστας επόμενων επισκέψεων
+        await this.loadUpcomingVisits();
+      } else {
+        Toast.show('❌ Σφάλμα κατά τον συγχρονισμό', 'error');
+      }
+      
+      // Επαναφορά κουμπιού
+      btn.disabled = false;
+      btn.innerHTML = originalHTML;
+      
+    } catch (error) {
+      console.error('Sync error:', error);
+      Toast.show('❌ Σφάλμα σύνδεσης', 'error');
+      
+      // Επαναφορά κουμπιού
+      const btn = document.getElementById('syncCalendarBtn');
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-sync-alt"></i> Συγχρονισμός';
+      }
+    }
+  },
+  
+  /* ========================================
+     Format Time (Remove seconds)
+     ======================================== */
+  formatTime(time) {
+    if (!time) return '';
+    // Remove seconds from time string (HH:MM:SS -> HH:MM)
+    return time.substring(0, 5);
   }
 };

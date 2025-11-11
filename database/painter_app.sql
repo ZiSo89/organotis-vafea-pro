@@ -35,6 +35,7 @@ DROP TABLE IF EXISTS `job_workers`;
 DROP TABLE IF EXISTS `job_materials`;
 DROP TABLE IF EXISTS `invoices`;
 DROP TABLE IF EXISTS `offers`;
+DROP TABLE IF EXISTS `calendar_events`;
 DROP TABLE IF EXISTS `jobs`;
 DROP TABLE IF EXISTS `templates`;
 DROP TABLE IF EXISTS `materials`;
@@ -97,6 +98,34 @@ CREATE TABLE `invoices` (
   `notes` text DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `calendar_events`
+--
+
+CREATE TABLE `calendar_events` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `title` varchar(255) NOT NULL COMMENT 'Τίτλος επίσκεψης',
+  `start_date` datetime NOT NULL COMMENT 'Ημερομηνία & ώρα έναρξης',
+  `end_date` datetime DEFAULT NULL COMMENT 'Ημερομηνία & ώρα λήξης',
+  `all_day` tinyint(1) DEFAULT 0 COMMENT 'Ολοήμερη επίσκεψη',
+  `client_id` int(11) DEFAULT NULL COMMENT 'ID πελάτη (foreign key)',
+  `job_id` int(11) DEFAULT NULL COMMENT 'Σύνδεση με εργασία (προαιρετικό)',
+  `address` varchar(500) DEFAULT NULL COMMENT 'Διεύθυνση επίσκεψης',
+  `description` text DEFAULT NULL COMMENT 'Περιγραφή/Σημειώσεις',
+  `status` enum('pending','confirmed','in_progress','completed','cancelled') DEFAULT 'pending' COMMENT 'Κατάσταση επίσκεψης',
+  `color` varchar(20) DEFAULT NULL COMMENT 'Χρώμα στο ημερολόγιο',
+  `reminder_sent` tinyint(1) DEFAULT 0 COMMENT 'Αποστολή υπενθύμισης',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_client_id` (`client_id`),
+  KEY `idx_job_id` (`job_id`),
+  KEY `idx_start_date` (`start_date`),
+  KEY `idx_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -334,6 +363,16 @@ ALTER TABLE `clients`
   ADD KEY `idx_afm` (`afm`);
 
 --
+-- Indexes for table `calendar_events`
+--
+ALTER TABLE `calendar_events`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_client_id` (`client_id`),
+  ADD KEY `idx_job_id` (`job_id`),
+  ADD KEY `idx_start_date` (`start_date`),
+  ADD KEY `idx_status` (`status`);
+
+--
 -- Indexes for table `invoices`
 --
 ALTER TABLE `invoices`
@@ -429,6 +468,12 @@ ALTER TABLE `workers`
 --
 ALTER TABLE `clients`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+
+--
+-- AUTO_INCREMENT for table `calendar_events`
+--
+ALTER TABLE `calendar_events`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `invoices`

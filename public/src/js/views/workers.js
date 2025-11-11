@@ -359,7 +359,10 @@ window.WorkersView = {
     if (!this.currentEdit) {
       const workers = State.read('workers') || [];
       const maxId = workers.length > 0 
-        ? Math.max(...workers.map(w => parseInt(w.id.split('-')[1]) || 0))
+        ? Math.max(...workers.map(w => {
+            const id = String(w.id);
+            return id.includes('-') ? parseInt(id.split('-')[1]) || 0 : parseInt(id) || 0;
+          }))
         : 0;
       workerData.id = `W-${String(maxId + 1).padStart(4, '0')}`;
     } else {

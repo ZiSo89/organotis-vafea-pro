@@ -69,9 +69,11 @@ class APIService {
             options = { method: 'POST', body: JSON.stringify(data) };
             result = await this.request(endpoint, options);
         } else if (action === 'update' && id && data) {
-            options = { method: 'PUT', body: JSON.stringify({ id, ...data }) };
+            endpoint += `&id=${id}`;
+            options = { method: 'PUT', body: JSON.stringify(data) };
             result = await this.request(endpoint, options);
         } else if (action === 'delete' && id) {
+            endpoint += `&id=${id}`;
             options = { method: 'DELETE', body: JSON.stringify({ id }) };
             result = await this.request(endpoint, options);
         }

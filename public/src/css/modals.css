@@ -111,6 +111,22 @@
   color: var(--color-danger);
 }
 
+/* Confirmation Dialog (Delete, etc.) */
+.confirmation-dialog {
+  text-align: center;
+  padding: var(--spacing-lg);
+}
+
+.confirmation-dialog i {
+  display: block;
+  margin: 0 auto var(--spacing-lg);
+}
+
+.confirmation-dialog p {
+  margin: 0;
+  line-height: 1.6;
+}
+
 @media (max-width: 768px) {
   .modal-container {
     padding: 0;
