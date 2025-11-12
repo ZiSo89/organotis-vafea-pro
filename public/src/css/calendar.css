@@ -188,26 +188,26 @@
 .status-υποψήφιος,
 .status-σε.αναμονή {
   background: #fef3c7;
-  color: #d97706;
+  color: var(--chart-orange);
 }
 
 .status-in_progress,
 .status-in-progress,
 .status-σε.εξέλιξη {
   background: #dbeafe;
-  color: #2563eb;
+  color: var(--chart-blue);
 }
 
 .status-completed,
 .status-ολοκληρώθηκε {
   background: #d1fae5;
-  color: #059669;
+  color: var(--chart-green);
 }
 
 .status-cancelled,
 .status-ακυρώθηκε {
   background: #fee2e2;
-  color: #dc2626;
+  color: var(--chart-red);
 }
 
 /* ========================================

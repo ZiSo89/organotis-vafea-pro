@@ -1,191 +1,171 @@
-# 🚀 Οδηγίες Deployment στο Server
+# 🚀 Deployment Guide - nikolpaintmaster.e-gata.gr
 
-## 📦 Τι να ανεβάσεις στο Server
+## 📁 Δομή Αρχείων
 
-### ✅ Απαραίτητοι Φάκελοι/Αρχεία:
-
+### Local Development (τώρα)
 ```
-Οργανωτής-Βαφέα-app/
-├── api/                    ← Όλα τα PHP files
-├── config/                 ← database.php
-├── public/                 ← Όλο το frontend
-│   ├── index.html
-│   ├── login.html
-│   ├── manifest.json
-│   ├── assets/
-│   ├── docs/
-│   └── src/
-└── database/
-    └── painter_app.sql     ← Για import μόνο
+htdocs/
+├── .htaccess                           # Redirect localhost/ -> nikolpaintmaster.e-gata.gr/
+├── nikolpaintmaster.e-gata.gr/
+│   ├── .htaccess                       # Local config (RewriteBase /nikolpaintmaster.e-gata.gr/)
+│   ├── .htaccess.production           # Production config (RewriteBase /)
+│   ├── api/
+│   ├── config/
+│   └── public/
+│       ├── index.html
+│       ├── assets/
+│       ├── src/
+│       └── docs/
 ```
 
-### ❌ ΜΗΝ ανεβάσεις:
-
-- `electron/` - Desktop app (θα το χρησιμοποιήσουμε αργότερα για το Electron build)
-- `node_modules/`
-- `package.json`
-- `logs/`
-- `.git/`
-- `.gitignore`
-- Markdown files (README, DEPLOYMENT κτλ)
+### Production (μετά το deployment)
+```
+htdocs/                                 # Root directory στον server
+├── .htaccess                          # Rename .htaccess.production -> .htaccess
+├── api/
+├── config/
+└── public/
+    ├── index.html
+    ├── assets/
+    ├── src/
+    └── docs/
+```
 
 ---
 
-## 🔧 Βήματα Deployment
+## 🔧 Local Development URLs
 
-### 1. Προετοιμασία Βάσης Δεδομένων
+Τώρα μπορείς να χρησιμοποιήσεις όλα αυτά:
 
-**A. Σύνδεση στο phpMyAdmin του server**
+✅ `http://localhost/`
+   → Auto-redirect στο `http://localhost/nikolpaintmaster.e-gata.gr/`
 
-**B. Import της βάσης:**
-1. Επίλεξε τη βάση `painter_app`
-2. Πήγαινε στο tab "Import"
-3. Επίλεξε το αρχείο `database/painter_app.sql`
-4. Κάνε click "Go"
+✅ `http://localhost/nikolpaintmaster.e-gata.gr/`
+   → Ανοίγει το `public/index.html`
 
-**Σημείωση:** Το SQL αρχείο περιλαμβάνει DROP TABLE statements, οπότε θα διαγράψει και θα ξαναδημιουργήσει όλους τους πίνακες.
+✅ `http://localhost/nikolpaintmaster.e-gata.gr/public/`
+   → Direct access στο public folder
 
-### 2. Upload Αρχείων στο Server
+✅ `http://localhost/nikolpaintmaster.e-gata.gr/src/js/app.js`
+   → Auto-serve από το `public/src/js/app.js`
 
-**Μέθοδος A: FTP/SFTP (FileZilla, WinSCP)**
-```
-Τοπικό:  C:\Users\zisog\Documents\Projects\Οργανωτής-Βαφέα\Οργανωτής-Βαφέα-app\
-Server:  /public_html/ (ή /httpdocs/ ή όπως ονομάζεται)
-```
+---
 
-**Ανέβασε:**
-- Φάκελο `api/` → `/public_html/api/`
-- Φάκελο `config/` → `/public_html/config/`
-- Φάκελο `public/` → `/public_html/public/`
+## 📤 Production Deployment Steps
 
-### 3. Δημιουργία Φακέλου Logs (προαιρετικό)
-
-Αν χρειαστεί logging στο μέλλον:
+### Βήμα 1: Ανέβασμα αρχείων
 ```bash
-mkdir logs
-chmod 755 logs
+# Ανέβασε όλα τα αρχεία από το nikolpaintmaster.e-gata.gr/ 
+# κατευθείαν στο root directory (htdocs/) του production server
 ```
 
-### 4. Έλεγχος Permissions
-
-Βεβαιώσου ότι τα αρχεία έχουν τα σωστά δικαιώματα:
+### Βήμα 2: Ενεργοποίηση production .htaccess
 ```bash
-# Φάκελοι
-chmod 755 api/ config/ public/
+# SSH στον server:
+cd /path/to/htdocs/
 
-# PHP files
-chmod 644 api/*.php config/*.php
+# Διέγραψε το local .htaccess
+rm .htaccess
 
-# HTML/JS/CSS files
-chmod 644 public/*.html public/src/**/*.js public/src/**/*.css
+# Μετονόμασε το production
+mv .htaccess.production .htaccess
 ```
 
-### 5. Ρύθμιση Apache (.htaccess)
-
-Δημιούργησε ένα `.htaccess` στο root directory:
-
+### Βήμα 3: Ενεργοποίηση HTTPS
+Άνοιξε το `.htaccess` και ξε-comment τις γραμμές:
 ```apache
-# Enable mod_rewrite
-RewriteEngine On
+# Force HTTPS (ενεργοποίησε σε production)
+RewriteCond %{HTTPS} off
+RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+```
 
-# Force HTTPS (προαιρετικό)
-# RewriteCond %{HTTPS} off
-# RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
-
-# CORS Headers για API
-<FilesMatch "\.(php)$">
-    Header set Access-Control-Allow-Origin "*"
-    Header set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
-    Header set Access-Control-Allow-Headers "Content-Type, Authorization"
-</FilesMatch>
-
-# UTF-8 encoding
-AddDefaultCharset UTF-8
-
-# Disable directory browsing
-Options -Indexes
-
-# Custom error pages (προαιρετικό)
-# ErrorDocument 404 /public/404.html
-# ErrorDocument 500 /public/500.html
+### Βήμα 4: Έλεγχος
+```
+✓ https://nikolpaintmaster.e-gata.gr/
+✓ https://nikolpaintmaster.e-gata.gr/src/js/app.js
+✓ https://nikolpaintmaster.e-gata.gr/api/customers
 ```
 
 ---
 
-## 🌐 Πρόσβαση στην Εφαρμογή
+## 🔄 Επιστροφή από Production σε Local
 
-Μετά το deployment, η εφαρμογή θα είναι διαθέσιμη στο:
+Αν κατεβάσεις τα αρχεία από production:
 
-```
-https://your-domain.com/public/
-ή
-https://your-domain.com/public/login.html
-```
-
----
-
-## ✅ Τελικός Έλεγχος
-
-1. **Test Database Connection:**
-   - Άνοιξε: `https://your-domain.com/api/clients.php`
-   - Πρέπει να επιστρέψει JSON με τους clients
-
-2. **Test Login:**
-   - Άνοιξε: `https://your-domain.com/public/login.html`
-   - Δοκίμασε login
-
-3. **Test Calendar:**
-   - Άνοιξε το ημερολόγιο
-   - Δοκίμασε να προσθέσεις event
+1. Αντέγραψε το `.htaccess.production` ως backup
+2. Επανάφερε το local `.htaccess`:
+   ```bash
+   # Αντίγραψε το περιεχόμενο του .htaccess από αυτό το guide
+   # ή χρησιμοποίησε git checkout
+   ```
+3. Άλλαξε το `RewriteBase /` → `RewriteBase /nikolpaintmaster.e-gata.gr/`
 
 ---
 
-## 🔒 Ασφάλεια
+## 🛠️ Troubleshooting
 
-### Σημαντικό:
-- ✅ Το `config/database.php` έχει ήδη τα σωστά credentials
-- ✅ Τα passwords είναι ασφαλή στο server
-- ⚠️ **ΜΗΝ** ανεβάσεις το `.git/` directory (περιέχει ιστορικό)
+### "500 Internal Server Error"
+```bash
+# Έλεγξε το Apache error log:
+tail -f /var/log/apache2/error.log
 
----
+# Συνήθεις λύσεις:
+# 1. Ενεργοποίησε mod_rewrite
+sudo a2enmod rewrite
+sudo service apache2 restart
 
-## 📱 Electron Desktop App (Μελλοντικό)
-
-Το Electron app θα δημιουργηθεί αργότερα και θα:
-- Τρέχει τοπικά στον υπολογιστή
-- Συνδέεται με το **server API** για sync
-- Λειτουργεί και **offline** με τοπική SQLite βάση
-
-**Δομή για Electron:**
-```
-electron/           ← Desktop app code
-├── main.js        ← Electron main process
-├── preload.js     ← Preload script
-└── db/            ← SQLite local database
+# 2. Επέτρεψε .htaccess overrides
+# Στο Apache config (sites-available/):
+<Directory /var/www/html>
+    AllowOverride All
+</Directory>
 ```
 
-Αυτό ΔΕΝ ανεβαίνει στο server - χρησιμοποιείται μόνο για τοπικό build.
+### "404 Not Found" σε static files
+```bash
+# Έλεγξε permissions:
+chmod -R 755 public/
+find public/ -type f -exec chmod 644 {} \;
+```
+
+### Redirects δεν δουλεύουν
+```bash
+# Έλεγξε αν το mod_rewrite είναι ενεργό:
+apache2ctl -M | grep rewrite
+
+# Αν δεν υπάρχει:
+sudo a2enmod rewrite
+sudo service apache2 restart
+```
 
 ---
 
-## 🆘 Troubleshooting
+## 📝 Git Ignore Rules
 
-### Πρόβλημα: Database connection error
-**Λύση:** Έλεγξε ότι:
-- Το `config/database.php` έχει τα σωστά credentials
-- Ο χρήστης `painter_user` έχει δικαιώματα στη βάση
-- Η βάση `painter_app` υπάρχει
+Πρόσθεσε στο `.gitignore`:
+```
+# Local development only
+.htaccess
 
-### Πρόβλημα: 404 Not Found στα API calls
-**Λύση:**
-- Έλεγξε ότι ο φάκελος `api/` είναι στο σωστό path
-- Έλεγξε το `.htaccess` αν υπάρχει
+# Keep production template
+!.htaccess.production
+```
 
-### Πρόβλημα: Greek characters εμφανίζονται λάθος
-**Λύση:**
-- Βεβαιώσου ότι η βάση χρησιμοποιεί `utf8mb4_unicode_ci`
-- Έλεγξε ότι τα PHP files είναι UTF-8 encoded
+Στο production θα χρησιμοποιείς το `.htaccess.production`
 
 ---
 
-**Καλή επιτυχία! 🎉**
+## ✅ Checklist για Production
+
+- [ ] Όλα τα αρχεία από `nikolpaintmaster.e-gata.gr/` ανεβασμένα στο root
+- [ ] `.htaccess.production` μετονομάστηκε σε `.htaccess`
+- [ ] HTTPS ενεργοποιημένο στο `.htaccess`
+- [ ] `mod_rewrite` ενεργό στον Apache
+- [ ] `AllowOverride All` στο Apache config
+- [ ] Database credentials ενημερωμένα στο `config/database.php`
+- [ ] File permissions: 755 για directories, 644 για files
+- [ ] SSL certificate εγκατεστημένο (Let's Encrypt recommended)
+
+---
+
+**Τελευταία ενημέρωση**: 12 Νοεμβρίου 2025

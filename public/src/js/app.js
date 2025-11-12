@@ -30,6 +30,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // Initialize all systems
   await State.init();
+  
+  // Load settings from database
+  console.log('📋 Loading settings from database...');
+  await SettingsService.loadAll();
+  
   i18n.init();
   Sidebar.init();
   Keyboard.init();
@@ -41,10 +46,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupGlobalEventListeners();
   
   // Load company name in sidebar
-  loadCompanyName();
-  
-  // Initialize pricing settings
-  initializePricingSettings();
+  await loadCompanyName();
   
   // Enable transitions after everything is loaded
   setTimeout(() => {
@@ -53,22 +55,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   }, 200);
 });
 
-function initializePricingSettings() {
-  // Check if pricing settings exist
-  const pricingData = JSON.parse(localStorage.getItem('pricing_settings') || 'null');
+async function loadCompanyName() {
+  console.log('[App] Loading company name...');
   
-  // If no saved data, set defaults
-  if (!pricingData) {
-    const defaultPricing = {
-      hourlyRate: 50,
-      vat: 24,
-      travelCost: 0.5
-    };
-    localStorage.setItem('pricing_settings', JSON.stringify(defaultPricing));
-  }
-}
-
-function loadCompanyName() {
   // Default company data
   const defaultData = {
     name: 'Νικολαΐδη',
@@ -78,12 +67,13 @@ function loadCompanyName() {
   };
   
   // Get saved data or use defaults
-  let companyData = JSON.parse(localStorage.getItem('company_settings') || 'null');
+  let companyData = await SettingsService.get('company_settings', null);
   
   // If no saved data, save defaults
   if (!companyData) {
+    console.log('[App] No company data, using defaults');
     companyData = defaultData;
-    localStorage.setItem('company_settings', JSON.stringify(companyData));
+    await SettingsService.set('company_settings', companyData);
   }
   
   // Update sidebar

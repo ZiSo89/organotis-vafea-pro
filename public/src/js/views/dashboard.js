@@ -51,12 +51,14 @@ window.DashboardView = {
 
           <div class="widget-compact">
             <div class="widget-content">
-              <div class="widget-title">Προγραμματισμένες</div>
-              <div class="widget-value">${stats.scheduledJobs}</div>
-              <div class="widget-footer">7 ημέρες</div>
+              <div class="widget-title">Καθαρά Κέρδη Μήνα</div>
+              <div class="widget-value" style="color: ${stats.monthlyProfit >= 0 ? 'var(--success)' : 'var(--error)'}">
+                ${stats.monthlyProfit >= 0 ? '+' : ''}${Utils.formatCurrency(stats.monthlyProfit)}
+              </div>
+              <div class="widget-footer">${stats.completedThisMonth} ολοκληρωμένες</div>
             </div>
-            <div class="widget-icon warning">
-              <i class="fas fa-calendar-check"></i>
+            <div class="widget-icon ${stats.monthlyProfit >= 0 ? 'success' : 'error'}">
+              <i class="fas fa-chart-line"></i>
             </div>
           </div>
 
@@ -64,7 +66,7 @@ window.DashboardView = {
             <div class="widget-content">
               <div class="widget-title">Έσοδα Μήνα</div>
               <div class="widget-value">${Utils.formatCurrency(stats.monthlyRevenue)}</div>
-              <div class="widget-footer">${stats.completedThisMonth} ολοκληρωμένες</div>
+              <div class="widget-footer">${stats.completedThisMonth} εργασίες</div>
             </div>
             <div class="widget-icon primary">
               <i class="fas fa-euro-sign"></i>
@@ -189,7 +191,50 @@ window.DashboardView = {
     const thisYear = now.getFullYear();
     const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-    return {
+    // Calculate monthly revenue and profit
+    const monthlyJobs = jobs.filter(j => {
+      const jobDate = new Date(j.date);
+      return (j.status === 'Ολοκληρώθηκε' || j.status === 'Εξοφλήθηκε') &&
+             jobDate.getMonth() === thisMonth &&
+             jobDate.getFullYear() === thisYear;
+    });
+
+    const monthlyRevenue = monthlyJobs.reduce((total, j) => {
+      const cost = parseFloat(j.totalCost || j.total_cost || 0);
+      console.log('💰 Adding job cost to monthly revenue:', cost, 'from job:', j.id);
+      return total + cost;
+    }, 0);
+
+    // Calculate monthly profit (revenue - expenses)
+    const monthlyProfit = monthlyJobs.reduce((total, j) => {
+      const cost = parseFloat(j.totalCost || j.total_cost || 0);
+      const materialsCost = parseFloat(j.materialsCost || j.materials_cost || 0);
+      const kilometers = parseFloat(j.kilometers || 0);
+      const costPerKm = parseFloat(j.costPerKm || j.cost_per_km || 0.5);
+      const travelCost = kilometers * costPerKm;
+      
+      // Parse assignedWorkers for labor cost
+      let laborCost = 0;
+      let assignedWorkers = j.assignedWorkers || j.assigned_workers;
+      if (typeof assignedWorkers === 'string') {
+        try {
+          assignedWorkers = JSON.parse(assignedWorkers);
+        } catch (e) {
+          assignedWorkers = [];
+        }
+      }
+      if (Array.isArray(assignedWorkers)) {
+        laborCost = assignedWorkers.reduce((sum, w) => sum + (parseFloat(w.laborCost || w.labor_cost || 0)), 0);
+      }
+      
+      const totalExpenses = materialsCost + laborCost + travelCost;
+      const profit = cost - totalExpenses;
+      
+      console.log('📈 Job', j.id, 'profit:', profit, '(revenue:', cost, '- expenses:', totalExpenses, ')');
+      return total + profit;
+    }, 0);
+
+    const stats = {
       totalJobs: jobs.length,
       totalClients: clients.length,
       totalWorkers: workers.length,
@@ -206,16 +251,18 @@ window.DashboardView = {
                jobDate.getFullYear() === thisYear;
       }).length,
       newClientsThisMonth: 0, // Θα χρειαζόταν createdAt field
-      monthlyRevenue: jobs
-        .filter(j => {
-          const jobDate = new Date(j.date);
-          return (j.status === 'Ολοκληρώθηκε' || j.status === 'Εξοφλήθηκε') &&
-                 jobDate.getMonth() === thisMonth &&
-                 jobDate.getFullYear() === thisYear;
-        })
-        .reduce((total, j) => total + (j.totalCost || 0), 0),
+      monthlyRevenue: monthlyRevenue,
+      monthlyProfit: monthlyProfit,
       statusBreakdown: this.getStatusBreakdown(jobs)
     };
+    
+    console.log('📊 Dashboard stats calculated:', {
+      monthlyRevenue: stats.monthlyRevenue,
+      monthlyProfit: stats.monthlyProfit,
+      completedThisMonth: stats.completedThisMonth
+    });
+    
+    return stats;
   },
 
   getStatusBreakdown(jobs) {
@@ -647,18 +694,10 @@ window.DashboardView = {
         ` : ''}
       </div>
     `;
-
-    const footer = `
-      <button class="btn-ghost" onclick="Modal.close()">Κλείσιμο</button>
-      <button class="btn-primary" onclick="Modal.close(); setTimeout(() => Router.navigate('jobs'), 100);">
-        <i class="fas fa-list"></i> Προβολή στις Εργασίες
-      </button>
-    `;
     
     Modal.open({
       title: `${clientName}`,
       content: content,
-      footer: footer,
       size: 'lg'
     });
   },
@@ -744,11 +783,9 @@ window.DashboardView = {
     if (typeof window.loadGoogleMaps === 'function') {
       window.loadGoogleMaps()
         .then(() => {
-          console.log('✅ Google Maps loaded for dashboard');
           setTimeout(() => this.loadDashboardMap(), 100);
         })
         .catch(err => {
-          console.warn('⚠️ Google Maps not available for dashboard:', err);
           const mapElement = document.getElementById('dashboardMap');
           if (mapElement) {
             mapElement.innerHTML = `
@@ -915,7 +952,6 @@ window.DashboardView = {
       const leafletScript = document.createElement('script');
       leafletScript.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
       leafletScript.onload = () => {
-        console.log('✅ Leaflet loaded for dashboard');
         this.renderLeafletMap();
       };
       leafletScript.onerror = () => {
@@ -1049,7 +1085,6 @@ window.DashboardView = {
         map.fitBounds(bounds, { padding: [20, 20] });
       }
 
-      console.log(`📍 Dashboard map loaded with ${markerCount} markers (Leaflet)`);
     } catch (error) {
       console.error('❌ Error loading Leaflet dashboard map:', error);
       mapElement.innerHTML = `

@@ -14,7 +14,7 @@ class SQLiteDB {
     const userDataPath = app.getPath('userData');
     const dbPath = path.join(userDataPath, 'painter_app.db');
     
-    console.log('📁 Database path:', dbPath);
+
     
     this.db = new Database(dbPath, { verbose: console.log });
     this.db.pragma('journal_mode = WAL'); // Better performance
@@ -37,7 +37,7 @@ class SQLiteDB {
     const converted = {};
     
     // Fields that should be parsed as JSON
-    const jsonFields = ['assignedWorkers', 'paints', 'items', 'materials', 'tasks'];
+    const jsonFields = ['assignedWorkers', 'paints', 'items', 'materials', 'tasks', 'coordinates'];
     
     for (const key in row) {
       if (row.hasOwnProperty(key)) {
@@ -54,7 +54,12 @@ class SQLiteDB {
               value = JSON.parse(value);
             } catch (e) {
               console.error(`Failed to parse JSON field ${camelKey}:`, value, e);
-              value = []; // Default to empty array on parse error
+              // Default based on field type
+              if (camelKey === 'coordinates') {
+                value = null;
+              } else {
+                value = []; // Default to empty array for array fields
+              }
             }
           }
           
@@ -80,11 +85,21 @@ class SQLiteDB {
   convertDataToSnakeCase(data) {
     if (!data || typeof data !== 'object') return data;
     
+    // Fields that should be stringified as JSON
+    const jsonFields = ['assignedWorkers', 'paints', 'items', 'materials', 'tasks', 'coordinates'];
+    
     const converted = {};
     for (const key in data) {
       if (data.hasOwnProperty(key)) {
         const snakeKey = this.camelToSnake(key);
-        converted[snakeKey] = data[key];
+        let value = data[key];
+        
+        // Convert objects/arrays to JSON strings for SQLite
+        if (jsonFields.includes(key) && value && typeof value === 'object') {
+          value = JSON.stringify(value);
+        }
+        
+        converted[snakeKey] = value;
       }
     }
     return converted;
@@ -95,7 +110,7 @@ class SQLiteDB {
      ======================================== */
 
   async init() {
-    console.log('🔧 Initializing database schema...');
+
     
     // Create tables matching MySQL schema EXACTLY (with underscores)
     this.db.exec(`
@@ -110,6 +125,7 @@ class SQLiteDB {
         postal_code TEXT,
         afm TEXT,
         notes TEXT,
+        coordinates TEXT,
         created_at TEXT DEFAULT (datetime('now', 'localtime')),
         updated_at TEXT DEFAULT (datetime('now', 'localtime')),
         _sync_status TEXT DEFAULT 'synced',
@@ -166,6 +182,7 @@ class SQLiteDB {
         notes TEXT,
         total_hours REAL DEFAULT 0,
         total_earnings REAL DEFAULT 0,
+        current_check_in TEXT,
         created_at TEXT DEFAULT (datetime('now', 'localtime')),
         updated_at TEXT DEFAULT (datetime('now', 'localtime')),
         _sync_status TEXT DEFAULT 'synced',
@@ -306,7 +323,7 @@ class SQLiteDB {
       CREATE INDEX IF NOT EXISTS idx_sync_status ON clients(_sync_status);
     `);
 
-    console.log('✅ Database schema created');
+
   }
 
   /* ========================================
@@ -332,6 +349,11 @@ class SQLiteDB {
     // Convert camelCase to snake_case
     const snakeData = this.convertDataToSnakeCase(data);
     
+    // Remove fields that SQLite auto-generates
+    delete snakeData.id;
+    delete snakeData.created_at;
+    delete snakeData.updated_at;
+    
     const keys = Object.keys(snakeData);
     const placeholders = keys.map(() => '?').join(', ');
     const sql = `INSERT INTO ${table} (${keys.join(', ')}, _sync_status, _sync_timestamp) 
@@ -350,6 +372,12 @@ class SQLiteDB {
   update(table, id, data) {
     // Convert camelCase to snake_case
     const snakeData = this.convertDataToSnakeCase(data);
+    
+    // Remove fields that should not be updated manually
+    delete snakeData.id;
+    delete snakeData.created_at;
+    // updated_at will be set by the query
+    delete snakeData.updated_at;
     
     const keys = Object.keys(snakeData);
     const setClause = keys.map(key => `${key} = ?`).join(', ');
@@ -438,7 +466,7 @@ class SQLiteDB {
   // Close database
   close() {
     this.db.close();
-    console.log('🔒 Database closed');
+
   }
 }
 

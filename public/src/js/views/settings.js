@@ -7,8 +7,9 @@ window.SettingsView = {
   companyFormHandler: null,
   pricingFormHandler: null,
   
-  saveCompany(e) {
+  async saveCompany(e) {
     e.preventDefault();
+    console.log('[Settings] Saving company settings...');
     
     const companyData = {
       name: document.getElementById('companyName').value,
@@ -17,19 +18,24 @@ window.SettingsView = {
       phone: document.getElementById('companyPhone').value
     };
     
-    localStorage.setItem('company_settings', JSON.stringify(companyData));
+    const success = await SettingsService.set('company_settings', companyData);
     
-    // Update sidebar
-    const sidebarName = document.getElementById('sidebarCompanyName');
-    if (sidebarName) {
-      sidebarName.textContent = companyData.name ? `Οργανωτής Βαφέα ${companyData.name}` : 'Οργανωτής Βαφέα';
+    if (success) {
+      // Update sidebar
+      const sidebarName = document.getElementById('sidebarCompanyName');
+      if (sidebarName) {
+        sidebarName.textContent = companyData.name ? `Οργανωτής Βαφέα ${companyData.name}` : 'Οργανωτής Βαφέα';
+      }
+      
+      Toast.success('Τα στοιχεία επιχείρησης αποθηκεύτηκαν');
+    } else {
+      Toast.error('Σφάλμα κατά την αποθήκευση');
     }
-    
-    Toast.success('Τα στοιχεία επιχείρησης αποθηκεύτηκαν');
   },
 
-  savePricing(e) {
+  async savePricing(e) {
     e.preventDefault();
+    console.log('[Settings] Saving pricing settings...');
     
     const pricingData = {
       hourlyRate: parseFloat(document.getElementById('defaultHourlyRate').value) || 25,
@@ -37,8 +43,13 @@ window.SettingsView = {
       travelCost: parseFloat(document.getElementById('defaultTravelCost').value) || 0.5
     };
     
-    localStorage.setItem('pricing_settings', JSON.stringify(pricingData));
-    Toast.success('Οι προεπιλογές τιμολόγησης αποθηκεύτηκαν');
+    const success = await SettingsService.savePricing(pricingData);
+    
+    if (success) {
+      Toast.success('Οι προεπιλογές τιμολόγησης αποθηκεύτηκαν');
+    } else {
+      Toast.error('Σφάλμα κατά την αποθήκευση');
+    }
   },
 
   async exportDatabase() {
@@ -197,13 +208,30 @@ window.SettingsView = {
       // Helper για lookup
       const getClientName = (id) => clients.find(c => c.id == id)?.name || `ID: ${id}`;
       
-      console.log('📊 Creating workbook with ExcelJS...');
-      console.log('Jobs data:', jobs);
+      console.log('📊 Excel Export - Υπολογισμός οικονομικών...');
       
       // Υπολογισμός οικονομικών
+      // Τα έσοδα προέρχονται από όλα τα τιμολόγια
       const totalRevenue = invoices.reduce((sum, i) => sum + parseFloat(i.total || 0), 0);
+      
+      // Τα κόστη προέρχονται από όλες τις εργασίες
       const totalCosts = jobs.reduce((sum, j) => sum + parseFloat(j.materialsCost || j.materials_cost || 0), 0);
-      const totalProfit = totalRevenue - totalCosts;
+      
+      // Τα κέρδη υπολογίζονται μόνο από εξοφλημένες εργασίες
+      const paidJobs = jobs.filter(j => {
+        const status = (j.status || '').toLowerCase();
+        return status.includes('εξοφλ') || status === 'paid';
+      });
+      
+      const paidJobsRevenue = paidJobs.reduce((sum, j) => sum + parseFloat(j.totalCost || j.total_cost || 0), 0);
+      const paidJobsCosts = paidJobs.reduce((sum, j) => sum + parseFloat(j.materialsCost || j.materials_cost || 0), 0);
+      const totalProfit = paidJobsRevenue - paidJobsCosts;
+      
+      console.log(`✅ Εξοφλημένες εργασίες: ${paidJobs.length}/${jobs.length}`);
+      console.log(`💰 Έσοδα εξοφλημένων: €${paidJobsRevenue.toFixed(2)}`);
+      console.log(`💸 Κόστη εξοφλημένων: €${paidJobsCosts.toFixed(2)}`);
+      console.log(`📈 Καθαρό κέρδος: €${totalProfit.toFixed(2)}`);
+      
       const paidInvoices = invoices.filter(i => i.isPaid || i.is_paid);
       const paidAmount = paidInvoices.reduce((sum, i) => sum + parseFloat(i.total || 0), 0);
       
@@ -310,7 +338,6 @@ window.SettingsView = {
         });
       }
       
-      console.log('✅ Metadata sheet created');
 
       // 2. JOBS (Εργασίες) - ΠΡΩΤΟ ΜΕΤΑ ΤΑ METADATA
       if (jobs.length > 0) {
@@ -333,13 +360,11 @@ window.SettingsView = {
         ];
         
         jobs.forEach(j => {
-          console.log('Processing job:', j.id, 'assigned_workers:', j.assigned_workers, 'paints:', j.paints);
           
           // Parse workers - ΔΙΟΡΘΩΜΕΝΟ
           let workersStr = '';
           try {
             const assignedWorkersField = j.assigned_workers || j.assignedWorkers;
-            console.log('Raw assigned_workers field:', assignedWorkersField, 'type:', typeof assignedWorkersField);
             
             if (assignedWorkersField) {
               let assignedWorkers;
@@ -352,7 +377,6 @@ window.SettingsView = {
                 assignedWorkers = JSON.parse(assignedWorkersField);
               }
               
-              console.log('Parsed assigned workers:', assignedWorkers);
               
               if (assignedWorkers && assignedWorkers.length > 0) {
                 workersStr = assignedWorkers.map(w => {
@@ -367,13 +391,11 @@ window.SettingsView = {
             console.error('Error parsing workers for job', j.id, ':', e);
             workersStr = '';
           }
-          console.log('Final workers string:', workersStr);
           
           // Parse paints - ΔΙΟΡΘΩΜΕΝΟ
           let paintsStr = '';
           try {
             const paintsField = j.paints;
-            console.log('Raw paints field:', paintsField, 'type:', typeof paintsField);
             
             if (paintsField) {
               let paints;
@@ -386,7 +408,6 @@ window.SettingsView = {
                 paints = JSON.parse(paintsField);
               }
               
-              console.log('Parsed paints:', paints);
               
               if (paints && paints.length > 0) {
                 paintsStr = paints.map(p => {
@@ -401,7 +422,6 @@ window.SettingsView = {
             console.error('Error parsing paints for job', j.id, ':', e);
             paintsStr = '';
           }
-          console.log('Final paints string:', paintsStr);
           
           jobsSheet.addRow({
             id: j.id,
@@ -453,7 +473,6 @@ window.SettingsView = {
         };
         
         jobsSheet.views = [{ state: 'frozen', ySplit: 1 }];
-        console.log('✅ Jobs sheet created');
       }
 
       // 3. CLIENTS
@@ -488,7 +507,6 @@ window.SettingsView = {
         styleHeaderRow(clientsSheet);
         styleDataRows(clientsSheet, 1);
         clientsSheet.views = [{ state: 'frozen', ySplit: 1 }];
-        console.log('✅ Clients sheet created');
       }
 
       // 4. WORKERS
@@ -523,7 +541,6 @@ window.SettingsView = {
         styleHeaderRow(workersSheet);
         styleDataRows(workersSheet, 1);
         workersSheet.views = [{ state: 'frozen', ySplit: 1 }];
-        console.log('✅ Workers sheet created');
       }
 
       // 5. MATERIALS
@@ -578,7 +595,6 @@ window.SettingsView = {
         };
         
         materialsSheet.views = [{ state: 'frozen', ySplit: 1 }];
-        console.log('✅ Materials sheet created');
       }
 
       // 6. OFFERS
@@ -646,7 +662,6 @@ window.SettingsView = {
         };
         
         offersSheet.views = [{ state: 'frozen', ySplit: 1 }];
-        console.log('✅ Offers sheet created');
       }
 
       // 7. INVOICES
@@ -716,7 +731,6 @@ window.SettingsView = {
         };
         
         invoicesSheet.views = [{ state: 'frozen', ySplit: 1 }];
-        console.log('✅ Invoices sheet created');
       }
 
       // 8. TEMPLATES
@@ -743,7 +757,6 @@ window.SettingsView = {
         styleHeaderRow(templatesSheet);
         styleDataRows(templatesSheet, 1);
         templatesSheet.views = [{ state: 'frozen', ySplit: 1 }];
-        console.log('✅ Templates sheet created');
       }
 
       // Export file
@@ -753,7 +766,6 @@ window.SettingsView = {
       
       saveAs(blob, fileName);
       
-      console.log('✅ File exported successfully with ExcelJS');
       Toast.success('Τα δεδομένα εξήχθησαν σε Excel επιτυχώς!');
       
     } catch (error) {
@@ -762,7 +774,9 @@ window.SettingsView = {
     }
   },
 
-  loadCompanyData() {
+  async loadCompanyData() {
+    console.log('[Settings] Loading company data...');
+    
     // Default company data
     const defaultData = {
       name: 'Νικολαΐδη',
@@ -772,12 +786,13 @@ window.SettingsView = {
     };
     
     // Get saved data or use defaults
-    let companyData = JSON.parse(localStorage.getItem('company_settings') || 'null');
+    let companyData = await SettingsService.get('company_settings', null);
     
     // If no saved data, save and use defaults
     if (!companyData) {
+      console.log('[Settings] No company data found, using defaults');
       companyData = defaultData;
-      localStorage.setItem('company_settings', JSON.stringify(companyData));
+      await SettingsService.set('company_settings', companyData);
       
       // Update sidebar immediately
       const sidebarName = document.getElementById('sidebarCompanyName');
@@ -785,6 +800,8 @@ window.SettingsView = {
         sidebarName.textContent = `Οργανωτής Βαφέα ${companyData.name}`;
       }
     }
+    
+    console.log('[Settings] Company data:', companyData);
     
     // Populate form fields
     if (companyData.name) {
@@ -801,9 +818,13 @@ window.SettingsView = {
     }
   },
   
-  loadPricingData() {
-    // Get saved pricing data
-    const pricingData = JSON.parse(localStorage.getItem('pricing_settings') || 'null');
+  async loadPricingData() {
+    console.log('[Settings] Loading pricing data...');
+    
+    // Get saved pricing data with defaults
+    const pricingData = await SettingsService.getPricing();
+    
+    console.log('[Settings] Pricing data:', pricingData);
     
     if (pricingData) {
       if (pricingData.hourlyRate !== undefined) {

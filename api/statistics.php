@@ -300,19 +300,20 @@ try {
                 ]);
                 break;
             
-            // Κατάσταση εργασιών (Ολοκληρωμένες vs Εκκρεμείς)
+            // Κατάσταση εργασιών (όλες οι 7 καταστάσεις)
             case 'jobs_status':
                 $year = $_GET['year'] ?? null;
                 
                 $sql = "
                     SELECT 
                         CASE 
-                            WHEN LOWER(status) LIKE '%ολοκληρ%' OR LOWER(status) = 'completed' THEN 'Ολοκληρωμένες'
+                            WHEN LOWER(status) LIKE '%υποψ%' OR LOWER(status) = 'candidate' THEN 'Υποψήφιος'
+                            WHEN LOWER(status) LIKE '%προγραμ%' OR LOWER(status) = 'scheduled' THEN 'Προγραμματισμένη'
                             WHEN LOWER(status) LIKE '%εξέλιξη%' OR LOWER(status) LIKE '%progress%' THEN 'Σε εξέλιξη'
-                            WHEN LOWER(status) LIKE '%εκκρεμ%' OR LOWER(status) = 'pending' THEN 'Εκκρεμείς'
-                            WHEN LOWER(status) LIKE '%ακυρ%' OR LOWER(status) = 'cancelled' THEN 'Ακυρωμένες'
-                            WHEN LOWER(status) LIKE '%προγραμ%' THEN 'Προγραμματισμένες'
-                            WHEN LOWER(status) LIKE '%υποψ%' THEN 'Υποψήφιες'
+                            WHEN LOWER(status) LIKE '%αναμον%' OR LOWER(status) = 'waiting' THEN 'Σε αναμονή'
+                            WHEN LOWER(status) LIKE '%ολοκληρ%' OR LOWER(status) = 'completed' THEN 'Ολοκληρώθηκε'
+                            WHEN LOWER(status) LIKE '%εξοφλ%' OR LOWER(status) = 'paid' THEN 'Εξοφλήθηκε'
+                            WHEN LOWER(status) LIKE '%ακυρ%' OR LOWER(status) = 'cancelled' THEN 'Ακυρώθηκε'
                             ELSE 'Άλλες'
                         END as status_label,
                         status as status_key,

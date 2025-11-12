@@ -9,7 +9,7 @@
     style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com; 
     img-src 'self' data: https: http:; 
     font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com; 
-    connect-src 'self' https://maps.googleapis.com https://nominatim.openstreetmap.org https://*.googleapis.com https://*.tile.openstreetmap.org https://unpkg.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://nikolpaintmaster.e-gata.gr https://*.e-gata.gr; 
+    connect-src 'self' https://maps.googleapis.com https://nominatim.openstreetmap.org https://*.googleapis.com https://*.tile.openstreetmap.org https://unpkg.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; 
     frame-src 'self' https://www.google.com;
   ">
   <title>Οργανωτής Βαφέα Pro</title>
@@ -42,9 +42,7 @@
   <!-- Google Maps -->
   <script>
     // Dummy callback to prevent errors
-    window.initMap = function() {
-      console.log('📍 Google Maps API loaded');
-    };
+    window.initMap = function() {};
     
     // Load Google Maps on demand (only when needed)
     let googleMapsPromise = null; // Track loading state
@@ -58,7 +56,6 @@
       googleMapsPromise = new Promise((resolve, reject) => {
         // Check if already loaded
         if (typeof google !== 'undefined' && google.maps) {
-          console.log('📍 Google Maps already loaded');
           resolve();
           return;
         }
@@ -66,7 +63,6 @@
         // Check if script is already being loaded
         const existingScript = document.querySelector('script[src*="maps.googleapis.com"]');
         if (existingScript) {
-          console.log('📍 Google Maps script already in DOM, waiting for load...');
           // Wait for existing script to load
           existingScript.addEventListener('load', () => resolve());
           existingScript.addEventListener('error', () => reject('Failed to load'));
@@ -75,20 +71,15 @@
         
         // Only load on desktop or when explicitly requested
         if (window.innerWidth <= 768) {
-          console.log('📍 Skipping Google Maps on mobile');
           googleMapsPromise = null; // Reset promise for future attempts
           reject('Mobile device');
           return;
         }
         
-        console.log('📍 Loading Google Maps API...');
         const script = document.createElement('script');
         script.src = 'https://maps.googleapis.com/maps/api/js?key=AIzaSyDbO_6f6Y_y_2_2MreK0XTWAIsZw-2AKWQ&libraries=geometry,places&callback=initMap';
         script.async = true;
-        script.onload = () => {
-          console.log('✅ Google Maps API loaded');
-          resolve();
-        };
+        script.onload = () => resolve();
         script.onerror = () => {
           googleMapsPromise = null; // Reset promise on error
           reject('Failed to load');
@@ -130,7 +121,6 @@
           
           return null;
         } catch (error) {
-          console.warn('Geocoding error:', error);
           return null;
         }
       }
@@ -258,6 +248,7 @@
 
   <!-- Scripts -->
   <script src="src/js/services/api.js?v=20251111c"></script>
+  <script src="src/js/services/settings-service.js?v=20251112a"></script>
   <script src="src/js/services/offline.js?v=20251111c"></script>
   <script src="src/js/config.js?v=20251111c"></script>
   <script src="src/js/i18n.js?v=20251111c"></script>

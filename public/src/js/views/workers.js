@@ -300,7 +300,7 @@ window.WorkersView = {
               <td title="${worker.name}"><strong>${worker.name}</strong></td>
               <td title="${worker.specialty}">${worker.specialty}</td>
               <td title="${Utils.formatCurrency(worker.hourlyRate)}">${Utils.formatCurrency(worker.hourlyRate)}/ώρα</td>
-              <td title="${worker.phone || '-'}">${worker.phone || '-'}</td>
+              <td title="${worker.phone || '-'}">${worker.phone ? `<a href="tel:${worker.phone}" style="color: var(--color-text); text-decoration: none;">${worker.phone}</a>` : '-'}</td>
               <td><strong>${monthlyHours.toFixed(1)}h</strong></td>
               <td><strong>${Utils.formatCurrency(monthlyEarnings)}</strong></td>
               <td>${statusBadge}</td>
@@ -352,6 +352,7 @@ window.WorkersView = {
 
   async saveWorker(e) {
     e.preventDefault();
+    console.log('[Workers] Saving worker...');
 
     const workerData = {
       name: document.getElementById('w_name').value.trim(),
@@ -366,6 +367,9 @@ window.WorkersView = {
       currentCheckIn: null
     };
 
+    console.log('[Workers] Worker data:', workerData);
+    console.log('[Workers] Editing ID:', this.currentEdit);
+
     // Auto-generate ID if new worker
     if (!this.currentEdit) {
       const workers = State.read('workers') || [];
@@ -376,6 +380,7 @@ window.WorkersView = {
           }))
         : 0;
       workerData.id = `W-${String(maxId + 1).padStart(4, '0')}`;
+      console.log('[Workers] New worker ID:', workerData.id);
     } else {
       workerData.id = this.currentEdit;
       // Keep existing totals when editing
@@ -384,11 +389,13 @@ window.WorkersView = {
         workerData.totalHours = existing.totalHours || 0;
         workerData.totalEarnings = existing.totalEarnings || 0;
         workerData.currentCheckIn = existing.currentCheckIn || null;
+        console.log('[Workers] Kept existing totals:', { totalHours: workerData.totalHours, totalEarnings: workerData.totalEarnings });
       }
     }
 
     // Basic validation
     if (!workerData.name || !workerData.phone || !workerData.specialty || !workerData.hourlyRate) {
+      console.warn('[Workers] Validation failed');
       Toast.error('Παρακαλώ συμπληρώστε όλα τα υποχρεωτικά πεδία');
       return;
     }
@@ -420,11 +427,19 @@ window.WorkersView = {
   },
 
   viewWorker(id) {
+    console.log('[Workers] Viewing worker:', id);
     const worker = State.data.workers.find(w => Number(w.id) === Number(id));
-    if (!worker) return;
+    if (!worker) {
+      console.error('[Workers] Worker not found:', id);
+      return;
+    }
+
+    console.log('[Workers] Worker data:', worker);
 
     // Get worker's work history from jobs
     const jobs = State.read('jobs') || [];
+    console.log('[Workers] Total jobs in database:', jobs.length);
+    
     const workerJobs = jobs.filter(job => {
       // Parse assignedWorkers if it's a string
       let assignedWorkers = job.assignedWorkers;
@@ -432,13 +447,20 @@ window.WorkersView = {
         try {
           assignedWorkers = JSON.parse(assignedWorkers);
         } catch (e) {
-          console.error('Error parsing assignedWorkers for job', job.id, e);
+          console.error('[Workers] Error parsing assignedWorkers for job', job.id, e);
           return false;
         }
       }
       
-      return Array.isArray(assignedWorkers) && assignedWorkers.some(w => w.workerId === id);
+      // Check if worker is in this job - compare as strings to avoid type issues
+      const hasWorker = Array.isArray(assignedWorkers) && assignedWorkers.some(w => String(w.workerId) === String(id));
+      if (hasWorker) {
+        console.log('[Workers] Job', job.id, 'includes worker', id);
+      }
+      return hasWorker;
     });
+
+    console.log('[Workers] Found', workerJobs.length, 'jobs for worker', id);
 
     const statusBadge = worker.status === 'active' 
       ? '<span class="status-pill status-active">Ενεργός</span>'
@@ -483,7 +505,7 @@ window.WorkersView = {
           <div class="detail-grid">
             <div class="detail-item">
               <label>Τηλέφωνο:</label>
-              <span>${worker.phone || '-'}</span>
+              <span>${worker.phone ? `<a href="tel:${worker.phone}" style="color: var(--color-primary); text-decoration: none;">${worker.phone}</a>` : '-'}</span>
             </div>
           </div>
         </div>
@@ -512,13 +534,14 @@ window.WorkersView = {
                     try {
                       assignedWorkers = JSON.parse(assignedWorkers);
                     } catch (e) {
-                      console.error('Error parsing assignedWorkers for job', job.id, e);
+                      console.error('[Workers] Error parsing assignedWorkers for job', job.id, e);
                       assignedWorkers = [];
                     }
                   }
                   
+                  // Compare as strings to avoid type mismatch
                   const workerAssignment = Array.isArray(assignedWorkers) 
-                    ? assignedWorkers.find(w => w.workerId === id)
+                    ? assignedWorkers.find(w => String(w.workerId) === String(id))
                     : null;
                     
                   return `
@@ -549,7 +572,6 @@ window.WorkersView = {
     `;
 
     const footer = `
-      <button class="btn-ghost" onclick="Modal.close()">Κλείσιμο</button>
       <button class="btn-primary" id="editWorkerFromModalBtn">
         <i class="fas fa-edit"></i> Επεξεργασία
       </button>
@@ -809,7 +831,6 @@ window.WorkersView = {
     `;
 
     const footer = `
-      <button class="btn-ghost" onclick="Modal.close()">Κλείσιμο</button>
       <button class="btn-secondary" onclick="WorkersView.exportReport()">
         <i class="fas fa-download"></i> Export Excel
       </button>

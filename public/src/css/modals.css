@@ -265,43 +265,43 @@
 
 .status-pill.status-υποψήφιος {
   background: linear-gradient(135deg, rgba(107, 114, 128, 0.15), rgba(107, 114, 128, 0.25));
-  color: #6b7280;
+  color: var(--chart-gray);
   border: 1px solid rgba(107, 114, 128, 0.3);
 }
 
 .status-pill.status-προγραμματισμένη {
   background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(59, 130, 246, 0.25));
-  color: #3b82f6;
+  color: var(--chart-blue);
   border: 1px solid rgba(59, 130, 246, 0.3);
 }
 
 .status-pill.status-σε-εξέλιξη {
   background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(245, 158, 11, 0.25));
-  color: #f59e0b;
+  color: var(--chart-orange);
   border: 1px solid rgba(245, 158, 11, 0.3);
 }
 
 .status-pill.status-σε-αναμονή {
   background: linear-gradient(135deg, rgba(234, 179, 8, 0.15), rgba(234, 179, 8, 0.25));
-  color: #eab308;
+  color: var(--chart-yellow);
   border: 1px solid rgba(234, 179, 8, 0.3);
 }
 
 .status-pill.status-ολοκληρώθηκε {
   background: linear-gradient(135deg, rgba(34, 197, 94, 0.15), rgba(34, 197, 94, 0.25));
-  color: #22c55e;
+  color: var(--chart-green);
   border: 1px solid rgba(34, 197, 94, 0.3);
 }
 
 .status-pill.status-εξοφλήθηκε {
   background: linear-gradient(135deg, rgba(236, 72, 153, 0.15), rgba(236, 72, 153, 0.25));
-  color: #ec4899;
+  color: var(--chart-pink);
   border: 1px solid rgba(236, 72, 153, 0.3);
 }
 
 .status-pill.status-ακυρώθηκε {
   background: linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(239, 68, 68, 0.25));
-  color: #ef4444;
+  color: var(--chart-red);
   border: 1px solid rgba(239, 68, 68, 0.3);
 }
 

@@ -4,13 +4,19 @@
  * Ρυθμίσεις σύνδεσης με τη MySQL database
  */
 
+// Debug mode - Set to false in production
+define('DEBUG_MODE', true);
+
 // Database credentials
 define('DB_HOST', 'localhost');
 define('DB_PORT', '3306');
 define('DB_NAME', 'painter_app');
-define('DB_USER', 'painter_user');
-define('DB_PASS', '~cjN4bOZcq77jqy@');
+define('DB_USER', 'root');
+define('DB_PASS', '');
 define('DB_CHARSET', 'utf8mb4');
+
+// Include logger
+require_once __DIR__ . '/logger.php';
 
 // Δημιουργία σύνδεσης με τη database
 function getDBConnection() {

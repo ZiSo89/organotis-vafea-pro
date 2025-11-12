@@ -593,9 +593,10 @@ window.JobsView = {
     Utils.initDatePicker('#jobDate');
     Utils.initDatePicker('#jobNextVisit');
     
-    // Load default billing rate from settings
-    const pricingSettings = JSON.parse(localStorage.getItem('pricing_settings') || '{}');
+    // Load default billing rate from settings (use cached value)
+    const pricingSettings = SettingsService.cache.pricing_settings || { hourlyRate: 50, vat: 24, travelCost: 0.5 };
     const defaultBillingRate = pricingSettings.hourlyRate || 50;
+    console.log('[Jobs] Using pricing settings:', pricingSettings);
     document.getElementById('jobBillingRate').value = defaultBillingRate;
     
     // Clear assigned workers and paints
@@ -628,10 +629,11 @@ window.JobsView = {
   },
 
   calculateCost() {
-    // Get pricing settings from localStorage
-    const pricingSettings = JSON.parse(localStorage.getItem('pricing_settings') || '{}');
+    // Get pricing settings from cache
+    const pricingSettings = SettingsService.cache.pricing_settings || { vat: 24, travelCost: 0.5 };
     const vatPercent = pricingSettings.vat || 24;
     const costPerKm = pricingSettings.travelCost || 0.5;
+    console.log('[Jobs] Calculate cost with settings:', { vatPercent, costPerKm });
     
     const materials = parseFloat(document.getElementById('jobMaterialsCost')?.value || 0);
     const kilometers = parseFloat(document.getElementById('jobKilometers')?.value || 0);
@@ -692,6 +694,7 @@ window.JobsView = {
 
   async saveJob(e) {
     e.preventDefault();
+    console.log('[Jobs] Saving job...');
     
     // Manual validation check for required fields
     const jobClient = document.getElementById('jobClient').value;
@@ -699,7 +702,10 @@ window.JobsView = {
     const jobDate = document.getElementById('jobDate').value;
     const jobStatus = document.getElementById('jobStatus').value;
     
+    console.log('[Jobs] Job data:', { jobClient, jobType, jobDate, jobStatus });
+    
     if (!jobClient) {
+      console.warn('[Jobs] Missing client');
       Toast.error('Παρακαλώ επιλέξτε πελάτη');
       // Switch to basic tab
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -713,6 +719,7 @@ window.JobsView = {
     }
     
     if (!jobType) {
+      console.warn('[Jobs] Missing job type');
       Toast.error('Παρακαλώ επιλέξτε τύπο εργασίας');
       // Switch to details tab
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -725,10 +732,11 @@ window.JobsView = {
       return;
     }
 
-    // Get pricing settings
-    const pricingSettings = JSON.parse(localStorage.getItem('pricing_settings') || '{}');
+    // Get pricing settings from cache
+    const pricingSettings = SettingsService.cache.pricing_settings || { vat: 24, travelCost: 0.5 };
     const vatPercent = pricingSettings.vat || 24;
     const costPerKm = pricingSettings.travelCost || 0.5;
+    console.log('[Jobs] Pricing settings:', { vatPercent, costPerKm });
 
     const billingHours = parseFloat(document.getElementById('jobBillingHours').value) || 0;
     const billingRate = parseFloat(document.getElementById('jobBillingRate').value) || 50;
@@ -749,8 +757,8 @@ window.JobsView = {
       vat: vatPercent,
       costPerKm: costPerKm,
       notes: document.getElementById('jobNotes').value,
-      assignedWorkers: [...this.assignedWorkers],
-      paints: [...this.assignedPaints]
+      assignedWorkers: JSON.stringify(this.assignedWorkers),
+      paints: JSON.stringify(this.assignedPaints)
     };
 
     // If editing, add the ID
@@ -772,15 +780,14 @@ window.JobsView = {
     // ΚΕΡΔΟΣ
     const profit = billingAmount - totalExpenses;
     
-    jobData.hours = billingHours; // Billing hours (owner's hours)
-    jobData.workerHours = totalWorkerHours; // Total worker hours
-    jobData.laborCost = laborCost; // Cost of workers (expense)
-    jobData.travelCost = travelCost;
-    jobData.totalExpenses = totalExpenses;
-    jobData.billingAmount = billingAmount; // Billing amount (revenue)
-    jobData.vatAmount = vatAmount;
+    // Save only the fields that exist in the database schema
+    jobData.billingHours = billingHours;
+    jobData.billingRate = billingRate;
+    // materialsCost, kilometers, costPerKm, vat are already in jobData
     jobData.totalCost = totalCharge;
-    jobData.profit = profit;
+    
+    // These are calculated values - don't save to DB:
+    // workerHours, laborCost, travelCost, totalExpenses, billingAmount, vatAmount, profit
 
     // Validate
     const validation = Validation.validateJob(jobData);
@@ -817,14 +824,40 @@ window.JobsView = {
   },
 
   viewJob(id) {
+    console.log('[Jobs] Viewing job:', id);
     const job = State.data.jobs.find(j => Number(j.id) === Number(id));
-    if (!job) return;
+    if (!job) {
+      console.error('[Jobs] Job not found:', id);
+      return;
+    }
 
+    console.log('[Jobs] Job data for view:', job);
     const client = State.data.clients.find(c => Number(c.id) === Number(job.clientId));
     const clientName = client ? client.name : 'Άγνωστος';
     
-    // Υπολογισμοί κόστους
-    const assignedWorkers = job.assignedWorkers || [];
+    // Υπολογισμοί κόστους - Parse JSON strings if needed
+    let assignedWorkers = [];
+    let assignedPaints = [];
+    
+    try {
+      if (typeof job.assignedWorkers === 'string') {
+        assignedWorkers = JSON.parse(job.assignedWorkers);
+      } else if (Array.isArray(job.assignedWorkers)) {
+        assignedWorkers = job.assignedWorkers;
+      }
+      
+      if (typeof job.paints === 'string') {
+        assignedPaints = JSON.parse(job.paints);
+      } else if (Array.isArray(job.paints)) {
+        assignedPaints = job.paints;
+      }
+      
+      console.log('[Jobs] Parsed workers:', assignedWorkers);
+      console.log('[Jobs] Parsed paints:', assignedPaints);
+    } catch (error) {
+      console.error('[Jobs] Error parsing workers/paints in viewJob:', error);
+    }
+    
     const laborCost = assignedWorkers.reduce((sum, w) => sum + (w.laborCost || 0), 0);
     const materialsCost = job.materialsCost || 0;
     const kilometers = job.kilometers || 0;
@@ -832,7 +865,7 @@ window.JobsView = {
     const travelCost = kilometers * costPerKm;
     const totalExpenses = materialsCost + laborCost + travelCost;
     
-    const billingHours = job.billingHours || job.hours || 0;
+    const billingHours = job.billingHours || 0;
     const billingRate = job.billingRate || 50;
     const billingAmount = billingHours * billingRate;
     const vat = job.vat || 24;
@@ -919,7 +952,7 @@ window.JobsView = {
         </div>
 
         <!-- Χρώματα -->
-        ${job.paints && job.paints.length > 0 ? `
+        ${assignedPaints && assignedPaints.length > 0 ? `
         <div class="detail-section">
           <h4><i class="fas fa-palette"></i> Χρώματα</h4>
           <div class="table-wrapper">
@@ -931,7 +964,7 @@ window.JobsView = {
                 </tr>
               </thead>
               <tbody>
-                ${job.paints.map(paint => `
+                ${assignedPaints.map(paint => `
                   <tr>
                     <td><strong>${paint.name}</strong></td>
                     <td>${paint.code || '-'}</td>
@@ -944,7 +977,7 @@ window.JobsView = {
         ` : ''}
 
         <!-- Εργάτες -->
-        ${job.assignedWorkers && job.assignedWorkers.length > 0 ? `
+        ${assignedWorkers && assignedWorkers.length > 0 ? `
         <div class="detail-section">
           <h4><i class="fas fa-users"></i> Ανατεθειμένοι Εργάτες</h4>
           <div class="table-wrapper">
@@ -959,7 +992,7 @@ window.JobsView = {
                 </tr>
               </thead>
               <tbody>
-                ${job.assignedWorkers.map(worker => `
+                ${assignedWorkers.map(worker => `
                   <tr>
                     <td><strong>${worker.workerName}</strong></td>
                     <td>${worker.workerSpecialty || worker.specialty || ''}</td>
@@ -970,8 +1003,8 @@ window.JobsView = {
                 `).join('')}
                 <tr style="background: var(--bg-secondary); font-weight: bold;">
                   <td colspan="3" style="text-align: right;">ΣΥΝΟΛΟ:</td>
-                  <td>${job.assignedWorkers.reduce((sum, w) => sum + w.hoursAllocated, 0).toFixed(1)}h</td>
-                  <td><strong style="color: var(--error);">${Utils.formatCurrency(job.assignedWorkers.reduce((sum, w) => sum + w.laborCost, 0))}</strong></td>
+                  <td>${assignedWorkers.reduce((sum, w) => sum + w.hoursAllocated, 0).toFixed(1)}h</td>
+                  <td><strong style="color: var(--error);">${Utils.formatCurrency(assignedWorkers.reduce((sum, w) => sum + w.laborCost, 0))}</strong></td>
                 </tr>
               </tbody>
             </table>
@@ -1031,7 +1064,6 @@ window.JobsView = {
     `;
 
     const footer = `
-      <button class="btn-ghost" onclick="Modal.close()">Κλείσιμο</button>
       <button class="btn-primary" id="editJobFromModalBtn">
         <i class="fas fa-edit"></i> Επεξεργασία
       </button>
@@ -1059,9 +1091,14 @@ window.JobsView = {
   },
 
   editJob(id) {
+    console.log('[Jobs] Editing job:', id);
     const job = State.data.jobs.find(j => Number(j.id) === Number(id));
-    if (!job) return;
+    if (!job) {
+      console.error('[Jobs] Job not found:', id);
+      return;
+    }
 
+    console.log('[Jobs] Job data:', job);
     this.currentEdit = Number(id);
     document.getElementById('formTitle').textContent = 'Επεξεργασία Εργασίας';
     document.getElementById('jobForm').style.display = 'block';
@@ -1087,9 +1124,35 @@ window.JobsView = {
     document.getElementById('jobBillingRate').value = job.billingRate || 50;
     document.getElementById('jobNotes').value = job.notes || '';
 
-    // Load assigned workers and paints
-    this.assignedWorkers = job.assignedWorkers ? [...job.assignedWorkers] : [];
-    this.assignedPaints = job.paints ? [...job.paints] : [];
+    // Load assigned workers and paints - Parse JSON if stored as string
+    console.log('[Jobs] Raw assignedWorkers:', job.assignedWorkers, typeof job.assignedWorkers);
+    console.log('[Jobs] Raw paints:', job.paints, typeof job.paints);
+    
+    try {
+      if (typeof job.assignedWorkers === 'string') {
+        this.assignedWorkers = JSON.parse(job.assignedWorkers);
+      } else if (Array.isArray(job.assignedWorkers)) {
+        this.assignedWorkers = [...job.assignedWorkers];
+      } else {
+        this.assignedWorkers = [];
+      }
+      
+      if (typeof job.paints === 'string') {
+        this.assignedPaints = JSON.parse(job.paints);
+      } else if (Array.isArray(job.paints)) {
+        this.assignedPaints = [...job.paints];
+      } else {
+        this.assignedPaints = [];
+      }
+      
+      console.log('[Jobs] Parsed assignedWorkers:', this.assignedWorkers);
+      console.log('[Jobs] Parsed assignedPaints:', this.assignedPaints);
+    } catch (error) {
+      console.error('[Jobs] Error parsing workers/paints:', error);
+      this.assignedWorkers = [];
+      this.assignedPaints = [];
+    }
+    
     this.renderAssignedWorkers();
     this.renderAssignedPaints();
 

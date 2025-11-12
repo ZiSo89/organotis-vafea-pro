@@ -22,8 +22,6 @@ class APIService {
         if (this.isElectron) {
             this.checkOnlineStatus();
         }
-        
-        console.log('🌐 API Service initialized with baseURL:', this.baseURL);
     }
 
     /**
@@ -38,9 +36,7 @@ class APIService {
         try {
             const isOnline = await window.electronAPI.sync.checkOnline();
             this.offlineMode = !isOnline;
-            console.log(this.offlineMode ? '📴 Offline mode' : '🌐 Online mode');
         } catch (error) {
-            console.error('Error checking online status:', error);
             this.offlineMode = false;
         }
     }
@@ -51,12 +47,10 @@ class APIService {
     async routeRequest(table, action, data = null, id = null) {
         // Force offline mode in Electron (always use SQLite)
         if (this.isElectron) {
-            console.log(`📱 Electron: ${action} ${table}`, id ? `id=${id}` : '');
             return this.handleOfflineRequest(table, action, data, id);
         }
         
         // Web version uses online API
-        console.log(`🌐 Web: ${action} ${table}`, id ? `id=${id}` : '');
         return this.handleOnlineRequest(table, action, data, id);
     }
 
@@ -140,6 +134,7 @@ class APIService {
      * Generic fetch wrapper with error handling
      */
     async request(endpoint, options = {}) {
+        console.log('[API] Request:', endpoint, options.method || 'GET');
         const config = {
             headers: {
                 'Content-Type': 'application/json',
@@ -152,21 +147,25 @@ class APIService {
         try {
             const response = await fetch(`${this.baseURL}${endpoint}`, config);
             const data = await response.json();
+            console.log('[API] Response:', endpoint, 'Status:', response.status);
 
             // Handle authentication errors
             if (response.status === 401) {
+                console.warn('[API] Unauthorized access:', endpoint);
                 this.handleUnauthorized();
                 throw new Error('Μη εξουσιοδοτημένη πρόσβαση');
             }
 
             // Handle other errors
             if (!response.ok || !data.success) {
+                console.error('[API] Error response:', endpoint, data);
                 throw new Error(data.message || `HTTP error! status: ${response.status}`);
             }
 
+            console.log('[API] Success:', endpoint, 'Data:', data);
             return data;
         } catch (error) {
-            console.error('API Request Error:', error);
+            console.error('[API] Request failed:', endpoint, error);
             throw error;
         }
     }
@@ -211,7 +210,6 @@ class APIService {
             await this.request('/auth.php?action=logout', { method: 'POST' });
             window.location.href = 'login.html';
         } catch (error) {
-            console.error('Logout error:', error);
             // Redirect anyway
             window.location.href = 'login.html';
         }
@@ -472,7 +470,6 @@ class APIService {
                 lowStockMaterials: materials.filter(isLowStock).length,
             };
         } catch (error) {
-            console.error('Error fetching dashboard stats:', error);
             throw error;
         }
     }

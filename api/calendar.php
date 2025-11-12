@@ -21,6 +21,9 @@ function sendResponse($data, $code = 200) {
 // Get database connection
 $conn = getDBConnection();
 
+// Log API request
+logApiRequest('/api/calendar.php', $_SERVER['REQUEST_METHOD'], $_GET);
+
 // Get request method
 $method = $_SERVER['REQUEST_METHOD'];
 

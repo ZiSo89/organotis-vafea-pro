@@ -44,7 +44,6 @@ window.CalendarView = {
      Render - Κύρια Συνάρτηση
      ======================================== */
   async render(container, params = {}) {
-    console.log('📅 Calendar View Rendering...', params);
     
     container.innerHTML = `
       <div class="view-header">
@@ -316,44 +315,41 @@ window.CalendarView = {
       const startStr = start.toISOString().split('T')[0];
       const endStr = end.toISOString().split('T')[0];
       
-      console.log('� ═══════════════════════════════════════');
-      console.log(`📅 LOAD EVENTS: ${startStr} to ${endStr}`);
-      console.log('📅 ═══════════════════════════════════════');
+      let events = [];
       
-      // Build URL - use online server in Electron
-      let url = `/api/calendar.php?start=${startStr}&end=${endStr}`;
-      
-      // In Electron, use the online server URL
+      // In Electron, use SQLite database
       if (typeof window.electronAPI !== 'undefined') {
-        const serverUrl = localStorage.getItem('syncServerUrl') || 'https://nikolpaintmaster.e-gata.gr';
-        url = `${serverUrl}/api/calendar.php?start=${startStr}&end=${endStr}`;
-      }
-      
-      console.log('🌐 Fetching:', url);
-      
-      const response = await fetch(url, {
-        credentials: 'include'
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to load calendar events');
-      }
-      
-      const events = await response.json();
-      
-      console.log(`✅ Loaded ${events.length} calendar events`);
-      
-      // Log each event in detail
-      events.forEach((event, index) => {
-        console.log(`📌 Event ${index + 1}:`, {
-          id: event.id,
-          title: event.title,
-          start: event.start,
-          end: event.end,
-          allDay: event.allDay,
-          extendedProps: event.extendedProps
+        const sql = `
+          SELECT 
+            ce.*,
+            c.name as client_name,
+            c.phone as client_phone,
+            j.title as original_title
+          FROM calendar_events ce
+          LEFT JOIN clients c ON ce.client_id = c.id
+          LEFT JOIN jobs j ON ce.job_id = j.id
+          WHERE ce.start_date >= ? AND ce.start_date <= ?
+          ORDER BY ce.start_date ASC
+        `;
+        
+        const result = await window.electronAPI.db.query(sql, [startStr, endStr]);
+        
+        // Transform database results to FullCalendar format
+        events = result.map(event => this.transformEventFromDB(event));
+        
+      } else {
+        // Web version - use API
+        const url = `/api/calendar.php?start=${startStr}&end=${endStr}`;
+        const response = await fetch(url, {
+          credentials: 'include'
         });
-      });
+        
+        if (!response.ok) {
+          throw new Error('Failed to load calendar events');
+        }
+        
+        events = await response.json();
+      }
       
       // Προσθήκη ελληνικών αργιών
       const holidays = this.greekHolidays
@@ -368,9 +364,6 @@ window.CalendarView = {
           allDay: true
         }));
       
-      console.log(`🇬🇷 Added ${holidays.length} Greek holidays`);
-      console.log('📅 ═══════════════════════════════════════');
-      
       return [...events, ...holidays];
       
     } catch (error) {
@@ -381,6 +374,55 @@ window.CalendarView = {
       Toast.show('Σφάλμα φόρτωσης επισκέψεων', 'error');
       return [];
     }
+  },
+  
+  /* ========================================
+     Transform Event from Database
+     ======================================== */
+  transformEventFromDB(dbEvent) {
+    const title = dbEvent.client_name 
+      ? `${dbEvent.client_name} - ${dbEvent.title}` 
+      : dbEvent.title;
+    
+    return {
+      id: dbEvent.id,
+      title: title,
+      start: dbEvent.all_day ? dbEvent.start_date : `${dbEvent.start_date}T${dbEvent.start_time || '00:00:00'}`,
+      end: dbEvent.end_date 
+        ? (dbEvent.all_day ? dbEvent.end_date : `${dbEvent.end_date}T${dbEvent.end_time || '23:59:59'}`)
+        : null,
+      allDay: Boolean(dbEvent.all_day),
+      backgroundColor: this.getStatusColor(dbEvent.status),
+      borderColor: this.getStatusColor(dbEvent.status),
+      extendedProps: {
+        original_title: dbEvent.original_title || dbEvent.title,
+        client_id: dbEvent.client_id,
+        client_name: dbEvent.client_name,
+        client_phone: dbEvent.client_phone,
+        job_id: dbEvent.job_id,
+        address: dbEvent.address,
+        description: dbEvent.description,
+        status: dbEvent.status,
+        start_time: dbEvent.start_time,
+        end_time: dbEvent.end_time
+      }
+    };
+  },
+  
+  /* ========================================
+     Get Status Color
+     ======================================== */
+  getStatusColor(status) {
+    const statusColors = {
+      'pending': '#6b7280',
+      'confirmed': '#3b82f6',
+      'in_progress': '#f59e0b',
+      'completed': '#10b981',
+      'cancelled': '#ef4444'
+    };
+    
+    const normalized = this.normalizeStatus(status);
+    return statusColors[normalized] || statusColors.pending;
   },
 
   /* ========================================
@@ -394,32 +436,49 @@ window.CalendarView = {
       const futureDate = new Date();
       futureDate.setDate(futureDate.getDate() + 30);
       
-      // Get calendar events from the API
       const start = today.toISOString().split('T')[0];
       const end = futureDate.toISOString().split('T')[0];
       
-      // Build URL - use online server in Electron
-      let url = `/api/calendar.php?start=${start}&end=${end}`;
+      let events = [];
       
-      // In Electron, use the online server URL
+      // In Electron, use SQLite database
       if (typeof window.electronAPI !== 'undefined') {
-        const serverUrl = localStorage.getItem('syncServerUrl') || 'https://nikolpaintmaster.e-gata.gr';
-        url = `${serverUrl}/api/calendar.php?start=${start}&end=${end}`;
+        const sql = `
+          SELECT 
+            ce.*,
+            c.name as client_name,
+            c.phone as client_phone,
+            j.title as original_title
+          FROM calendar_events ce
+          LEFT JOIN clients c ON ce.client_id = c.id
+          LEFT JOIN jobs j ON ce.job_id = j.id
+          WHERE ce.start_date >= ? AND ce.start_date <= ?
+          ORDER BY ce.start_date ASC
+          LIMIT 10
+        `;
+        
+        const result = await window.electronAPI.db.query(sql, [start, end]);
+        
+        // Transform database results
+        events = result.map(event => this.transformEventFromDB(event));
+        
+      } else {
+        // Web version - use API
+        const url = `/api/calendar.php?start=${start}&end=${end}`;
+        const response = await fetch(url, { credentials: 'include' });
+        events = await response.json();
+        
+        // Filter future events and sort by date
+        events = events
+          .filter(event => {
+            const eventDate = new Date(event.start);
+            return eventDate >= today;
+          })
+          .sort((a, b) => new Date(a.start) - new Date(b.start))
+          .slice(0, 10);
       }
       
-      const response = await fetch(url, { credentials: 'include' });
-      const events = await response.json();
-      
-      // Filter future events and sort by date
-      const upcomingEvents = events
-        .filter(event => {
-          const eventDate = new Date(event.start);
-          return eventDate >= today;
-        })
-        .sort((a, b) => new Date(a.start) - new Date(b.start))
-        .slice(0, 10); // Show only next 10 visits
-      
-      this.renderUpcomingVisits(upcomingEvents);
+      this.renderUpcomingVisits(events);
       
     } catch (error) {
       console.error('Error loading upcoming visits:', error);
@@ -432,10 +491,8 @@ window.CalendarView = {
      Render Upcoming Visits List
      ======================================== */
   renderUpcomingVisits(visits) {
-    console.log('🔄 renderUpcomingVisits called with', visits.length, 'visits');
     
     const container = document.getElementById('upcomingVisitsList');
-    console.log('📦 Container found:', container ? 'YES' : 'NO', container);
     
     if (visits.length === 0) {
       container.innerHTML = `
@@ -447,7 +504,6 @@ window.CalendarView = {
       return;
     }
     
-    console.log('📋 Visit IDs being rendered:', visits.map(v => v.id));
     
     // Store visits data for later access
     this._upcomingVisitsData = {};
@@ -468,7 +524,10 @@ window.CalendarView = {
       const clientPhone = props.client_phone || visit.client_phone || '';
       const address = props.address || visit.address || '';
       
-      console.log(`  - Rendering visit ID: ${visit.id}, Title: ${visit.title}, Status: ${status}`);
+      // Use original_title to avoid duplicate client name in title
+      const displayTitle = props.original_title || visit.title;
+      
+      console.log('📅 Rendering visit:', { title: displayTitle, clientName, hasOriginalTitle: !!props.original_title });
       
       return `
         <div class="visit-item" data-event-id="${visit.id}" style="cursor: pointer;">
@@ -477,10 +536,10 @@ window.CalendarView = {
             <div class="visit-month">${startDate.toLocaleDateString('el-GR', { month: 'short' })}</div>
           </div>
           <div class="visit-info">
-            <div class="visit-title">${visit.title}</div>
+            <div class="visit-title">${displayTitle}</div>
             <div class="visit-details">
               ${address ? `<span><i class="fas fa-map-marker-alt"></i> ${address}</span>` : ''}
-              ${clientPhone ? `<span><i class="fas fa-phone"></i> ${clientPhone}</span>` : ''}
+              ${clientPhone ? `<span><i class="fas fa-phone"></i> <a href="tel:${clientPhone}" style="color: var(--color-text); text-decoration: none;">${clientPhone}</a></span>` : ''}
             </div>
             <div class="visit-time">${this.formatDateTime(startDate)}</div>
           </div>
@@ -491,53 +550,39 @@ window.CalendarView = {
       `;
     }).join('');
     
-    console.log('✅ HTML rendered, checking items in DOM...');
     const renderedItems = container.querySelectorAll('.visit-item');
-    console.log(`📊 Found ${renderedItems.length} items in DOM`);
     renderedItems.forEach((item, index) => {
       const id = item.getAttribute('data-event-id');
-      console.log(`  Item ${index}: data-event-id="${id}"`);
     });
     
     // Setup event delegation ONCE on first call
     if (!this._upcomingVisitsSetup) {
-      console.log('🆕 Setting up event delegation for the FIRST time');
       this._upcomingVisitsSetup = true;
       
       // Use event delegation on the container (permanent listener)
       container.addEventListener('click', (e) => {
-        console.log('🖱️ Click detected on container');
-        console.log('  - e.target:', e.target);
-        console.log('  - isSwipeInProgress:', this.isSwipeInProgress);
         
         // Prevent if swipe in progress
         if (this.isSwipeInProgress) {
-          console.log('❌ Swipe in progress, ignoring click');
           return;
         }
         
         // Find the clicked visit-item (even if clicked on child element)
         const visitItem = e.target.closest('.visit-item');
-        console.log('  - Found visit-item:', visitItem ? 'YES' : 'NO');
         if (!visitItem) return;
         
         const eventId = visitItem.getAttribute('data-event-id');
-        console.log('  - Event ID from clicked item:', eventId);
         
         if (!eventId) {
-          console.warn('⚠️ No event ID found on item');
           return;
         }
         
-        console.log('🔍 Looking for visit data with ID:', eventId);
         
         // First try to get from stored data
         let visitData = this._upcomingVisitsData[eventId];
-        console.log('  - Found in stored data:', visitData ? 'YES' : 'NO');
         
         if (!visitData) {
           // Fallback: try to get from calendar
-          console.log('  - Trying to get from calendar...');
           const event = this.calendar.getEventById(eventId);
           if (event) {
             visitData = {
@@ -547,35 +592,36 @@ window.CalendarView = {
               end: event.end,
               extendedProps: event.extendedProps
             };
-            console.log('  - Found in calendar: YES');
           } else {
             console.error('❌ Event not found in stored data or calendar for ID:', eventId);
             return;
           }
         }
         
-        console.log('✅ Opening event details for:', visitData.title);
         
         // Show modal with the visit data
         this.showEventDetailsFromData(visitData);
         
         // Navigate calendar to that date
-        this.calendar.gotoDate(visitData.start);
+        // Convert string date to Date object if needed
+        const dateToGo = typeof visitData.start === 'string' 
+          ? new Date(visitData.start) 
+          : visitData.start;
+        
+        if (dateToGo && !isNaN(dateToGo.getTime())) {
+          this.calendar.gotoDate(dateToGo);
+        }
       });
       
-      console.log('✅ Upcoming visits event delegation setup complete');
     } else {
-      console.log('ℹ️ Event delegation already setup, skipping');
     }
     
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   },
 
   /* ========================================
      Show Event Details from Raw Data
      ======================================== */
   showEventDetailsFromData(visitData) {
-    console.log('🔍 showEventDetailsFromData called with:', visitData);
     
     const props = visitData.extendedProps || {};
     
@@ -586,8 +632,6 @@ window.CalendarView = {
     // Use original_title if available (without client name), otherwise use visitData.title
     const displayTitle = props.original_title || visitData.title;
     
-    console.log('  Status:', status, '→ Normalized:', normalizedStatus);
-    console.log('  Title:', displayTitle);
     
     Modal.show({
       title: displayTitle,
@@ -640,7 +684,7 @@ window.CalendarView = {
           ${props.total_cost ? `
             <div class="detail-row">
               <strong><i class="fas fa-euro-sign"></i> Κόστος:</strong>
-              <span>${parseFloat(props.total_cost).toFixed(2)} €</span>
+              <span>${Utils.formatCurrency(parseFloat(props.total_cost))}</span>
             </div>
           ` : ''}
         </div>
@@ -652,11 +696,15 @@ window.CalendarView = {
           onClick: () => {
             Modal.hide();
             // Create a fake event object for edit modal
+            // Create properly formatted event object
+            const startDate = typeof visitData.start === 'string' ? new Date(visitData.start) : visitData.start;
+            const endDate = visitData.end ? (typeof visitData.end === 'string' ? new Date(visitData.end) : visitData.end) : null;
+            
             const fakeEvent = {
               id: visitData.id,
               title: visitData.title,
-              start: new Date(visitData.start),
-              end: visitData.end ? new Date(visitData.end) : null,
+              start: startDate && !isNaN(startDate.getTime()) ? startDate : new Date(),
+              end: endDate && !isNaN(endDate.getTime()) ? endDate : null,
               allDay: visitData.allDay || false,
               extendedProps: props
             };
@@ -720,13 +768,19 @@ window.CalendarView = {
      ======================================== */
   async deleteEventById(eventId) {
     try {
-      // Delete from calendar_events (NOT from jobs!)
-      const response = await fetch(`/api/calendar.php?id=${eventId}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      });
-      
-      if (!response.ok) throw new Error('Failed to delete event');
+      // In Electron, use SQLite database
+      if (typeof window.electronAPI !== 'undefined') {
+        await window.electronAPI.db.delete('calendar_events', eventId);
+        
+      } else {
+        // Web version - use API
+        const response = await fetch(`/api/calendar.php?id=${eventId}`, {
+          method: 'DELETE',
+          credentials: 'include'
+        });
+        
+        if (!response.ok) throw new Error('Failed to delete event');
+      }
       
       Toast.show('Η επίσκεψη διαγράφηκε (η εργασία παραμένει)', 'success');
       
@@ -749,7 +803,6 @@ window.CalendarView = {
      Show Event Details Modal
      ======================================== */
   showEventDetails(event) {
-    console.log('🔍 showEventDetails called with event:', event);
     
     const props = event.extendedProps || {};
     
@@ -760,8 +813,6 @@ window.CalendarView = {
     // Use original_title if available (without client name), otherwise use event.title
     const displayTitle = props.original_title || event.title;
     
-    console.log('  Status:', status, '→ Normalized:', normalizedStatus);
-    console.log('  Title:', displayTitle);
     
     Modal.show({
       title: displayTitle,
@@ -814,7 +865,7 @@ window.CalendarView = {
           ${props.total_cost ? `
             <div class="detail-row">
               <strong><i class="fas fa-euro-sign"></i> Κόστος:</strong>
-              <span>${parseFloat(props.total_cost).toFixed(2)} €</span>
+              <span>${Utils.formatCurrency(parseFloat(props.total_cost))}</span>
             </div>
           ` : ''}
         </div>
@@ -1047,9 +1098,6 @@ window.CalendarView = {
      Create Visit
      ======================================== */
   async createVisit() {
-    console.log('🆕 ═══════════════════════════════════════');
-    console.log('🆕 CREATE VISIT - START');
-    console.log('🆕 ═══════════════════════════════════════');
     
     const form = document.getElementById('addVisitForm');
     if (!form.checkValidity()) {
@@ -1072,14 +1120,6 @@ window.CalendarView = {
     
     const allDayCheckbox = document.getElementById('visitAllDay');
     const isAllDay = allDayCheckbox ? allDayCheckbox.checked : false;
-    
-    console.log('📋 Form Values:');
-    console.log('  - Title:', document.getElementById('visitTitle').value);
-    console.log('  - Start Date:', document.getElementById('visitStartDate').value);
-    console.log('  - End Date:', document.getElementById('visitEndDate').value);
-    console.log('  - All Day:', isAllDay);
-    console.log('  - Start Time:', document.getElementById('visitStartTime')?.value);
-    console.log('  - End Time:', document.getElementById('visitEndTime')?.value);
     
     const data = {
       title: document.getElementById('visitTitle').value,
@@ -1104,41 +1144,37 @@ window.CalendarView = {
       data.end_time = null;
     }
     
-    console.log('📤 Data to Send:', JSON.stringify(data, null, 2));
-    
     try {
-      // Δημιουργία νέας επίσκεψης στο calendar_events
-      console.log('🌐 Sending POST to /api/calendar.php...');
-      const response = await fetch('/api/calendar.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(data)
-      });
+      let result;
       
-      console.log('📡 Response Status:', response.status);
-      
-      if (!response.ok) {
-        const error = await response.json();
-        console.error('❌ Server Error:', error);
-        throw new Error(error.error || 'Failed to create event');
+      // In Electron, use SQLite database
+      if (typeof window.electronAPI !== 'undefined') {
+        result = await window.electronAPI.db.insert('calendar_events', data);
+        
+      } else {
+        // Web version - use API
+        const response = await fetch('/api/calendar.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(data)
+        });
+        
+        if (!response.ok) {
+          const error = await response.json();
+          console.error('❌ Server Error:', error);
+          throw new Error(error.error || 'Failed to create event');
+        }
+        
+        result = await response.json();
       }
       
-      const result = await response.json();
-      console.log('✅ Server Response:', result);
-      
       Toast.show('Η επίσκεψη δημιουργήθηκε επιτυχώς', 'success');
-      
       Modal.hide();
       
       // Reload calendar
-      console.log('🔄 Reloading calendar...');
       this.calendar.refetchEvents();
       await this.loadUpcomingVisits();
-      
-      console.log('🆕 ═══════════════════════════════════════');
-      console.log('🆕 CREATE VISIT - END (SUCCESS)');
-      console.log('🆕 ═══════════════════════════════════════');
       
     } catch (error) {
       console.error('❌ ═══════════════════════════════════════');
@@ -1155,8 +1191,22 @@ window.CalendarView = {
      ======================================== */
   async showEditVisitModal(event) {
     const props = event.extendedProps || {};
-    const startDate = event.start.toISOString().split('T')[0];
-    const endDate = event.end ? event.end.toISOString().split('T')[0] : '';
+    
+    // Handle date conversion safely
+    let startDate = '';
+    let endDate = '';
+    
+    // Convert start date
+    if (event.start) {
+      const startObj = typeof event.start === 'string' ? new Date(event.start) : event.start;
+      startDate = (startObj && !isNaN(startObj.getTime())) ? startObj.toISOString().split('T')[0] : '';
+    }
+    
+    // Convert end date
+    if (event.end) {
+      const endObj = typeof event.end === 'string' ? new Date(event.end) : event.end;
+      endDate = (endObj && !isNaN(endObj.getTime())) ? endObj.toISOString().split('T')[0] : '';
+    }
     
     // Get jobs and clients for dropdowns
     let jobs = [];
@@ -1172,7 +1222,6 @@ window.CalendarView = {
     const clientId = props.client_id || '';
     const jobId = props.job_id || '';
     
-    console.log('Edit Modal Debug:', { clientId, jobId, props, clientIdType: typeof clientId });
     
     // Use original_title (without client name) for editing
     const originalTitle = props.original_title || event.title;
@@ -1183,7 +1232,6 @@ window.CalendarView = {
     // Check if event is all-day (handle both boolean and number)
     const isAllDay = Boolean(event.allDay);
     
-    console.log('Edit Modal - allDay:', event.allDay, 'isAllDay:', isAllDay, 'start_time:', props.start_time, 'end_time:', props.end_time);
     
     Modal.show({
       title: 'Επεξεργασία Επίσκεψης',
@@ -1323,9 +1371,7 @@ window.CalendarView = {
       clientTextGroup.style.display = 'none';
       // Ensure client is selected in dropdown
       if (clientId) {
-        console.log('Setting client dropdown to:', clientId, 'Available clients:', clients.map(c => ({ id: c.id, name: c.name })));
         clientSelect.value = String(clientId); // Force string comparison
-        console.log('Client dropdown value after set:', clientSelect.value, 'Selected:', clientSelect.selectedIndex);
       }
     }
     
@@ -1392,7 +1438,6 @@ window.CalendarView = {
     const isAllDay = allDayElement ? allDayElement.checked : false;
     
     const eventData = {
-      id: event.id,
       title: document.getElementById('editVisitTitle').value,
       start_date: document.getElementById('editVisitStartDate').value,
       end_date: document.getElementById('editVisitEndDate').value || null,
@@ -1416,16 +1461,24 @@ window.CalendarView = {
     }
     
     try {
-      const response = await fetch('/api/calendar.php', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(eventData)
-      });
-      
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to update event');
+      // In Electron, use SQLite database
+      if (typeof window.electronAPI !== 'undefined') {
+        await window.electronAPI.db.update('calendar_events', event.id, eventData);
+        
+      } else {
+        // Web version - use API
+        eventData.id = event.id;
+        const response = await fetch('/api/calendar.php', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(eventData)
+        });
+        
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to update event');
+        }
       }
       
       Toast.show('Η επίσκεψη ενημερώθηκε επιτυχώς', 'success');
@@ -1447,19 +1500,26 @@ window.CalendarView = {
   async updateEventDates(event) {
     try {
       const eventData = {
-        id: event.id,
         start_date: event.start.toISOString().split('T')[0],
         end_date: event.end ? event.end.toISOString().split('T')[0] : null
       };
       
-      const response = await fetch('/api/calendar.php', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(eventData)
-      });
-      
-      if (!response.ok) throw new Error('Failed to update event');
+      // In Electron, use SQLite database
+      if (typeof window.electronAPI !== 'undefined') {
+        await window.electronAPI.db.update('calendar_events', event.id, eventData);
+        
+      } else {
+        // Web version - use API
+        eventData.id = event.id;
+        const response = await fetch('/api/calendar.php', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(eventData)
+        });
+        
+        if (!response.ok) throw new Error('Failed to update event');
+      }
       
       Toast.show('Η επίσκεψη ενημερώθηκε', 'success');
       await this.loadUpcomingVisits();
@@ -1476,13 +1536,19 @@ window.CalendarView = {
      ======================================== */
   async deleteEvent(event) {
     try {
-      // Delete from calendar_events (NOT from jobs!)
-      const response = await fetch(`/api/calendar.php?id=${event.id}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      });
-      
-      if (!response.ok) throw new Error('Failed to delete event');
+      // In Electron, use SQLite database
+      if (typeof window.electronAPI !== 'undefined') {
+        await window.electronAPI.db.delete('calendar_events', event.id);
+        
+      } else {
+        // Web version - use API
+        const response = await fetch(`/api/calendar.php?id=${event.id}`, {
+          method: 'DELETE',
+          credentials: 'include'
+        });
+        
+        if (!response.ok) throw new Error('Failed to delete event');
+      }
       
       Toast.show('Η επίσκεψη διαγράφηκε (η εργασία παραμένει)', 'success');
       event.remove();
@@ -1561,11 +1627,69 @@ window.CalendarView = {
       btn.disabled = true;
       btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Συγχρονισμός...';
       
-      // Καλούμε το API sync endpoint
-      const response = await API.get('/api/calendar.php?action=sync');
+      let result;
       
-      if (response.success) {
-        Toast.show(`✅ ${response.message}`, 'success');
+      // In Electron, use SQLite database
+      if (typeof window.electronAPI !== 'undefined') {
+        // Get all jobs from database
+        const jobs = await window.electronAPI.db.getAll('jobs');
+        
+        let created = 0;
+        let updated = 0;
+        let skipped = 0;
+        
+        // For each job, create/update calendar event if it has next_visit or date
+        for (const job of jobs) {
+          const visitDate = job.next_visit || job.date;
+          
+          // Skip if no date or no title
+          if (!visitDate || !job.title) {
+            skipped++;
+            continue;
+          }
+          
+          // Check if calendar event already exists for this job
+          const sql = `SELECT id FROM calendar_events WHERE job_id = ?`;
+          const existing = await window.electronAPI.db.query(sql, [job.id]);
+          
+          const eventData = {
+            title: job.title || 'Εργασία',
+            start_date: visitDate,
+            end_date: job.end_date || null,
+            job_id: job.id,
+            client_id: job.client_id || null,
+            address: job.address || '',
+            description: job.description || '',
+            status: job.status || 'pending',
+            all_day: 1
+          };
+          
+          if (existing && existing.length > 0) {
+            // Update existing event
+            await window.electronAPI.db.update('calendar_events', existing[0].id, eventData);
+            updated++;
+          } else {
+            // Create new event
+            await window.electronAPI.db.insert('calendar_events', eventData);
+            created++;
+          }
+        }
+        
+        let message = `Δημιουργήθηκαν ${created} και ενημερώθηκαν ${updated} επισκέψεις`;
+        if (skipped > 0) {
+          message += ` (παραλείφθηκαν ${skipped})`;
+        }
+        
+        result = { success: true, message };
+        
+      } else {
+        // Web version - use API
+        const response = await API.get('/api/calendar.php?action=sync');
+        result = response;
+      }
+      
+      if (result.success) {
+        Toast.show(`✅ ${result.message}`, 'success');
         
         // Ανανέωση του ημερολογίου
         if (this.calendar) {

@@ -60,8 +60,6 @@ const State = {
    */
   async loadFromSQLite() {
     try {
-      console.log('📂 Loading data from SQLite...');
-      
       // Use OfflineService directly in Electron (already extracts data properly)
       const [clients, workers, materials, jobs, offers, invoices, templates] = await Promise.all([
         window.OfflineService.getClients(),
@@ -116,12 +114,6 @@ const State = {
         API.getInvoices(),
         API.getTemplates(),
       ]);
-
-      console.log('🔍 DEBUG loadFromAPI:');
-      console.log('  clients type:', Array.isArray(clients) ? 'Array' : typeof clients);
-      console.log('  clients data:', clients);
-      console.log('  workers type:', Array.isArray(workers) ? 'Array' : typeof workers);
-      console.log('  materials type:', Array.isArray(materials) ? 'Array' : typeof materials);
 
       return {
         clients: clients || [],
