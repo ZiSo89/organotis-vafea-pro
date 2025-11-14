@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>8. Ρυθμίσεις - Οργανωτής Βαφέα Pro</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../src/css/variables.css">
+    <link rel="stylesheet" href="../src/css/sidebar.css">
+    <link rel="stylesheet" href="help-style.css">
+</head>
+<body>
+    <!-- Sidebar Navigation -->
+    <aside id="helpSidebar" class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">
+                <i class="fas fa-paint-roller"></i>
+                <div class="logo-text">
+                    <span class="company-name">Οδηγός Χρήσης</span>
+                </div>
+            </div>
+            <button id="sidebarToggle" class="sidebar-toggle" aria-label="Toggle Sidebar">
+                <i class="fas fa-chevron-left"></i>
+            </button>
+        </div>
+
+        <nav class="sidebar-nav">
+            <a href="help.html" class="nav-item" data-tooltip="Αρχική">
+                <i class="fas fa-home"></i>
+                <span>Αρχική</span>
+            </a>
+            <a href="01-eisagogi.html" class="nav-item" data-tooltip="Εισαγωγή">
+                <i class="fas fa-book-open"></i>
+                <span>Εισαγωγή</span>
+            </a>
+            <a href="02-pelates.html" class="nav-item" data-tooltip="Πελάτες">
+                <i class="fas fa-users"></i>
+                <span>Πελάτες</span>
+            </a>
+            <a href="03-prosopiko.html" class="nav-item" data-tooltip="Προσωπικό">
+                <i class="fas fa-hard-hat"></i>
+                <span>Προσωπικό</span>
+            </a>
+            <a href="04-ergasies.html" class="nav-item" data-tooltip="Εργασίες">
+                <i class="fas fa-briefcase"></i>
+                <span>Εργασίες</span>
+            </a>
+            <a href="05-imerologio.html" class="nav-item" data-tooltip="Ημερολόγιο">
+                <i class="fas fa-calendar-alt"></i>
+                <span>Ημερολόγιο</span>
+            </a>
+            <a href="06-xartis.html" class="nav-item" data-tooltip="Χάρτης">
+                <i class="fas fa-map-marked-alt"></i>
+                <span>Χάρτης</span>
+            </a>
+            <a href="07-statistika.html" class="nav-item" data-tooltip="Στατιστικά">
+                <i class="fas fa-chart-bar"></i>
+                <span>Στατιστικά</span>
+            </a>
+            <a href="08-rithmiseis.html" class="nav-item active" data-tooltip="Ρυθμίσεις">
+                <i class="fas fa-cog"></i>
+                <span>Ρυθμίσεις</span>
+            </a>
+        </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="container">
+        <header class="help-header">
+            <h1>⚙️ Ρυθμίσεις</h1>
+            <p class="subtitle">Πώς να ρυθμίζεις την επιχείρησή σου και να κάνεις backup</p>
+        </header>
+
+        <div class="content">
+            <h2>Τι είναι η σελίδα «Ρυθμίσεις»;</h2>
+            <p>Στη σελίδα <strong>Ρυθμίσεις</strong> ορίζεις τις βασικές παραμέτρους του προγράμματος. Εδώ μπορείς να:</p>
+            <ul>
+                <li>✅ Συμπληρώσεις τα στοιχεία της επιχείρησής σου</li>
+                <li>✅ Ορίσεις προεπιλεγμένες τιμές (ωριαία αμοιβή, ΦΠΑ κ.λπ.)</li>
+                <li>✅ Αλλάξεις το θέμα (σκοτεινό/φωτεινό)</li>
+                <li>✅ Κάνεις backup των δεδομένων σου</li>
+                <li>✅ Επαναφέρεις backup</li>
+                <li>✅ Εξάγεις όλα τα δεδομένα σε Excel</li>
+            </ul>
+
+            <div class="info-box warning">
+                <h4>⚠️ Σημαντικό</h4>
+                <p>Αυτή είναι η πρώτη σελίδα που πρέπει να επισκεφτείς όταν ξεκινάς να χρησιμοποιείς το πρόγραμμα! Εδώ βάζεις τα στοιχεία της επιχείρησής σου και τις προεπιλογές σου!</p>
+            </div>
+
+            <h2>Στοιχεία Επιχείρησης</h2>
+            <p>Στην πρώτη ενότητα συμπληρώνεις τα στοιχεία της επιχείρησής σου:</p>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Πεδίο</th>
+                        <th>Τι συμπληρώνεις;</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Όνομα Επιχείρησης</strong></td>
+                        <td>Το όνομα της επιχείρησής σου (π.χ. "Βαφές Παπαδόπουλος")</td>
+                    </tr>
+                    <tr>
+                        <td><strong>ΑΦΜ</strong></td>
+                        <td>Το Α.Φ.Μ. σου</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Διεύθυνση</strong></td>
+                        <td>Η διεύθυνση της επιχείρησής σου</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Τηλέφωνο</strong></td>
+                        <td>Το τηλέφωνο επικοινωνίας σου</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="step">
+                <h3>Πώς να αποθηκεύσω;</h3>
+                <p>Συμπλήρωσε τα πεδία και πάτα το κουμπί <strong>«Αποθήκευση»</strong> στο κάτω μέρος της ενότητας.</p>
+            </div>
+
+            <div class="info-box">
+                <h4>💡 Που φαίνεται το όνομα;</h4>
+                <p>Το όνομα της επιχείρησής σου θα εμφανίζεται στο πάνω μέρος του μενού (sidebar) αντί για "Οργανωτής Βαφέα"!</p>
+            </div>
+
+            <h2>Προεπιλογές Τιμολόγησης</h2>
+            <p>Στη δεύτερη ενότητα ορίζεις τις προεπιλεγμένες τιμές που θα χρησιμοποιούνται αυτόματα στις νέες εργασίες:</p>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Πεδίο</th>
+                        <th>Τι σημαίνει;</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Ωριαία Αμοιβή (€)</strong></td>
+                        <td>Πόσο χρεώνεις την ώρα (default 25€). Αυτή η τιμή θα συμπληρώνεται αυτόματα στο πεδίο "Τιμή Χρέωσης/Ώρα" στις εργασίες.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>ΦΠΑ (%)</strong></td>
+                        <td>Το ποσοστό ΦΠΑ (default 24%). Αυτό το ποσοστό θα χρησιμοποιείται για τον υπολογισμό του ΦΠΑ στις εργασίες.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Κόστος Μετακίνησης (€/km)</strong></td>
+                        <td>Πόσο κοστίζει το χιλιόμετρο (default 0.50€). Αυτό χρησιμοποιείται για να υπολογιστεί το κόστος μετακίνησης στις εργασίες.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="step">
+                <h3>Πώς να αποθηκεύσω;</h3>
+                <p>Άλλαξε τις τιμές και πάτα το κουμπί <strong>«Αποθήκευση»</strong>.</p>
+            </div>
+
+            <div class="info-box success">
+                <h4>✅ Παράδειγμα</h4>
+                <p>Αν βάλεις Ωριαία Αμοιβή 30€, όταν θα δημιουργείς νέα εργασία, το πεδίο "Τιμή Χρέωσης/Ώρα" θα έχει ήδη το 30€. Φυσικά μπορείς να το αλλάξεις για κάθε εργασία ξεχωριστά!</p>
+            </div>
+
+            <h2>Θέμα Εμφάνισης</h2>
+            <p>Στην τρίτη ενότητα μπορείς να αλλάξεις το θέμα του προγράμματος:</p>
+
+            <h3>Επιλογές Θέματος</h3>
+            <ul>
+                <li><strong>Φωτεινό:</strong> Άσπρο φόντο με μαύρα γράμματα (προεπιλογή)</li>
+                <li><strong>Σκοτεινό:</strong> Μαύρο φόντο με άσπρα γράμματα (για τη νύχτα ή για να μην κουράζονται τα μάτια)</li>
+                <li><strong>Αυτόματο:</strong> Αλλάζει αυτόματα ανάλογα με την ώρα (σκοτεινό τη νύχτα, φωτεινό τη μέρα)</li>
+            </ul>
+
+            <div class="step">
+                <h3>Πώς να αλλάξω θέμα;</h3>
+                <p>Επίλεξε ένα από τα 3 κουμπιά και το θέμα θα αλλάξει αμέσως!</p>
+            </div>
+
+            <h2>Backup & Επαναφορά</h2>
+            <p>Η πιο σημαντική ενότητα! Εδώ κάνεις backup όλων των δεδομένων σου για να μην τα χάσεις ποτέ!</p>
+
+            <h3>Τι είναι το Backup;</h3>
+            <p>Το <strong>backup</strong> είναι ένα αντίγραφο ασφαλείας όλων των δεδομένων σου (πελάτες, εργασίες, προσωπικό κ.λπ.). Αν χαλάσει ο υπολογιστής σου ή διαγράψεις κάτι κατά λάθος, μπορείς να επαναφέρεις το backup και να πάρεις πίσω όλα τα δεδομένα!</p>
+
+            <h3>Πώς να κάνω Backup;</h3>
+            
+            <div class="step">
+                <span class="step-number">1</span>
+                <h3>Πάτα «📥 Εξαγωγή Backup»</h3>
+                <p>Θα κατέβει ένα αρχείο <code>backup_2024-12-20.json</code> (με την τρέχουσα ημερομηνία) στον υπολογιστή σου.</p>
+            </div>
+
+            <div class="step">
+                <span class="step-number">2</span>
+                <h3>Αποθήκευσε το αρχείο σε ασφαλές μέρος</h3>
+                <p>Κράτησε το αρχείο σε ασφαλές μέρος (π.χ. Google Drive, USB, εξωτερικό σκληρό δίσκο).</p>
+            </div>
+
+            <div class="info-box warning">
+                <h4>⚠️ Πολύ Σημαντικό!</h4>
+                <p>Κάνε backup <strong>τακτικά</strong> (π.χ. κάθε εβδομάδα ή κάθε μήνα)! Αν χάσεις τα δεδομένα σου και δεν έχεις backup, θα χάσεις ΟΛΗ τη δουλειά σου!</p>
+            </div>
+
+            <h3>Πώς να επαναφέρω Backup;</h3>
+            
+            <div class="step">
+                <span class="step-number">1</span>
+                <h3>Πάτα «📤 Εισαγωγή Backup»</h3>
+                <p>Θα ανοίξει ένα παράθυρο για να επιλέξεις αρχείο.</p>
+            </div>
+
+            <div class="step">
+                <span class="step-number">2</span>
+                <h3>Επίλεξε το αρχείο backup</h3>
+                <p>Βρες το αρχείο <code>.json</code> που είχες κατεβάσει και επίλεξέ το.</p>
+            </div>
+
+            <div class="step">
+                <span class="step-number">3</span>
+                <h3>Επιβεβαίωση</h3>
+                <p>Το πρόγραμμα θα σε προειδοποιήσει ότι <strong>θα διαγραφούν όλα τα τρέχοντα δεδομένα</strong> και θα αντικατασταθούν με το backup. Πάτα <strong>ΟΚ</strong> αν είσαι σίγουρος.</p>
+            </div>
+
+            <div class="info-box danger">
+                <h4>🚨 ΠΡΟΣΟΧΗ!</h4>
+                <p>Η επαναφορά backup <strong>διαγράφει όλα τα τρέχοντα δεδομένα</strong> και τα αντικαθιστά με το backup! Κάνε το μόνο αν είσαι σίγουρος!</p>
+            </div>
+
+            <h2>Εξαγωγή σε Excel</h2>
+            <p>Εκτός από το backup, μπορείς να εξάγεις όλα τα δεδομένα σε ένα <strong>αρχείο Excel</strong>!</p>
+
+            <div class="step">
+                <span class="step-number">1</span>
+                <h3>Πάτα «📊 Εξαγωγή σε Excel»</h3>
+                <p>Θα κατέβει ένα αρχείο <code>Οργανωτής_Βαφέα_YYYY-MM-DD.xlsx</code>.</p>
+            </div>
+
+            <div class="step">
+                <span class="step-number">2</span>
+                <h3>Άνοιξε το αρχείο στο Excel</h3>
+                <p>Θα δεις πολλά φύλλα (sheets) με όλα τα δεδομένα σου: Εργασίες, Πελάτες, Προσωπικό, Επισκέψεις κ.λπ.</p>
+            </div>
+
+            <div class="info-box">
+                <h4>💡 Γιατί να εξάγω σε Excel;</h4>
+                <ul>
+                    <li>Για να εκτυπώσεις λίστες</li>
+                    <li>Για να κάνεις δικές σου αναλύσεις</li>
+                    <li>Για να στείλεις δεδομένα στον λογιστή σου</li>
+                    <li>Για να έχεις ένα αντίγραφο σε αναγνώσιμη μορφή</li>
+                </ul>
+            </div>
+
+            <h2>Επαναφορά στις Προεπιλογές</h2>
+            <p>Αν θέλεις να επαναφέρεις τις ρυθμίσεις στις αρχικές τιμές:</p>
+
+            <div class="step">
+                <h3>Πάτα «🔄 Επαναφορά Προεπιλογών»</h3>
+                <p>Οι ρυθμίσεις τιμολόγησης θα επιστρέψουν στις αρχικές τιμές (25€/ώρα, 24% ΦΠΑ, 0.50€/km).</p>
+            </div>
+
+            <div class="info-box warning">
+                <h4>⚠️ Προσοχή</h4>
+                <p>Η επαναφορά προεπιλογών <strong>ΔΕΝ</strong> διαγράφει τα δεδομένα σου (πελάτες, εργασίες κ.λπ.)! Επαναφέρει μόνο τις ρυθμίσεις!</p>
+            </div>
+
+            <h2>Συχνές Ερωτήσεις</h2>
+
+            <h3>Πόσο συχνά να κάνω backup;</h3>
+            <p>Κάνε backup <strong>τουλάχιστον μία φορά την εβδομάδα</strong>. Αν δουλεύεις πολύ, κάνε backup κάθε μέρα!</p>
+
+            <h3>Που να αποθηκεύω τα backup;</h3>
+            <p>Κράτα τα backup σε <strong>2 διαφορετικά μέρη</strong>:</p>
+            <ul>
+                <li>Στον υπολογιστή σου (σε ξεχωριστό φάκελο)</li>
+                <li>Σε cloud (Google Drive, Dropbox) ή σε USB</li>
+            </ul>
+
+            <h3>Μπορώ να ανοίξω το backup σε άλλο υπολογιστή;</h3>
+            <p>Ναι! Άνοιξε το πρόγραμμα στον άλλο υπολογιστή, πήγαινε στις Ρυθμίσεις και επανάφερε το backup. Όλα τα δεδομένα σου θα εμφανιστούν!</p>
+
+            <h3>Τι θα γίνει αν αλλάξω την Ωριαία Αμοιβή;</h3>
+            <p>Η νέα τιμή θα χρησιμοποιείται μόνο στις <strong>νέες εργασίες</strong>. Οι παλιές εργασίες δεν θα αλλάξουν!</p>
+
+            <h2>Συμβουλές για τις Ρυθμίσεις</h2>
+            <ul>
+                <li>💡 Συμπλήρωσε τα στοιχεία επιχείρησης από την πρώτη μέρα!</li>
+                <li>💡 Κάνε backup κάθε Παρασκευή απόγευμα πριν κλείσεις τον υπολογιστή!</li>
+                <li>💡 Δοκίμασε το σκοτεινό θέμα αν δουλεύεις τη νύχτα - είναι πιο ξεκούραστο για τα μάτια!</li>
+                <li>💡 Αν αυξάνεις τις τιμές σου, άλλαξε την Ωριαία Αμοιβή για να μην το ξεχνάς!</li>
+                <li>💡 Εξάγε σε Excel κάθε μήνα για να έχεις αρχείο των εργασιών σου!</li>
+            </ul>
+
+            <div class="info-box success">
+                <h4>🎉 Συγχαρητήρια!</h4>
+                <p>Τελείωσες τον οδηγό χρήσης! Τώρα ξέρεις όλα όσα χρειάζεσαι για να χρησιμοποιείς το «Οργανωτής Βαφέα Pro» σαν επαγγελματίας!</p>
+            </div>
+
+            <div class="page-nav">
+                <a href="07-statistika.html" class="btn-back">← Πίσω: Στατιστικά</a>
+                <a href="help.html" class="btn-next">Πίσω στην Αρχική →</a>
+            </div>
+        </div>
+    </main>
+
+    <script src="help-sidebar.js"></script>
+</body>
+</html>

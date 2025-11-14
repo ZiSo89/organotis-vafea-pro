@@ -253,19 +253,94 @@ window.StatisticsView = {
       // Convert year to string for SQL comparison
       const yearString = String(this.currentYear);
       
-      // Summary
-      console.log('📊 Fetching summary for year:', yearString);
-      const jobs = await window.electronAPI.db.query(`
-        SELECT 
-          COUNT(*) as total_jobs,
-          SUM(CASE WHEN status = 'Εξοφλήθηκε' OR is_paid = 1 THEN 1 ELSE 0 END) as completed_jobs,
-          SUM(CASE WHEN status = 'Εξοφλήθηκε' OR is_paid = 1 THEN total_cost ELSE 0 END) as total_revenue,
-          SUM(CASE WHEN status = 'Εξοφλήθηκε' OR is_paid = 1 THEN (total_cost - materials_cost) ELSE 0 END) as total_profit
-        FROM jobs 
+      // Fetch detailed jobs for the year (only completed/paid jobs considered for revenue/profit)
+      console.log('📊 Fetching jobs for year (detailed) :', yearString);
+      const jobsRows = await window.electronAPI.db.query(`
+        SELECT * FROM jobs
         WHERE strftime('%Y', date) = ?
+        AND (status = 'Ολοκληρώθηκε' OR status = 'Εξοφλήθηκε' OR is_paid = 1)
       `, [yearString]);
-      
-      console.log('📊 Summary results:', jobs[0]);
+
+      console.log('📊 Retrieved jobs count:', jobsRows.length);
+
+      // Aggregate totals and monthly revenue/profit using same logic as JobsView/Dashboard
+      const parseNumber = (v) => {
+        const n = parseFloat(v);
+        return Number.isFinite(n) ? n : 0;
+      };
+
+      let totalRevenue = 0;
+      let totalProfit = 0;
+      let totalJobs = jobsRows.length;
+      let completedJobs = jobsRows.length; // since filter includes completed/paid
+
+      const monthlyAgg = Array.from({ length: 12 }, (_, i) => ({ month: String(i + 1).padStart(2, '0'), revenue: 0, profit: 0 }));
+
+      jobsRows.forEach(j => {
+        // Reconstruct billing amount (without VAT)
+        let billingAmount = parseNumber(j.billingAmount || j.billing_amount);
+        if (!billingAmount) {
+          const hours = parseNumber(j.billingHours || j.billing_hours);
+          const rate = parseNumber(j.billingRate || j.billing_rate);
+          if (hours && rate) billingAmount = hours * rate;
+        }
+        if (!billingAmount) {
+          const totalCost = parseNumber(j.totalCost || j.total_cost);
+          const vat = parseNumber(j.vat);
+          if (totalCost && vat >= 0) {
+            const denom = 1 + (vat / 100);
+            billingAmount = denom > 0 ? (totalCost / denom) : totalCost;
+          } else {
+            billingAmount = totalCost;
+          }
+        }
+
+        const materialsCost = parseNumber(j.materialsCost || j.materials_cost);
+        const kilometers = parseNumber(j.kilometers || j.km || 0);
+        const costPerKm = parseNumber(j.costPerKm || j.cost_per_km || j.travelCost || j.travel_cost || 0.5);
+        const travelCost = kilometers * costPerKm;
+
+        // Parse assignedWorkers JSON for labor cost if present
+        let laborCost = 0;
+        let assignedWorkers = j.assignedWorkers || j.assigned_workers || j.workers || null;
+        try {
+          if (typeof assignedWorkers === 'string' && assignedWorkers) assignedWorkers = JSON.parse(assignedWorkers);
+        } catch (e) {
+          assignedWorkers = [];
+        }
+        if (Array.isArray(assignedWorkers)) {
+          laborCost = assignedWorkers.reduce((s, w) => s + parseNumber(w.laborCost || w.labor_cost || w.cost || 0), 0);
+        }
+
+        const totalExpenses = materialsCost + laborCost + travelCost;
+        const profit = billingAmount - totalExpenses; // WITHOUT VAT
+
+        // Add to totals
+        totalRevenue += billingAmount;
+        totalProfit += profit;
+
+        // Monthly aggregation based on job.date or job.nextVisit? Use job.date
+        const dt = new Date(j.date);
+        if (!isNaN(dt)) {
+          const m = dt.getMonth();
+          monthlyAgg[m].revenue += billingAmount;
+          monthlyAgg[m].profit += profit;
+        }
+      });
+
+      // Prepare data arrays for charts (month, revenue, profit)
+      const revenueByMonth = monthlyAgg.map(m => ({ month: m.month, revenue: m.revenue, profit: m.profit }));
+
+      // Update summary cards using aggregated values
+      this.updateSummaryCards({
+        total_revenue: totalRevenue,
+        total_profit: totalProfit,
+        total_jobs: totalJobs,
+        completed_jobs: completedJobs
+      });
+
+      // Use aggregated monthly data for revenue chart
+      this.createRevenueChart(revenueByMonth);
       
 
 
@@ -438,20 +513,22 @@ window.StatisticsView = {
     const totalJobsEl = document.getElementById('totalJobs');
     const completedJobsEl = document.getElementById('completedJobs');
     
-    // Support both camelCase (from Electron/SQLite) and snake_case (from API)
-    const totalRevenue = data.totalRevenue || data.total_revenue || 0;
-    const totalProfit = data.totalProfit || data.total_profit || 0;
+    // Prefer server-side computed billing_without_vat / net_profit if available (backward-compatible)
+    const totalRevenue = data.billing_without_vat ?? data.totalRevenue ?? data.total_revenue ?? 0;
+    const totalProfit = data.net_profit ?? data.totalProfit ?? data.total_profit ?? 0;
     const totalJobs = data.totalJobs || data.total_jobs || 0;
     const completedJobs = data.completedJobs || data.completed_jobs || 0;
     
     console.log('💰 Summary values:', { totalRevenue, totalProfit, totalJobs, completedJobs });
     
     if (totalRevenueEl) {
-      totalRevenueEl.textContent = `€${totalRevenue.toLocaleString('el-GR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
+      totalRevenueEl.textContent = `€${Number(totalRevenue).toLocaleString('el-GR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
     }
     
     if (totalProfitEl) {
-      totalProfitEl.textContent = `€${totalProfit.toLocaleString('el-GR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
+      const sign = Number(totalProfit) >= 0 ? '+' : '';
+      totalProfitEl.textContent = `${sign}€${Math.abs(Number(totalProfit)).toLocaleString('el-GR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
+      totalProfitEl.style.color = Number(totalProfit) >= 0 ? getComputedStyle(document.documentElement).getPropertyValue('--success').trim() : getComputedStyle(document.documentElement).getPropertyValue('--error').trim();
     }
     
     if (totalJobsEl) {

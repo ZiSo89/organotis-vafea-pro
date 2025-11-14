@@ -17,6 +17,70 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') exit(0);
 $db = getDBConnection();
 $method = $_SERVER['REQUEST_METHOD'];
 
+// Helper: compute job-level financials (billing WITHOUT VAT, net profit)
+function compute_job_financials_job($job) {
+    $toFloat = function($v) {
+        if ($v === null || $v === '') return 0.0;
+        return (float)$v;
+    };
+
+    $billing = 0.0;
+    if (isset($job['billing_amount'])) $billing = $toFloat($job['billing_amount']);
+    if ($billing == 0.0 && isset($job['billingAmount'])) $billing = $toFloat($job['billingAmount']);
+
+    if ($billing == 0.0) {
+        $hours = $toFloat($job['billing_hours'] ?? $job['billingHours'] ?? 0);
+        $rate = $toFloat($job['billing_rate'] ?? $job['billingRate'] ?? 0);
+        if ($hours > 0 && $rate > 0) $billing = $hours * $rate;
+    }
+
+    if ($billing == 0.0) {
+        $total_cost = $toFloat($job['total_cost'] ?? $job['totalCost'] ?? 0);
+        $vat = $toFloat($job['vat'] ?? 0);
+        if ($total_cost > 0) {
+            if ($vat > 0) {
+                $denom = 1 + ($vat/100.0);
+                if ($denom > 0) $billing = $total_cost / $denom;
+                else $billing = $total_cost;
+            } else {
+                $billing = $total_cost;
+            }
+        }
+    }
+
+    $materials = $toFloat($job['materials_cost'] ?? $job['materialsCost'] ?? 0);
+    $kilometers = $toFloat($job['kilometers'] ?? $job['km'] ?? 0);
+    $cost_per_km = $toFloat($job['cost_per_km'] ?? $job['costPerKm'] ?? $job['travel_cost'] ?? 0.5);
+    $travel = $kilometers * $cost_per_km;
+
+    // parse assigned workers
+    $labor = 0.0;
+    $assigned = $job['assigned_workers'] ?? $job['assignedWorkers'] ?? $job['workers'] ?? null;
+    $decoded = null;
+    if ($assigned) {
+        if (is_string($assigned)) {
+            $decoded = json_decode($assigned, true);
+            if ($decoded !== null && !is_array($decoded) && is_string($decoded)) {
+                $decoded2 = json_decode($decoded, true);
+                if (is_array($decoded2)) $decoded = $decoded2;
+            }
+        } elseif (is_array($assigned)) {
+            $decoded = $assigned;
+        }
+
+        if (is_array($decoded)) {
+            foreach ($decoded as $w) {
+                $labor += $toFloat($w['labor_cost'] ?? $w['laborCost'] ?? $w['cost'] ?? 0);
+            }
+        }
+    }
+
+    $expenses = $materials + $labor + $travel;
+    $profit = $billing - $expenses;
+
+    return ['billing' => $billing, 'materials' => $materials, 'labor' => $labor, 'travel' => $travel, 'expenses' => $expenses, 'profit' => $profit];
+}
+
 try {
     switch ($method) {
         case 'GET':
@@ -30,6 +94,10 @@ try {
                     if (isset($job['coordinates'])) $job['coordinates'] = json_decode($job['coordinates'], true);
                     if (isset($job['assignedWorkers'])) $job['assignedWorkers'] = json_decode($job['assignedWorkers'], true);
                     if (isset($job['paints'])) $job['paints'] = json_decode($job['paints'], true);
+                    // Add computed financials
+                    $fin = compute_job_financials_job($job);
+                    $job['billing_without_vat'] = (float)$fin['billing'];
+                    $job['net_profit'] = (float)$fin['profit'];
                     sendSuccess($job);
                 } else {
                     sendError('Η εργασία δεν βρέθηκε', 404);
@@ -49,6 +117,10 @@ try {
                     if (isset($job['coordinates'])) $job['coordinates'] = json_decode($job['coordinates'], true);
                     if (isset($job['assignedWorkers'])) $job['assignedWorkers'] = json_decode($job['assignedWorkers'], true);
                     if (isset($job['paints'])) $job['paints'] = json_decode($job['paints'], true);
+                    // Add computed financials
+                    $fin = compute_job_financials_job($job);
+                    $job['billing_without_vat'] = (float)$fin['billing'];
+                    $job['net_profit'] = (float)$fin['profit'];
                     return $job;
                 }, $stmt->fetchAll());
                 sendSuccess($jobs);

@@ -56,7 +56,15 @@ const Router = {
     const view = this.routes[routeName];
     
     if (!view) {
-      this.navigate('dashboard');
+      const fallback = 'dashboard';
+      if (routeName === fallback) {
+        console.warn('Route not found and fallback unavailable:', routeName);
+        return;
+      }
+      // Set hash to trigger a single navigation (avoids recursive calls)
+      if (window.location.hash.slice(1) !== fallback) {
+        window.location.hash = fallback;
+      }
       return;
     }
 

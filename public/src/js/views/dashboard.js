@@ -52,7 +52,7 @@ window.DashboardView = {
           <div class="widget-compact">
             <div class="widget-content">
               <div class="widget-title">Καθαρά Κέρδη Μήνα</div>
-              <div class="widget-value" style="color: ${stats.monthlyProfit >= 0 ? 'var(--success)' : 'var(--error)'}">
+              <div id="monthlyProfitValue" class="widget-value" style="color: ${stats.monthlyProfit >= 0 ? 'var(--success)' : 'var(--error)'}">
                 ${stats.monthlyProfit >= 0 ? '+' : ''}${Utils.formatCurrency(stats.monthlyProfit)}
               </div>
               <div class="widget-footer">${stats.completedThisMonth} ολοκληρωμένες</div>
@@ -65,7 +65,7 @@ window.DashboardView = {
           <div class="widget-compact">
             <div class="widget-content">
               <div class="widget-title">Έσοδα Μήνα</div>
-              <div class="widget-value">${Utils.formatCurrency(stats.monthlyRevenue)}</div>
+              <div id="monthlyRevenueValue" class="widget-value">${Utils.formatCurrency(stats.monthlyRevenue)}</div>
               <div class="widget-footer">${stats.completedThisMonth} εργασίες</div>
             </div>
             <div class="widget-icon primary">
@@ -155,6 +155,10 @@ window.DashboardView = {
     
     // Initialize dashboard map
     this.initDashboardMap();
+    // Fetch server-side aggregates (if available) and update displayed widgets
+    if (typeof this.fetchServerStats === 'function') {
+      this.fetchServerStats();
+    }
   },
 
   setupActivityListeners(container) {
@@ -199,40 +203,84 @@ window.DashboardView = {
              jobDate.getFullYear() === thisYear;
     });
 
+    // Calculate monthly revenue and profit using billing amount WITHOUT VAT.
+    // Consider only jobs with status 'Ολοκληρώθηκε' or 'Εξοφλήθηκε' (already filtered into monthlyJobs).
+    const parseNumber = (v) => {
+      const n = parseFloat(v);
+      return Number.isFinite(n) ? n : 0;
+    };
+
     const monthlyRevenue = monthlyJobs.reduce((total, j) => {
-      const cost = parseFloat(j.totalCost || j.total_cost || 0);
-      console.log('💰 Adding job cost to monthly revenue:', cost, 'from job:', j.id);
-      return total + cost;
+      // Prefer explicit billing fields
+      let billingAmount = parseNumber(j.billingAmount || j.billing_amount);
+
+      // Fallback: hours * rate
+      if (!billingAmount) {
+        const hours = parseNumber(j.billingHours || j.billing_hours);
+        const rate = parseNumber(j.billingRate || j.billing_rate);
+        if (hours && rate) billingAmount = hours * rate;
+      }
+
+      // Fallback: totalCost without VAT (if vat present)
+      if (!billingAmount) {
+        const totalCost = parseNumber(j.totalCost || j.total_cost);
+        const vat = parseNumber(j.vat);
+        if (totalCost && vat >= 0) {
+          const denom = 1 + (vat / 100);
+          billingAmount = denom > 0 ? (totalCost / denom) : totalCost;
+        } else {
+          billingAmount = totalCost;
+        }
+      }
+
+      console.log('💰 Adding job billing (χωρίς ΦΠΑ) to monthly revenue:', billingAmount, 'from job:', j.id);
+      return total + billingAmount;
     }, 0);
 
-    // Calculate monthly profit (revenue - expenses)
     const monthlyProfit = monthlyJobs.reduce((total, j) => {
-      const cost = parseFloat(j.totalCost || j.total_cost || 0);
-      const materialsCost = parseFloat(j.materialsCost || j.materials_cost || 0);
-      const kilometers = parseFloat(j.kilometers || 0);
-      const costPerKm = parseFloat(j.costPerKm || j.cost_per_km || 0.5);
+      let billingAmount = parseNumber(j.billingAmount || j.billing_amount);
+      if (!billingAmount) {
+        const hours = parseNumber(j.billingHours || j.billing_hours);
+        const rate = parseNumber(j.billingRate || j.billing_rate);
+        if (hours && rate) billingAmount = hours * rate;
+      }
+      if (!billingAmount) {
+        const totalCost = parseNumber(j.totalCost || j.total_cost);
+        const vat = parseNumber(j.vat);
+        if (totalCost && vat >= 0) {
+          const denom = 1 + (vat / 100);
+          billingAmount = denom > 0 ? (totalCost / denom) : totalCost;
+        } else {
+          billingAmount = totalCost || 0;
+        }
+      }
+
+      const materialsCost = parseNumber(j.materialsCost || j.materials_cost);
+      const kilometers = parseNumber(j.kilometers || 0);
+      const costPerKm = parseNumber(j.costPerKm || j.cost_per_km || 0.5);
       const travelCost = kilometers * costPerKm;
-      
+
       // Parse assignedWorkers for labor cost
       let laborCost = 0;
       let assignedWorkers = j.assignedWorkers || j.assigned_workers;
-      if (typeof assignedWorkers === 'string') {
-        try {
-          assignedWorkers = JSON.parse(assignedWorkers);
-        } catch (e) {
-          assignedWorkers = [];
-        }
+      try {
+        if (typeof assignedWorkers === 'string' && assignedWorkers) assignedWorkers = JSON.parse(assignedWorkers);
+      } catch (e) {
+        assignedWorkers = [];
       }
       if (Array.isArray(assignedWorkers)) {
-        laborCost = assignedWorkers.reduce((sum, w) => sum + (parseFloat(w.laborCost || w.labor_cost || 0)), 0);
+        laborCost = assignedWorkers.reduce((s, w) => s + parseNumber(w.laborCost || w.labor_cost || 0), 0);
       }
-      
+
       const totalExpenses = materialsCost + laborCost + travelCost;
-      const profit = cost - totalExpenses;
-      
-      console.log('📈 Job', j.id, 'profit:', profit, '(revenue:', cost, '- expenses:', totalExpenses, ')');
+      const profit = billingAmount - totalExpenses; // profit WITHOUT VAT (consistent with Jobs view)
+
+      console.log('📈 Job', j.id, 'profit (χωρίς ΦΠΑ):', profit, '(revenue:', billingAmount, '- expenses:', totalExpenses, ')');
       return total + profit;
     }, 0);
+
+    // NOTE: removed older fallback monthlyProfit calculation to avoid duplicate declaration.
+    // The `monthlyProfit` above (using billing without VAT minus expenses) is the canonical value.
 
     const stats = {
       totalJobs: jobs.length,
@@ -271,6 +319,37 @@ window.DashboardView = {
       breakdown[status] = jobs.filter(j => j.status === status).length;
     });
     return breakdown;
+  },
+
+  async fetchServerStats() {
+    try {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+
+      const resp = await fetch(`/api/statistics.php?action=revenue&year=${year}`);
+      if (!resp.ok) return;
+      const json = await resp.json();
+      if (!json || !json.success) return;
+
+      const monthRow = (json.data || []).find(r => String(r.month) === month);
+      if (!monthRow) return;
+
+      // revenue: prefer billing_without_vat, else revenue
+      const billing = Number(monthRow.billing_without_vat ?? monthRow.revenue ?? 0);
+      const net = Number(monthRow.net_profit ?? monthRow.profit ?? 0);
+
+      const revEl = document.getElementById('monthlyRevenueValue');
+      const profEl = document.getElementById('monthlyProfitValue');
+      if (revEl) revEl.textContent = Utils.formatCurrency(billing);
+      if (profEl) {
+        profEl.textContent = (net >= 0 ? '+' : '') + Utils.formatCurrency(net);
+        profEl.style.color = net >= 0 ? getComputedStyle(document.documentElement).getPropertyValue('--success').trim() : getComputedStyle(document.documentElement).getPropertyValue('--error').trim();
+      }
+    } catch (e) {
+      // ignore network errors
+      console.debug('fetchServerStats error', e);
+    }
   },
 
   renderRecentActivities() {
