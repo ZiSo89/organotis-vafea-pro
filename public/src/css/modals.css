@@ -19,6 +19,34 @@
   display: flex;
 }
 
+/* ========================================
+   Flatpickr Time Picker Custom Styling
+   ======================================== */
+.flatpickr-calendar {
+  z-index: 99999 !important; /* Πάνω από modal */
+}
+
+.flatpickr-time input {
+  font-size: 16px !important; /* Αποφυγή zoom στο mobile */
+}
+
+.flatpickr-time .numInput {
+  background: var(--color-surface, #fff) !important;
+  color: var(--color-text, #333) !important;
+  border-color: var(--color-border, #ddd) !important;
+}
+
+.flatpickr-time .numInput:hover,
+.flatpickr-time .numInput:focus {
+  background: var(--color-background, #f5f5f5) !important;
+  border-color: var(--color-primary, #3b82f6) !important;
+}
+
+.flatpickr-am-pm {
+  display: none; /* Κρύψε AM/PM αφού χρησιμοποιούμε 24h */
+}
+
+
 .modal-backdrop {
   position: absolute;
   top: 0;
@@ -340,4 +368,38 @@
   .detail-item.span-2 {
     grid-column: span 1;
   }
+}
+
+/* ========================================
+   Custom scrollbar για όλα τα dropdowns
+   ======================================== */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-background);
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--color-primary), var(--color-primary-dark));
+  border-radius: 5px;
+  border: 2px solid var(--color-background);
+  transition: background 0.3s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, var(--color-primary-dark), #1e40af);
+}
+
+::-webkit-scrollbar-thumb:active {
+  background: var(--color-primary-dark);
+}
+
+/* Firefox scrollbar styling */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-primary) var(--color-background);
 }

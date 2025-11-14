@@ -4,6 +4,18 @@
  * Έλεγχος authentication για API endpoints
  */
 
+// Disable error display to prevent HTML in JSON response
+error_reporting(E_ALL);
+ini_set('display_errors', '0');
+ini_set('log_errors', '1');
+
+// Log errors to file
+$logDir = __DIR__ . '/../logs';
+if (!is_dir($logDir)) {
+    @mkdir($logDir, 0755, true);
+}
+ini_set('error_log', $logDir . '/php_errors.log');
+
 session_start();
 
 // Sync API key for Electron offline sync

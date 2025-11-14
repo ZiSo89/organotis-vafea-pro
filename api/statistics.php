@@ -40,6 +40,7 @@ try {
                     FROM jobs
                     WHERE start_date IS NOT NULL
                         AND YEAR(start_date) = :year
+                        AND (status = 'Εξοφλήθηκε' OR is_paid = 1)
                     GROUP BY YEAR(start_date), MONTH(start_date)
                     ORDER BY year, month
                 ");
@@ -78,6 +79,7 @@ try {
                         SUM(total_cost - materials_cost) as profit
                     FROM jobs
                     WHERE start_date IS NOT NULL
+                        AND (status = 'Εξοφλήθηκε' OR is_paid = 1)
                     GROUP BY YEAR(start_date)
                     ORDER BY year DESC
                 ");
@@ -106,7 +108,7 @@ try {
                         SUM(total_cost) as revenue,
                         SUM(total_cost - materials_cost) as profit
                     FROM jobs
-                    WHERE 1=1
+                    WHERE (status = 'Εξοφλήθηκε' OR is_paid = 1)
                 ";
                 
                 if ($year) {
@@ -155,6 +157,7 @@ try {
                     FROM jobs j
                     LEFT JOIN clients c ON j.client_id = c.id
                     WHERE j.total_cost > 0
+                        AND (j.status = 'Εξοφλήθηκε' OR j.is_paid = 1)
                 ";
                 
                 if ($year) {
@@ -200,7 +203,7 @@ try {
                     FROM job_materials jm
                     INNER JOIN materials m ON jm.material_id = m.id
                     INNER JOIN jobs j ON jm.job_id = j.id
-                    WHERE 1=1
+                    WHERE (j.status = 'Εξοφλήθηκε' OR j.is_paid = 1)
                 ";
                 
                 if ($year) {
@@ -229,6 +232,7 @@ try {
                         WHERE j.paints IS NOT NULL 
                             AND j.paints != '[]'
                             AND j.paints != ''
+                            AND (j.status = 'Εξοφλήθηκε' OR j.is_paid = 1)
                     ";
                     
                     if ($year) {
@@ -368,17 +372,17 @@ try {
             case 'summary':
                 $year = $_GET['year'] ?? date('Y');
                 
-                // Συνολικά στατιστικά
+                // Συνολικά στατιστικά - μόνο εξοφλημένες
                 $stmt = $pdo->prepare("
                     SELECT 
                         COUNT(*) as total_jobs,
-                        SUM(CASE WHEN LOWER(status) LIKE '%ολοκληρ%' OR LOWER(status) = 'completed' THEN 1 ELSE 0 END) as completed_jobs,
+                        SUM(CASE WHEN status = 'Εξοφλήθηκε' OR is_paid = 1 THEN 1 ELSE 0 END) as completed_jobs,
                         SUM(CASE WHEN LOWER(status) LIKE '%εξέλιξη%' OR LOWER(status) LIKE '%progress%' THEN 1 ELSE 0 END) as in_progress_jobs,
                         SUM(CASE WHEN LOWER(status) LIKE '%εκκρεμ%' OR LOWER(status) = 'pending' OR LOWER(status) LIKE '%υποψ%' THEN 1 ELSE 0 END) as pending_jobs,
-                        SUM(total_cost) as total_revenue,
-                        SUM(materials_cost) as total_materials_cost,
-                        SUM(total_cost - materials_cost) as total_profit,
-                        AVG(total_cost) as avg_job_cost
+                        SUM(CASE WHEN status = 'Εξοφλήθηκε' OR is_paid = 1 THEN total_cost ELSE 0 END) as total_revenue,
+                        SUM(CASE WHEN status = 'Εξοφλήθηκε' OR is_paid = 1 THEN materials_cost ELSE 0 END) as total_materials_cost,
+                        SUM(CASE WHEN status = 'Εξοφλήθηκε' OR is_paid = 1 THEN (total_cost - materials_cost) ELSE 0 END) as total_profit,
+                        AVG(CASE WHEN status = 'Εξοφλήθηκε' OR is_paid = 1 THEN total_cost ELSE NULL END) as avg_job_cost
                     FROM jobs
                     WHERE YEAR(start_date) = :year
                 ");

@@ -520,12 +520,45 @@ window.JobsView = {
               <th>Κατάσταση</th>
               <th>Επόμ. Επίσκ.</th>
               <th>Σύνολο</th>
+              <th>Καθαρό Κέρδος</th>
               <th style="text-align: right;">Ενέργειες</th>
             </tr>
           </thead>
           <tbody>
           ${sortedJobs.map(job => {
             const clientName = this.getClientName(job.clientId);
+            
+            // Υπολογισμός καθαρού κέρδους - Support both naming conventions
+            let assignedWorkers = [];
+            try {
+              assignedWorkers = typeof job.assignedWorkers === 'string' 
+                ? JSON.parse(job.assignedWorkers) 
+                : (job.assignedWorkers || job.assigned_workers || []);
+              if (typeof assignedWorkers === 'string') {
+                assignedWorkers = JSON.parse(assignedWorkers);
+              }
+              if (!Array.isArray(assignedWorkers)) {
+                assignedWorkers = [];
+              }
+            } catch (e) {
+              assignedWorkers = [];
+            }
+            
+            const laborCost = assignedWorkers.reduce((sum, w) => sum + (parseFloat(w.laborCost || w.labor_cost || 0)), 0);
+            const materialsCost = parseFloat(job.materialsCost || job.materials_cost || 0);
+            const kilometers = parseFloat(job.kilometers || 0);
+            const costPerKm = parseFloat(job.costPerKm || job.cost_per_km || 0.5);
+            const travelCost = kilometers * costPerKm;
+            const totalExpenses = materialsCost + laborCost + travelCost;
+            
+            const billingHours = parseFloat(job.billingHours || job.billing_hours || 0);
+            const billingRate = parseFloat(job.billingRate || job.billing_rate || 50);
+            const billingAmount = billingHours * billingRate;
+            const profit = billingAmount - totalExpenses;
+            
+            const profitColor = profit >= 0 ? 'var(--success)' : 'var(--error)';
+            const profitSign = profit >= 0 ? '+' : '';
+            
             return `
             <tr>
               <td title="${Utils.formatDate(job.date)}">${Utils.formatDate(job.date)}</td>
@@ -533,7 +566,8 @@ window.JobsView = {
               <td title="${job.type || '-'}">${job.type || '-'}</td>
               <td><span class="status-pill status-${job.status?.toLowerCase().replace(/\s+/g, '-')}">${Utils.translateStatus(job.status)}</span></td>
               <td>${job.nextVisit ? `<strong style="color: var(--accent-primary);" title="${Utils.formatDate(job.nextVisit)}">${Utils.formatDate(job.nextVisit)}</strong>` : '-'}</td>
-              <td title="${Utils.formatCurrency(job.totalCost || 0)}"><strong>${Utils.formatCurrency(job.totalCost || 0)}</strong></td>
+              <td title="${Utils.formatCurrency(job.totalCost || job.total_cost || 0)}"><strong>${Utils.formatCurrency(job.totalCost || job.total_cost || 0)}</strong></td>
+              <td title="Κέρδος: ${Utils.formatCurrency(profit)}"><strong style="color: ${profitColor};">${profitSign}${Utils.formatCurrency(profit)}</strong></td>
               <td class="actions">
                 <button class="btn-icon view-job-btn" data-job-id="${job.id}" title="Προβολή">
                   <i class="fas fa-eye"></i>
@@ -786,6 +820,9 @@ window.JobsView = {
     // materialsCost, kilometers, costPerKm, vat are already in jobData
     jobData.totalCost = totalCharge;
     
+    // Update is_paid based on status
+    jobData.isPaid = jobStatus === 'Εξοφλήθηκε' ? 1 : 0;
+    
     // These are calculated values - don't save to DB:
     // workerHours, laborCost, travelCost, totalExpenses, billingAmount, vatAmount, profit
 
@@ -858,20 +895,37 @@ window.JobsView = {
       console.error('[Jobs] Error parsing workers/paints in viewJob:', error);
     }
     
-    const laborCost = assignedWorkers.reduce((sum, w) => sum + (w.laborCost || 0), 0);
-    const materialsCost = job.materialsCost || 0;
-    const kilometers = job.kilometers || 0;
-    const costPerKm = job.costPerKm || 0.5;
+    // Support both camelCase and snake_case from database
+    const laborCost = assignedWorkers.reduce((sum, w) => sum + (parseFloat(w.laborCost || w.labor_cost || 0)), 0);
+    const materialsCost = parseFloat(job.materialsCost || job.materials_cost || 0);
+    const kilometers = parseFloat(job.kilometers || 0);
+    const costPerKm = parseFloat(job.costPerKm || job.cost_per_km || 0.5);
     const travelCost = kilometers * costPerKm;
     const totalExpenses = materialsCost + laborCost + travelCost;
     
-    const billingHours = job.billingHours || 0;
-    const billingRate = job.billingRate || 50;
+    const billingHours = parseFloat(job.billingHours || job.billing_hours || 0);
+    const billingRate = parseFloat(job.billingRate || job.billing_rate || 50);
     const billingAmount = billingHours * billingRate;
-    const vat = job.vat || 24;
+    const vat = parseFloat(job.vat || 24);
     const vatAmount = billingAmount * (vat / 100);
     const totalCost = billingAmount + vatAmount;
     const profit = billingAmount - totalExpenses;
+    
+    console.log('[Jobs] View calculations:', {
+      laborCost,
+      materialsCost,
+      kilometers,
+      costPerKm,
+      travelCost,
+      totalExpenses,
+      billingHours,
+      billingRate,
+      billingAmount,
+      vat,
+      vatAmount,
+      totalCost,
+      profit
+    });
 
     const content = `
       <div class="job-details">
@@ -1017,28 +1071,28 @@ window.JobsView = {
           <h4><i class="fas fa-euro-sign"></i> Κόστος</h4>
           <div class="detail-grid">
             <div class="detail-item">
-              <label>Υλικά:</label>
-              <span>${Utils.formatCurrency(materialsCost)}</span>
-            </div>
-            <div class="detail-item">
-              <label>Ώρες Εργασίας:</label>
-              <span>${billingHours} ώρες</span>
-            </div>
-            <div class="detail-item">
               <label>Κόστος Εργατών:</label>
-              <span>${Utils.formatCurrency(laborCost)}</span>
+              <span style="color: var(--error);">${Utils.formatCurrency(laborCost)}</span>
             </div>
             <div class="detail-item">
-              <label>Χιλιόμετρα:</label>
-              <span>${kilometers} km</span>
+              <label>Υλικά:</label>
+              <span style="color: var(--error);">${Utils.formatCurrency(materialsCost)}</span>
             </div>
             <div class="detail-item">
               <label>Κόστος Μετακίνησης:</label>
-              <span>${Utils.formatCurrency(travelCost)}</span>
+              <span style="color: var(--error);">${Utils.formatCurrency(travelCost)} (${kilometers} km)</span>
+            </div>
+            <div class="detail-item">
+              <label>Σύνολο Εξόδων:</label>
+              <span><strong style="color: var(--error);">${Utils.formatCurrency(totalExpenses)}</strong></span>
+            </div>
+            <div class="detail-item">
+              <label>Ώρες Εργασίας:</label>
+              <span>${billingHours} ώρες × ${Utils.formatCurrency(billingRate)}/ώρα</span>
             </div>
             <div class="detail-item">
               <label>Χρέωση Εργασίας:</label>
-              <span><strong>${Utils.formatCurrency(billingAmount)}</strong></span>
+              <span style="color: var(--success);">${Utils.formatCurrency(billingAmount)}</span>
             </div>
             <div class="detail-item">
               <label>ΦΠΑ (${vat}%):</label>
@@ -1046,7 +1100,11 @@ window.JobsView = {
             </div>
             <div class="detail-item">
               <label>Τελικό Σύνολο:</label>
-              <span><strong style="color: var(--accent-primary); font-size: 1.2em;">${Utils.formatCurrency(totalCost)}</strong></span>
+              <span><strong style="color: var(--success); font-size: 1.2em;">${Utils.formatCurrency(totalCost)}</strong></span>
+            </div>
+            <div class="detail-item span-2" style="border-top: 2px solid var(--border-color); padding-top: 1rem; margin-top: 0.5rem;">
+              <label style="font-size: 1.1em;">Καθαρό Κέρδος:</label>
+              <span><strong style="color: ${profit >= 0 ? 'var(--success)' : 'var(--error)'}; font-size: 1.3em;">${profit >= 0 ? '+' : ''}${Utils.formatCurrency(profit)}</strong></span>
             </div>
           </div>
         </div>

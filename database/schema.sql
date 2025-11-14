@@ -5,8 +5,21 @@ SET FOREIGN_KEY_CHECKS = 0;
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 SET time_zone = "+00:00";
 
--- CLIENTS TABLE
+-- DROP TABLES IN CORRECT ORDER (child tables first)
+DROP TABLE IF EXISTS `timesheets`;
+DROP TABLE IF EXISTS `job_materials`;
+DROP TABLE IF EXISTS `job_workers`;
+DROP TABLE IF EXISTS `calendar_events`;
+DROP TABLE IF EXISTS `invoices`;
+DROP TABLE IF EXISTS `offers`;
+DROP TABLE IF EXISTS `jobs`;
+DROP TABLE IF EXISTS `workers`;
+DROP TABLE IF EXISTS `materials`;
 DROP TABLE IF EXISTS `clients`;
+DROP TABLE IF EXISTS `templates`;
+DROP TABLE IF EXISTS `settings`;
+
+-- CLIENTS TABLE
 CREATE TABLE `clients` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `name` varchar(255) NOT NULL,
@@ -23,7 +36,6 @@ CREATE TABLE `clients` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- WORKERS TABLE
-DROP TABLE IF EXISTS `workers`;
 CREATE TABLE `workers` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `name` varchar(255) NOT NULL,
@@ -42,7 +54,6 @@ CREATE TABLE `workers` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- MATERIALS TABLE
-DROP TABLE IF EXISTS `materials`;
 CREATE TABLE `materials` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `name` varchar(255) NOT NULL,
@@ -57,7 +68,6 @@ CREATE TABLE `materials` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- JOBS TABLE
-DROP TABLE IF EXISTS `jobs`;
 CREATE TABLE `jobs` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `client_id` int(11) DEFAULT NULL,
@@ -95,7 +105,6 @@ CREATE TABLE `jobs` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- JOB_WORKERS TABLE
-DROP TABLE IF EXISTS `job_workers`;
 CREATE TABLE `job_workers` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `job_id` int(11) NOT NULL,
@@ -112,7 +121,6 @@ CREATE TABLE `job_workers` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- JOB_MATERIALS TABLE
-DROP TABLE IF EXISTS `job_materials`;
 CREATE TABLE `job_materials` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `job_id` int(11) NOT NULL,
@@ -129,7 +137,6 @@ CREATE TABLE `job_materials` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- TIMESHEETS TABLE
-DROP TABLE IF EXISTS `timesheets`;
 CREATE TABLE `timesheets` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `worker_id` int(11) NOT NULL,
@@ -148,7 +155,6 @@ CREATE TABLE `timesheets` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- CALENDAR_EVENTS TABLE
-DROP TABLE IF EXISTS `calendar_events`;
 CREATE TABLE `calendar_events` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `title` varchar(255) NOT NULL,
@@ -174,7 +180,6 @@ CREATE TABLE `calendar_events` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- OFFERS TABLE
-DROP TABLE IF EXISTS `offers`;
 CREATE TABLE `offers` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `client_id` int(11) DEFAULT NULL,
@@ -197,7 +202,6 @@ CREATE TABLE `offers` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- INVOICES TABLE
-DROP TABLE IF EXISTS `invoices`;
 CREATE TABLE `invoices` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `job_id` int(11) DEFAULT NULL,
@@ -223,7 +227,6 @@ CREATE TABLE `invoices` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- TEMPLATES TABLE
-DROP TABLE IF EXISTS `templates`;
 CREATE TABLE `templates` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `name` varchar(255) NOT NULL,
@@ -238,7 +241,6 @@ CREATE TABLE `templates` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- SETTINGS TABLE
-DROP TABLE IF EXISTS `settings`;
 CREATE TABLE `settings` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `setting_key` varchar(100) NOT NULL,

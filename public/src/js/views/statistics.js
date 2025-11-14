@@ -55,7 +55,7 @@ window.StatisticsView = {
             <i class="fas fa-check-circle" style="color: var(--color-primary);"></i>
           </div>
           <div class="stat-content">
-            <div class="stat-label">Ολοκληρωμένες</div>
+            <div class="stat-label">Εξοφλημένες</div>
             <div class="stat-value" id="completedJobs">0</div>
           </div>
         </div>
@@ -254,16 +254,18 @@ window.StatisticsView = {
       const yearString = String(this.currentYear);
       
       // Summary
-
+      console.log('📊 Fetching summary for year:', yearString);
       const jobs = await window.electronAPI.db.query(`
         SELECT 
           COUNT(*) as total_jobs,
-          SUM(CASE WHEN status = 'Ολοκληρώθηκε' THEN 1 ELSE 0 END) as completed_jobs,
-          SUM(total_cost) as total_revenue,
-          SUM(total_cost - materials_cost) as total_profit
+          SUM(CASE WHEN status = 'Εξοφλήθηκε' OR is_paid = 1 THEN 1 ELSE 0 END) as completed_jobs,
+          SUM(CASE WHEN status = 'Εξοφλήθηκε' OR is_paid = 1 THEN total_cost ELSE 0 END) as total_revenue,
+          SUM(CASE WHEN status = 'Εξοφλήθηκε' OR is_paid = 1 THEN (total_cost - materials_cost) ELSE 0 END) as total_profit
         FROM jobs 
         WHERE strftime('%Y', date) = ?
       `, [yearString]);
+      
+      console.log('📊 Summary results:', jobs[0]);
       
 
 
@@ -284,8 +286,8 @@ window.StatisticsView = {
       const revenue = await window.electronAPI.db.query(`
         SELECT 
           strftime('%m', date) as month,
-          SUM(total_cost) as revenue,
-          SUM(total_cost - materials_cost) as profit
+          SUM(CASE WHEN status = 'Εξοφλήθηκε' OR is_paid = 1 THEN total_cost ELSE 0 END) as revenue,
+          SUM(CASE WHEN status = 'Εξοφλήθηκε' OR is_paid = 1 THEN (total_cost - materials_cost) ELSE 0 END) as profit
         FROM jobs 
         WHERE strftime('%Y', date) = ?
         GROUP BY month
@@ -338,9 +340,11 @@ window.StatisticsView = {
           j.title,
           j.paints,
           j.materials_cost,
-          j.total_cost
+          j.total_cost,
+          j.status
         FROM jobs j
         WHERE strftime('%Y', j.date) = ?
+        AND (j.status = 'Εξοφλήθηκε' OR j.is_paid = 1)
         AND j.paints IS NOT NULL 
         AND j.paints != ''
         AND j.paints != '[]'
@@ -410,7 +414,8 @@ window.StatisticsView = {
           type
         FROM jobs 
         WHERE strftime('%Y', date) = ?
-        ORDER BY total_cost DESC
+        AND (status = 'Εξοφλήθηκε' OR is_paid = 1)
+        ORDER BY (total_cost - materials_cost) DESC
         LIMIT 10
       `, [yearString]);
       
@@ -426,7 +431,7 @@ window.StatisticsView = {
   },
 
   updateSummaryCards(data) {
-
+    console.log('📊 Updating summary cards with data:', data);
     
     const totalRevenueEl = document.getElementById('totalRevenue');
     const totalProfitEl = document.getElementById('totalProfit');
@@ -439,24 +444,22 @@ window.StatisticsView = {
     const totalJobs = data.totalJobs || data.total_jobs || 0;
     const completedJobs = data.completedJobs || data.completed_jobs || 0;
     
+    console.log('💰 Summary values:', { totalRevenue, totalProfit, totalJobs, completedJobs });
+    
     if (totalRevenueEl) {
       totalRevenueEl.textContent = `€${totalRevenue.toLocaleString('el-GR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
-
     }
     
     if (totalProfitEl) {
       totalProfitEl.textContent = `€${totalProfit.toLocaleString('el-GR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
-
     }
     
     if (totalJobsEl) {
       totalJobsEl.textContent = totalJobs;
-
     }
     
     if (completedJobsEl) {
       completedJobsEl.textContent = completedJobs;
-
     }
   },
 

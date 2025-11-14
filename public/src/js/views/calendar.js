@@ -99,6 +99,12 @@ window.CalendarView = {
     // Detect mobile device
     const isMobile = window.innerWidth <= 768;
     
+    console.log('📱 Calendar Init:', {
+      isMobile,
+      windowWidth: window.innerWidth,
+      calendarEl: !!calendarEl
+    });
+    
     this.calendar = new FullCalendar.Calendar(calendarEl, {
       locale: 'el',
       initialView: isMobile ? 'timeGridDay' : 'dayGridMonth',
@@ -118,8 +124,8 @@ window.CalendarView = {
       weekNumbers: !isMobile, // Κρύψε week numbers σε mobile
       weekText: 'Εβδ.',
       editable: false, // Απενεργοποίηση drag & drop για να μην τρεμοπαίζει ο cursor
-      selectable: true,
-      selectMirror: false, // Απενεργοποίηση mirror για να μην αναβοσβήνει
+      selectable: true, // Κλικ σε κελί για νέα επίσκεψη
+      selectMirror: true, // Visual feedback κατά την επιλογή
       selectOverlap: false, // Δεν επιτρέπεται select πάνω από υπάρχοντα events
       dayMaxEvents: isMobile ? 3 : true, // Περιορισμός events σε mobile
       moreLinkClick: 'popover', // Click on "more" shows popover
@@ -174,22 +180,21 @@ window.CalendarView = {
         info.el.title = tooltip;
       },
       
-      // Date select - Δημιουργία νέας επίσκεψης με date range
+      // Date select - Δημιουργία νέας επίσκεψης
       select: (info) => {
+        // Πρόληψη accidental opens κατά το swipe
         if (this.isSwipeInProgress) {
+          this.calendar.unselect(); // Clear selection
           return;
         }
         
-        // Small delay to distinguish from scroll/swipe
-        setTimeout(() => {
-          if (!this.isSwipeInProgress) {
-            this.showAddVisitModal(info.startStr, info.endStr);
-          }
-        }, 100);
+        this.showAddVisitModal(info.startStr, info.endStr);
       }
     });
     
     this.calendar.render();
+    
+    console.log('✅ Calendar rendered successfully');
     
     // Handle window resize for responsive behavior
     this.handleResize();
@@ -280,6 +285,12 @@ window.CalendarView = {
     // Αγνόησε αν η απόσταση είναι πολύ μικρή
     if (Math.abs(swipeDistanceX) < minDistance) return;
     
+    // ΜΟΝΟ για day/week view - ΟΧΙ για month view
+    const currentView = this.calendar.view.type;
+    if (currentView === 'dayGridMonth') {
+      return; // Μην αλλάζεις μήνα με swipe!
+    }
+    
     if (swipeDistanceX > 0) {
       // Swipe right - previous
       this.calendar.prev();
@@ -298,8 +309,15 @@ window.CalendarView = {
     const isMobile = window.innerWidth <= 768;
     const currentView = this.calendar.view.type;
     
+    console.log('📐 Calendar Resize:', {
+      isMobile,
+      windowWidth: window.innerWidth,
+      currentView
+    });
+    
     // Switch to appropriate view for screen size
     if (isMobile && currentView === 'timeGridWeek') {
+      console.log('🔄 Switching to timeGridDay for mobile');
       this.calendar.changeView('timeGridDay');
     }
     
@@ -1043,6 +1061,11 @@ window.CalendarView = {
       ]
     });
     
+    // Native HTML5 time inputs - no initialization needed!
+    // iOS and Android will automatically show wheel pickers
+    console.log('✅ Using native HTML5 time inputs (type="time")');
+    console.log('📱 Mobile devices will show native wheel pickers');
+    
     // Auto-fill when job is selected
     const jobSelect = document.getElementById('visitJob');
     const clientSelectGroup = document.getElementById('clientSelectGroup');
@@ -1349,6 +1372,10 @@ window.CalendarView = {
         }
       ]
     });
+    
+    // Native HTML5 time inputs - no initialization needed!
+    // iOS and Android will automatically show wheel pickers
+    console.log('✅ Using native HTML5 time inputs in edit modal (type="time")');
     
     // Auto-fill when job is selected
     const jobSelect = document.getElementById('editVisitJob');

@@ -13,6 +13,7 @@
   width: 100%;
   max-width: 100%;
   align-items: stretch;
+  flex-wrap: wrap;
 }
 
 /* ========================================
@@ -489,7 +490,7 @@
 
 @media (max-width: 968px) {
   .calendar-container {
-    grid-template-columns: 1fr;
+    flex-direction: column;
     gap: 16px;
     padding: 0;
     margin-top: 16px;
@@ -498,6 +499,11 @@
   .upcoming-visits-panel {
     max-height: 300px;
     padding: 16px;
+    width: 100%;
+    min-width: 100%;
+  }
+  
+  .calendar-main {
     width: 100%;
   }
   
@@ -532,14 +538,21 @@
 
 @media (max-width: 640px) {
   .calendar-container {
+    flex-direction: column;
     padding: 0;
     margin: 12px 0;
     gap: 12px;
   }
   
+  .upcoming-visits-panel {
+    width: 100%;
+    min-width: 100%;
+  }
+  
   .calendar-main {
     padding: 8px;
     border-radius: 8px;
+    width: 100%;
     overflow-x: auto; /* Horizontal scroll for mobile */
     overflow-y: visible;
   }
@@ -611,7 +624,7 @@
     font-size: 0.75rem;
   }
   
-  /* FullCalendar Mobile Optimizations - ΜΙΚΡΟ ΗΜΕΡΟΛΟΓΙΟ */
+  /* FullCalendar Mobile Optimizations */
   .fc {
     font-size: 0.75rem;
   }
@@ -622,21 +635,38 @@
   }
   
   .fc .fc-toolbar-title {
-    font-size: 0.85rem;
+    font-size: 0.9rem;
     text-align: center;
     padding: 4px 0;
   }
   
   /* Mobile buttons */
   .fc .fc-button {
-    padding: 4px 8px;
-    font-size: 0.7rem;
+    padding: 6px 10px;
+    font-size: 0.75rem;
   }
   
   .fc .fc-button-group .fc-button {
     flex: 1;
-    padding: 4px 6px;
+    padding: 6px 8px;
     font-size: 0.7rem;
+  }
+  
+  /* Mobile calendar cells */
+  .fc .fc-daygrid-day-number {
+    font-size: 0.85rem;
+    padding: 4px;
+  }
+  
+  .fc .fc-col-header-cell {
+    font-size: 0.7rem;
+    padding: 8px 2px;
+  }
+  
+  /* Mobile events */
+  .fc .fc-event {
+    font-size: 0.7rem;
+    padding: 2px 4px;
   }
 }
 

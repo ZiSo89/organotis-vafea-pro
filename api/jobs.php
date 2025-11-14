@@ -63,6 +63,13 @@ try {
             
             $data = convertToSnakeCase($input);
             
+            // Auto-update is_paid based on status
+            if (isset($data['status']) && $data['status'] === 'Εξοφλήθηκε') {
+                $data['is_paid'] = 1;
+            } elseif (!isset($data['is_paid'])) {
+                $data['is_paid'] = 0;
+            }
+            
             $stmt = $db->prepare("
                 INSERT INTO jobs (
                     client_id, title, type, date, next_visit, description, address, city, postal_code,
@@ -125,6 +132,13 @@ try {
             if (!$input) sendError('Δεν υπάρχουν δεδομένα');
             
             $data = convertToSnakeCase($input);
+            
+            // Auto-update is_paid based on status
+            if (isset($data['status']) && $data['status'] === 'Εξοφλήθηκε') {
+                $data['is_paid'] = 1;
+            } elseif (!isset($data['is_paid'])) {
+                $data['is_paid'] = 0;
+            }
             
             // Check if job exists first
             $checkStmt = $db->prepare("SELECT id FROM jobs WHERE id = ?");

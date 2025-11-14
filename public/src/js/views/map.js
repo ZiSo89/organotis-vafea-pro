@@ -568,10 +568,6 @@ window.MapView = {
           <p style="margin: 0 0 6px 0;"><strong>📊 Κατάσταση:</strong> ${job.status}</p>
           <p style="margin: 0 0 12px 0;"><strong>📍 Διεύθυνση:</strong><br>${address}</p>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button onclick="openJobFromMap('${job.id}')" 
-                    style="flex: 1; min-width: 100px; padding: 8px 12px; background: var(--color-primary); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;">
-              <i class="fas fa-eye"></i> Προβολή
-            </button>
             <button onclick="window.open('${mapsUrl}', '_blank')" 
                     style="flex: 1; min-width: 100px; padding: 8px 12px; background: #4285F4; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;">
               <i class="fas fa-route"></i> Οδηγίες
@@ -589,10 +585,6 @@ window.MapView = {
           <p style="margin: 0 0 6px 0;"><strong>📧 Email:</strong> ${client.email ? `<a href="mailto:${client.email}" style="color: #4285F4; text-decoration: none;">${client.email}</a>` : '-'}</p>
           <p style="margin: 0 0 12px 0;"><strong>📍 Διεύθυνση:</strong><br>${address}</p>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button onclick="openClientFromMap('${client.id}')" 
-                    style="flex: 1; min-width: 100px; padding: 8px 12px; background: var(--color-primary); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;">
-              <i class="fas fa-eye"></i> Προβολή
-            </button>
             <button onclick="window.open('${mapsUrl}', '_blank')" 
                     style="flex: 1; min-width: 100px; padding: 8px 12px; background: #4285F4; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;">
               <i class="fas fa-route"></i> Οδηγίες
@@ -634,29 +626,49 @@ window.MapView = {
 
   async geocodeAddress(address) {
     try {
-      // Use PHP proxy to call Nominatim (avoids CORS issues)
-      const url = `/api/geocode.php?address=${encodeURIComponent(address)}`;
+      // Use Nominatim (OpenStreetMap) for free geocoding - Direct client-side call
+      // Try multiple query formats for better results
+      const queries = [
+        // Original full address
+        `${address}`,
+        // Without postal code
+        address.replace(/\d{5}\s*Greece/, 'Greece'),
+        // Just street and city
+        address.split(',').slice(0, 2).join(',') + ', Greece'
+      ];
       
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        console.warn(`⚠️ Geocode proxy returned ${response.status}`);
-        return 'ZERO_RESULTS';
+      for (const query of queries) {
+        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1&countrycodes=gr&addressdetails=1`;
+        
+        console.log(`📡 Fetching geocode for: ${query}`);
+        
+        const response = await fetch(url, {
+          headers: {
+            'User-Agent': 'Painter-Organizer-App/1.0'
+          }
+        });
+        
+        if (!response.ok) {
+          console.warn(`⚠️ Nominatim request failed: ${response.status}`);
+          continue;
+        }
+        
+        const data = await response.json();
+        
+        if (data && data.length > 0) {
+          console.log(`✅ Geocoded: ${query} -> ${data[0].display_name}`);
+          return {
+            lat: parseFloat(data[0].lat),
+            lng: parseFloat(data[0].lon)
+          };
+        }
+        
+        // Wait a bit before trying next query
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
       
-      const result = await response.json();
-      
-      if (!result.success || !result.data || result.data.length === 0) {
-        console.warn(`⚠️ No results for: ${address}`);
-        return 'ZERO_RESULTS';
-      }
-      
-      const data = result.data[0];
-      return {
-        lat: parseFloat(data.lat),
-        lng: parseFloat(data.lon)
-      };
-      
+      console.warn(`❌ Nominatim: No results for any format of ${address}`);
+      return 'ZERO_RESULTS';
     } catch (error) {
       console.error(`❌ Geocode error for ${address}:`, error);
       return 'ZERO_RESULTS';

@@ -547,7 +547,7 @@ window.DashboardView = {
               <div style="display: flex; align-items: center; gap: 10px;">
                 <span>${client?.address || '-'}, ${client?.city || '-'}, ${client?.postal || '-'}</span>
                 ${client?.address && client?.city ? `
-                  <button class="btn-icon" onclick="DashboardView.openInMaps('${encodeURIComponent(client.address + ', ' + client.city + ', ' + (client.postal || 'Ελλάδα'))}')" title="Άνοιγμα στο Google Maps">
+                  <button class="btn-icon" onclick="Utils.openInMaps('${client.address}, ${client.city}, ${client.postal || 'Ελλάδα'}')" title="Άνοιγμα στο Google Maps">
                     <i class="fas fa-map-marked-alt"></i>
                   </button>
                 ` : ''}
