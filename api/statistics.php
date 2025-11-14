@@ -23,116 +23,184 @@ try {
     $pdo = getDBConnection();
     
     if ($method === 'GET') {
-        
+
+        // Helper: compute financials for a job row (billing WITHOUT VAT, expenses, profit)
+        function compute_job_financials($job) {
+            $toFloat = function($v) {
+                if ($v === null || $v === '') return 0.0;
+                return (float)$v;
+            };
+
+            // billingAmount preference order: billing_amount, hours*rate, total_cost/(1+vat), total_cost
+            $billing = 0.0;
+            if (isset($job['billing_amount'])) {
+                $billing = $toFloat($job['billing_amount']);
+            } elseif (isset($job['billingAmount'])) {
+                $billing = $toFloat($job['billingAmount']);
+            }
+
+            if ($billing == 0.0) {
+                $hours = $toFloat($job['billing_hours'] ?? $job['billingHours'] ?? 0);
+                $rate = $toFloat($job['billing_rate'] ?? $job['billingRate'] ?? 0);
+                if ($hours > 0 && $rate > 0) {
+                    $billing = $hours * $rate;
+                }
+            }
+
+            if ($billing == 0.0) {
+                $total_cost = $toFloat($job['total_cost'] ?? $job['totalCost'] ?? 0);
+                $vat = $toFloat($job['vat'] ?? 0);
+                if ($total_cost > 0) {
+                    if ($vat > 0) {
+                        $denom = 1 + ($vat / 100.0);
+                        if ($denom > 0) $billing = $total_cost / $denom;
+                        else $billing = $total_cost;
+                    } else {
+                        $billing = $total_cost;
+                    }
+                }
+            }
+
+            $materials = $toFloat($job['materials_cost'] ?? $job['materialsCost'] ?? 0);
+            $kilometers = $toFloat($job['kilometers'] ?? $job['km'] ?? 0);
+            $cost_per_km = $toFloat($job['cost_per_km'] ?? $job['costPerKm'] ?? $job['travel_cost'] ?? 0.5);
+            $travel = $kilometers * $cost_per_km;
+
+            // parse assigned workers JSON if exists to compute labor cost
+            $labor = 0.0;
+            $assigned = $job['assigned_workers'] ?? $job['assignedWorkers'] ?? $job['workers'] ?? null;
+            $decoded = null;
+            if ($assigned) {
+                if (is_string($assigned)) {
+                    // decode; handle cases where the JSON string is encoded twice
+                    $decoded = json_decode($assigned, true);
+                    // if decoding produced another JSON string, decode again
+                    if ($decoded !== null && !is_array($decoded) && is_string($decoded)) {
+                        $decoded2 = json_decode($decoded, true);
+                        if (is_array($decoded2)) {
+                            $decoded = $decoded2;
+                        }
+                    }
+                } elseif (is_array($assigned)) {
+                    $decoded = $assigned;
+                }
+
+                if (is_array($decoded)) {
+                    foreach ($decoded as $w) {
+                        $labor += $toFloat($w['labor_cost'] ?? $w['laborCost'] ?? $w['cost'] ?? 0);
+                    }
+                }
+            }
+
+            $expenses = $materials + $labor + $travel;
+            $profit = $billing - $expenses; // WITHOUT VAT
+
+            return [
+                'billing' => $billing,
+                'materials' => $materials,
+                'labor' => $labor,
+                'travel' => $travel,
+                'expenses' => $expenses,
+                'profit' => $profit
+            ];
+        }
+
         switch ($action) {
-            
-            // Έσοδα ανά μήνα και χρόνο
             case 'revenue':
                 $year = $_GET['year'] ?? date('Y');
-                $stmt = $pdo->prepare("
-                    SELECT 
-                        YEAR(start_date) as year,
-                        MONTH(start_date) as month,
-                        COUNT(*) as total_jobs,
-                        SUM(total_cost) as revenue,
-                        SUM(materials_cost) as materials_cost,
-                        SUM(total_cost - materials_cost) as profit
-                    FROM jobs
-                    WHERE start_date IS NOT NULL
-                        AND YEAR(start_date) = :year
-                    GROUP BY YEAR(start_date), MONTH(start_date)
-                    ORDER BY year, month
-                ");
+                // Fetch jobs for the year and compute month aggregates in PHP
+                $stmt = $pdo->prepare("SELECT * FROM jobs WHERE start_date IS NOT NULL AND YEAR(start_date) = :year AND (status = 'Εξοφλήθηκε' OR status = 'Ολοκληρώθηκε' OR is_paid = 1)");
                 $stmt->execute(['year' => $year]);
-                $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                
-                // Μετατροπή μηνών σε ονόματα
+                $jobs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
                 $months = [
                     1 => 'Ιανουάριος', 2 => 'Φεβρουάριος', 3 => 'Μάρτιος',
                     4 => 'Απρίλιος', 5 => 'Μάιος', 6 => 'Ιούνιος',
                     7 => 'Ιούλιος', 8 => 'Αύγουστος', 9 => 'Σεπτέμβριος',
                     10 => 'Οκτώβριος', 11 => 'Νοέμβριος', 12 => 'Δεκέμβριος'
                 ];
-                
-                foreach ($data as &$row) {
-                    $row['month_name'] = $months[(int)$row['month']];
-                    $row['revenue'] = (float)$row['revenue'];
-                    $row['materials_cost'] = (float)$row['materials_cost'];
-                    $row['profit'] = (float)$row['profit'];
+
+                $agg = [];
+                for ($m=1;$m<=12;$m++) {
+                    $agg[$m] = ['month' => str_pad((string)$m,2,'0',STR_PAD_LEFT), 'month_name' => $months[$m], 'total_jobs' => 0, 'revenue' => 0.0, 'materials_cost' => 0.0, 'profit' => 0.0];
                 }
-                
-                echo json_encode([
-                    'success' => true,
-                    'data' => $data
-                ]);
+
+                foreach ($jobs as $job) {
+                    $dt = strtotime($job['start_date']);
+                    if ($dt === false) continue;
+                    $m = (int)date('n', $dt);
+                    $fin = compute_job_financials($job);
+                    $agg[$m]['total_jobs'] += 1;
+                    $agg[$m]['revenue'] += $fin['billing'];
+                    $agg[$m]['materials_cost'] += $fin['materials'];
+                    $agg[$m]['profit'] += $fin['profit'];
+                }
+
+                $data = array_values($agg);
+                echo json_encode(['success' => true, 'data' => $data]);
                 break;
             
-            // Έσοδα ανά έτος (σύνολο)
+            // Έσοδα ανά έτος (σύνολο) - aggregate using job-level financials
             case 'revenue_by_year':
-                $stmt = $pdo->query("
-                    SELECT 
-                        YEAR(start_date) as year,
-                        COUNT(*) as total_jobs,
-                        SUM(total_cost) as revenue,
-                        SUM(materials_cost) as materials_cost,
-                        SUM(total_cost - materials_cost) as profit
-                    FROM jobs
-                    WHERE start_date IS NOT NULL
-                    GROUP BY YEAR(start_date)
-                    ORDER BY year DESC
-                ");
-                $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                
-                foreach ($data as &$row) {
-                    $row['revenue'] = (float)$row['revenue'];
-                    $row['materials_cost'] = (float)$row['materials_cost'];
-                    $row['profit'] = (float)$row['profit'];
+                $stmt = $pdo->prepare("SELECT * FROM jobs WHERE start_date IS NOT NULL AND (status = 'Εξοφλήθηκε' OR status = 'Ολοκληρώθηκε' OR is_paid = 1) ORDER BY start_date DESC");
+                $stmt->execute();
+                $jobs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                $years = [];
+                foreach ($jobs as $job) {
+                    $dt = strtotime($job['start_date']);
+                    if ($dt === false) continue;
+                    $y = (int)date('Y', $dt);
+                    if (!isset($years[$y])) {
+                        $years[$y] = ['year' => $y, 'total_jobs' => 0, 'billing' => 0.0, 'materials_cost' => 0.0, 'net_profit' => 0.0];
+                    }
+                    $fin = compute_job_financials($job);
+                    $years[$y]['total_jobs'] += 1;
+                    $years[$y]['billing'] += $fin['billing'];
+                    $years[$y]['materials_cost'] += $fin['materials'];
+                    $years[$y]['net_profit'] += $fin['profit'];
                 }
-                
-                echo json_encode([
-                    'success' => true,
-                    'data' => $data
-                ]);
+
+                // Convert to array ordered by year desc
+                $data = array_values($years);
+                usort($data, function($a, $b) { return $b['year'] - $a['year']; });
+
+                echo json_encode(['success' => true, 'data' => $data]);
                 break;
             
             // Κατανομή εργασιών ανά τύπο
             case 'jobs_by_type':
-                $year = $_GET['year'] ?? null;
-                
-                $sql = "
-                    SELECT 
-                        COALESCE(type, 'Χωρίς κατηγορία') as job_type,
-                        COUNT(*) as count,
-                        SUM(total_cost) as revenue,
-                        SUM(total_cost - materials_cost) as profit
-                    FROM jobs
-                    WHERE 1=1
-                ";
-                
+                $year = isset($_GET['year']) ? $_GET['year'] : null;
+
+                // Fetch jobs (filtered by year if provided) and aggregate by type using job-level financials
+                $sql = "SELECT * FROM jobs WHERE (status = 'Εξοφλήθηκε' OR status = 'Ολοκληρώθηκε' OR is_paid = 1)";
+                $params = [];
                 if ($year) {
                     $sql .= " AND YEAR(start_date) = :year";
+                    $params['year'] = $year;
                 }
-                
-                $sql .= " GROUP BY type ORDER BY revenue DESC";
-                
                 $stmt = $pdo->prepare($sql);
-                if ($year) {
-                    $stmt->execute(['year' => $year]);
-                } else {
-                    $stmt->execute();
+                $stmt->execute($params);
+                $jobs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                $byType = [];
+                foreach ($jobs as $job) {
+                    $type = isset($job['type']) && $job['type'] !== null ? $job['type'] : 'Χωρίς κατηγορία';
+                    if (!isset($byType[$type])) {
+                        $byType[$type] = ['job_type' => $type, 'count' => 0, 'billing' => 0.0, 'materials_cost' => 0.0, 'net_profit' => 0.0];
+                    }
+                    $fin = compute_job_financials($job);
+                    $byType[$type]['count'] += 1;
+                    $byType[$type]['billing'] += $fin['billing'];
+                    $byType[$type]['materials_cost'] += $fin['materials'];
+                    $byType[$type]['net_profit'] += $fin['profit'];
                 }
-                
-                $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                
-                foreach ($data as &$row) {
-                    $row['revenue'] = (float)$row['revenue'];
-                    $row['profit'] = (float)$row['profit'];
-                }
-                
-                echo json_encode([
-                    'success' => true,
-                    'data' => $data
-                ]);
+
+                $data = array_values($byType);
+                // Order by billing desc
+                usort($data, function($a, $b) { return $b['billing'] <=> $a['billing']; });
+
+                echo json_encode(['success' => true, 'data' => $data]);
                 break;
             
             // Top εργασίες με βάση τα κέρδη
@@ -155,6 +223,7 @@ try {
                     FROM jobs j
                     LEFT JOIN clients c ON j.client_id = c.id
                     WHERE j.total_cost > 0
+                        AND (j.status = 'Εξοφλήθηκε' OR j.status = 'Ολοκληρώθηκε' OR j.is_paid = 1)
                 ";
                 
                 if ($year) {
@@ -176,8 +245,13 @@ try {
                     $row['revenue'] = (float)$row['revenue'];
                     $row['materials_cost'] = (float)$row['materials_cost'];
                     $row['profit'] = (float)$row['profit'];
+
+                    // Backward-compatible: compute billing_without_vat and net_profit for this job row
+                    $fin = compute_job_financials($row);
+                    $row['billing_without_vat'] = (float)$fin['billing'];
+                    $row['net_profit'] = (float)$fin['profit'];
                 }
-                
+
                 echo json_encode([
                     'success' => true,
                     'data' => $data
@@ -200,7 +274,7 @@ try {
                     FROM job_materials jm
                     INNER JOIN materials m ON jm.material_id = m.id
                     INNER JOIN jobs j ON jm.job_id = j.id
-                    WHERE 1=1
+                    WHERE (j.status = 'Εξοφλήθηκε' OR j.status = 'Ολοκληρώθηκε' OR j.is_paid = 1)
                 ";
                 
                 if ($year) {
@@ -229,6 +303,7 @@ try {
                         WHERE j.paints IS NOT NULL 
                             AND j.paints != '[]'
                             AND j.paints != ''
+                            AND (j.status = 'Εξοφλήθηκε' OR j.status = 'Ολοκληρώθηκε' OR j.is_paid = 1)
                     ";
                     
                     if ($year) {
@@ -300,51 +375,49 @@ try {
                 ]);
                 break;
             
-            // Κατάσταση εργασιών (Ολοκληρωμένες vs Εκκρεμείς)
+            // Κατάσταση εργασιών (όλες οι 7 καταστάσεις)
             case 'jobs_status':
-                $year = $_GET['year'] ?? null;
-                
-                $sql = "
-                    SELECT 
-                        CASE 
-                            WHEN LOWER(status) LIKE '%ολοκληρ%' OR LOWER(status) = 'completed' THEN 'Ολοκληρωμένες'
-                            WHEN LOWER(status) LIKE '%εξέλιξη%' OR LOWER(status) LIKE '%progress%' THEN 'Σε εξέλιξη'
-                            WHEN LOWER(status) LIKE '%εκκρεμ%' OR LOWER(status) = 'pending' THEN 'Εκκρεμείς'
-                            WHEN LOWER(status) LIKE '%ακυρ%' OR LOWER(status) = 'cancelled' THEN 'Ακυρωμένες'
-                            WHEN LOWER(status) LIKE '%προγραμ%' THEN 'Προγραμματισμένες'
-                            WHEN LOWER(status) LIKE '%υποψ%' THEN 'Υποψήφιες'
-                            ELSE 'Άλλες'
-                        END as status_label,
-                        status as status_key,
-                        COUNT(*) as count,
-                        SUM(total_cost) as revenue
-                    FROM jobs
-                    WHERE 1=1
-                ";
-                
+                $year = isset($_GET['year']) ? $_GET['year'] : null;
+
+                // Fetch jobs and aggregate by normalized status label
+                $sql = "SELECT * FROM jobs WHERE 1=1";
+                $params = [];
                 if ($year) {
                     $sql .= " AND YEAR(start_date) = :year";
+                    $params['year'] = $year;
                 }
-                
-                $sql .= " GROUP BY status_label, status_key ORDER BY count DESC";
-                
                 $stmt = $pdo->prepare($sql);
-                if ($year) {
-                    $stmt->execute(['year' => $year]);
-                } else {
-                    $stmt->execute();
+                $stmt->execute($params);
+                $jobs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                $mapLabel = function($status) {
+                    if (!$status) return 'Άλλες';
+                    $s = mb_strtolower($status, 'UTF-8');
+                    if (mb_strpos($s, 'υποψ') !== false || $s === 'candidate') return 'Υποψήφιος';
+                    if (mb_strpos($s, 'προγραμ') !== false || $s === 'scheduled') return 'Προγραμματισμένη';
+                    if (mb_strpos($s, 'εξέλι') !== false || mb_strpos($s, 'progress') !== false) return 'Σε εξέλιξη';
+                    if (mb_strpos($s, 'αναμον') !== false || $s === 'waiting') return 'Σε αναμονή';
+                    if (mb_strpos($s, 'ολοκληρ') !== false || $s === 'completed') return 'Ολοκληρώθηκε';
+                    if (mb_strpos($s, 'εξοφλ') !== false || $s === 'paid') return 'Εξοφλήθηκε';
+                    if (mb_strpos($s, 'ακυρ') !== false || $s === 'cancelled') return 'Ακυρώθηκε';
+                    return 'Άλλες';
+                };
+
+                $agg = [];
+                foreach ($jobs as $job) {
+                    $label = $mapLabel($job['status']);
+                    if (!isset($agg[$label])) $agg[$label] = ['status_label' => $label, 'status_key' => $job['status'], 'count' => 0, 'billing' => 0.0, 'net_profit' => 0.0];
+                    $agg[$label]['count'] += 1;
+                    $fin = compute_job_financials($job);
+                    $agg[$label]['billing'] += $fin['billing'];
+                    $agg[$label]['net_profit'] += $fin['profit'];
                 }
-                
-                $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                
-                foreach ($data as &$row) {
-                    $row['revenue'] = (float)$row['revenue'];
-                }
-                
-                echo json_encode([
-                    'success' => true,
-                    'data' => $data
-                ]);
+
+                $data = array_values($agg);
+                // Sort by count desc
+                usort($data, function($a, $b) { return $b['count'] <=> $a['count']; });
+
+                echo json_encode(['success' => true, 'data' => $data]);
                 break;
             
             // Διαθέσιμα έτη για φιλτράρισμα
@@ -367,17 +440,17 @@ try {
             case 'summary':
                 $year = $_GET['year'] ?? date('Y');
                 
-                // Συνολικά στατιστικά
+                // Συνολικά στατιστικά - μόνο εξοφλημένες
                 $stmt = $pdo->prepare("
                     SELECT 
                         COUNT(*) as total_jobs,
-                        SUM(CASE WHEN LOWER(status) LIKE '%ολοκληρ%' OR LOWER(status) = 'completed' THEN 1 ELSE 0 END) as completed_jobs,
+                        SUM(CASE WHEN status = 'Εξοφλήθηκε' OR status = 'Ολοκληρώθηκε' OR is_paid = 1 THEN 1 ELSE 0 END) as completed_jobs,
                         SUM(CASE WHEN LOWER(status) LIKE '%εξέλιξη%' OR LOWER(status) LIKE '%progress%' THEN 1 ELSE 0 END) as in_progress_jobs,
                         SUM(CASE WHEN LOWER(status) LIKE '%εκκρεμ%' OR LOWER(status) = 'pending' OR LOWER(status) LIKE '%υποψ%' THEN 1 ELSE 0 END) as pending_jobs,
-                        SUM(total_cost) as total_revenue,
-                        SUM(materials_cost) as total_materials_cost,
-                        SUM(total_cost - materials_cost) as total_profit,
-                        AVG(total_cost) as avg_job_cost
+                        SUM(CASE WHEN status = 'Εξοφλήθηκε' OR status = 'Ολοκληρώθηκε' OR is_paid = 1 THEN total_cost ELSE 0 END) as total_revenue,
+                        SUM(CASE WHEN status = 'Εξοφλήθηκε' OR status = 'Ολοκληρώθηκε' OR is_paid = 1 THEN materials_cost ELSE 0 END) as total_materials_cost,
+                        SUM(CASE WHEN status = 'Εξοφλήθηκε' OR status = 'Ολοκληρώθηκε' OR is_paid = 1 THEN (total_cost - materials_cost) ELSE 0 END) as total_profit,
+                        AVG(CASE WHEN status = 'Εξοφλήθηκε' OR status = 'Ολοκληρώθηκε' OR is_paid = 1 THEN total_cost ELSE NULL END) as avg_job_cost
                     FROM jobs
                     WHERE YEAR(start_date) = :year
                 ");
@@ -389,7 +462,22 @@ try {
                 $summary['total_materials_cost'] = (float)$summary['total_materials_cost'];
                 $summary['total_profit'] = (float)$summary['total_profit'];
                 $summary['avg_job_cost'] = (float)$summary['avg_job_cost'];
-                
+
+                // Backward-compatible totals computed via job-level financials
+                $billingSum = 0.0;
+                $profitSum = 0.0;
+                $stmt2 = $pdo->prepare("SELECT * FROM jobs WHERE YEAR(start_date) = :year AND (status = 'Εξοφλήθηκε' OR status = 'Ολοκληρώθηκε' OR is_paid = 1)");
+                $stmt2->execute(['year' => $year]);
+                $jobsYear = $stmt2->fetchAll(PDO::FETCH_ASSOC);
+                foreach ($jobsYear as $jr) {
+                    $fin = compute_job_financials($jr);
+                    $billingSum += $fin['billing'];
+                    $profitSum += $fin['profit'];
+                }
+
+                $summary['billing_without_vat'] = (float)$billingSum;
+                $summary['net_profit'] = (float)$profitSum;
+
                 echo json_encode([
                     'success' => true,
                     'data' => $summary

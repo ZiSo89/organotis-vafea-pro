@@ -195,16 +195,19 @@ window.ClientsView = {
   },
 
   async saveClient() {
+    console.log('[Clients] Saving client...');
     const name = document.getElementById('c_name').value.trim();
     const phone = document.getElementById('c_phone').value.trim();
     const email = document.getElementById('c_email').value.trim();
     const address = document.getElementById('c_address').value.trim();
     const city = document.getElementById('c_city').value.trim();
     const postalCode = document.getElementById('c_postal').value.trim();
+    const afm = document.getElementById('c_afm')?.value.trim() || '';
     const notes = document.getElementById('c_notes').value.trim();
 
     // Check if updating existing client
     const existingId = this.editingClientId;
+    console.log('[Clients] Existing ID:', existingId);
     
     const client = {
       name,
@@ -213,12 +216,16 @@ window.ClientsView = {
       address,
       city,
       postalCode,
+      afm,
       notes
     };
+
+    console.log('[Clients] Client data:', client);
 
     // Validation
     const validation = Validation.validateClient(client);
     if (!validation.valid) {
+      console.warn('[Clients] Validation failed:', validation.errors);
       Validation.showErrors(validation.errors);
       return;
     }
@@ -314,11 +321,11 @@ window.ClientsView = {
           <div class="detail-grid">
             <div class="detail-item">
               <label>Τηλέφωνο:</label>
-              <span>${client.phone || '-'}</span>
+              <span>${client.phone ? `<a href="tel:${client.phone}" style="color: var(--color-primary); text-decoration: none;">${client.phone}</a>` : '-'}</span>
             </div>
             <div class="detail-item">
               <label>Email:</label>
-              <span>${client.email || '-'}</span>
+              <span>${client.email ? `<a href="mailto:${client.email}" style="color: var(--color-primary); text-decoration: none;">${client.email}</a>` : '-'}</span>
             </div>
           </div>
         </div>
@@ -362,7 +369,6 @@ window.ClientsView = {
     `;
 
     const footer = `
-      <button class="btn-ghost" onclick="Modal.close()">Κλείσιμο</button>
       <button class="btn-primary" id="editClientFromModalBtn">
         <i class="fas fa-edit"></i> Επεξεργασία
       </button>
@@ -419,12 +425,14 @@ window.ClientsView = {
   },
 
   async deleteClient(id) {
+    console.log('[Clients] Delete request for client:', id);
     Modal.confirm({
       title: 'Διαγραφή Πελάτη',
       message: 'Είστε σίγουροι ότι θέλετε να διαγράψετε αυτόν τον πελάτη;',
       confirmText: 'Διαγραφή',
       onConfirm: async () => {
         try {
+          console.log('[Clients] Deleting client:', id);
           await State.delete('clients', id);
           Toast.success('Ο πελάτης διαγράφηκε');
           this.refreshTable();
@@ -480,7 +488,7 @@ window.ClientsView = {
             ${sortedClients.map(client => `
               <tr>
                 <td title="${client.name}">${client.name}</td>
-                <td title="${client.phone || '-'}">${client.phone || '-'}</td>
+                <td title="${client.phone || '-'}">${client.phone ? `<a href="tel:${client.phone}" style="color: var(--color-text); text-decoration: none;">${client.phone}</a>` : '-'}</td>
                 <td title="${client.email || '-'}">${client.email || '-'}</td>
                 <td title="${client.address || '-'}">${client.address || '-'}</td>
                 <td class="actions">

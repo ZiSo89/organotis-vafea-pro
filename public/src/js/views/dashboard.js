@@ -51,20 +51,22 @@ window.DashboardView = {
 
           <div class="widget-compact">
             <div class="widget-content">
-              <div class="widget-title">Προγραμματισμένες</div>
-              <div class="widget-value">${stats.scheduledJobs}</div>
-              <div class="widget-footer">7 ημέρες</div>
+              <div class="widget-title">Καθαρά Κέρδη Μήνα</div>
+              <div id="monthlyProfitValue" class="widget-value" style="color: ${stats.monthlyProfit >= 0 ? 'var(--success)' : 'var(--error)'}">
+                ${stats.monthlyProfit >= 0 ? '+' : ''}${Utils.formatCurrency(stats.monthlyProfit)}
+              </div>
+              <div class="widget-footer">${stats.completedThisMonth} ολοκληρωμένες</div>
             </div>
-            <div class="widget-icon warning">
-              <i class="fas fa-calendar-check"></i>
+            <div class="widget-icon ${stats.monthlyProfit >= 0 ? 'success' : 'error'}">
+              <i class="fas fa-chart-line"></i>
             </div>
           </div>
 
           <div class="widget-compact">
             <div class="widget-content">
               <div class="widget-title">Έσοδα Μήνα</div>
-              <div class="widget-value">${Utils.formatCurrency(stats.monthlyRevenue)}</div>
-              <div class="widget-footer">${stats.completedThisMonth} ολοκληρωμένες</div>
+              <div id="monthlyRevenueValue" class="widget-value">${Utils.formatCurrency(stats.monthlyRevenue)}</div>
+              <div class="widget-footer">${stats.completedThisMonth} εργασίες</div>
             </div>
             <div class="widget-icon primary">
               <i class="fas fa-euro-sign"></i>
@@ -153,6 +155,10 @@ window.DashboardView = {
     
     // Initialize dashboard map
     this.initDashboardMap();
+    // Fetch server-side aggregates (if available) and update displayed widgets
+    if (typeof this.fetchServerStats === 'function') {
+      this.fetchServerStats();
+    }
   },
 
   setupActivityListeners(container) {
@@ -189,7 +195,94 @@ window.DashboardView = {
     const thisYear = now.getFullYear();
     const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-    return {
+    // Calculate monthly revenue and profit
+    const monthlyJobs = jobs.filter(j => {
+      const jobDate = new Date(j.date);
+      return (j.status === 'Ολοκληρώθηκε' || j.status === 'Εξοφλήθηκε') &&
+             jobDate.getMonth() === thisMonth &&
+             jobDate.getFullYear() === thisYear;
+    });
+
+    // Calculate monthly revenue and profit using billing amount WITHOUT VAT.
+    // Consider only jobs with status 'Ολοκληρώθηκε' or 'Εξοφλήθηκε' (already filtered into monthlyJobs).
+    const parseNumber = (v) => {
+      const n = parseFloat(v);
+      return Number.isFinite(n) ? n : 0;
+    };
+
+    const monthlyRevenue = monthlyJobs.reduce((total, j) => {
+      // Prefer explicit billing fields
+      let billingAmount = parseNumber(j.billingAmount || j.billing_amount);
+
+      // Fallback: hours * rate
+      if (!billingAmount) {
+        const hours = parseNumber(j.billingHours || j.billing_hours);
+        const rate = parseNumber(j.billingRate || j.billing_rate);
+        if (hours && rate) billingAmount = hours * rate;
+      }
+
+      // Fallback: totalCost without VAT (if vat present)
+      if (!billingAmount) {
+        const totalCost = parseNumber(j.totalCost || j.total_cost);
+        const vat = parseNumber(j.vat);
+        if (totalCost && vat >= 0) {
+          const denom = 1 + (vat / 100);
+          billingAmount = denom > 0 ? (totalCost / denom) : totalCost;
+        } else {
+          billingAmount = totalCost;
+        }
+      }
+
+      console.log('💰 Adding job billing (χωρίς ΦΠΑ) to monthly revenue:', billingAmount, 'from job:', j.id);
+      return total + billingAmount;
+    }, 0);
+
+    const monthlyProfit = monthlyJobs.reduce((total, j) => {
+      let billingAmount = parseNumber(j.billingAmount || j.billing_amount);
+      if (!billingAmount) {
+        const hours = parseNumber(j.billingHours || j.billing_hours);
+        const rate = parseNumber(j.billingRate || j.billing_rate);
+        if (hours && rate) billingAmount = hours * rate;
+      }
+      if (!billingAmount) {
+        const totalCost = parseNumber(j.totalCost || j.total_cost);
+        const vat = parseNumber(j.vat);
+        if (totalCost && vat >= 0) {
+          const denom = 1 + (vat / 100);
+          billingAmount = denom > 0 ? (totalCost / denom) : totalCost;
+        } else {
+          billingAmount = totalCost || 0;
+        }
+      }
+
+      const materialsCost = parseNumber(j.materialsCost || j.materials_cost);
+      const kilometers = parseNumber(j.kilometers || 0);
+      const costPerKm = parseNumber(j.costPerKm || j.cost_per_km || 0.5);
+      const travelCost = kilometers * costPerKm;
+
+      // Parse assignedWorkers for labor cost
+      let laborCost = 0;
+      let assignedWorkers = j.assignedWorkers || j.assigned_workers;
+      try {
+        if (typeof assignedWorkers === 'string' && assignedWorkers) assignedWorkers = JSON.parse(assignedWorkers);
+      } catch (e) {
+        assignedWorkers = [];
+      }
+      if (Array.isArray(assignedWorkers)) {
+        laborCost = assignedWorkers.reduce((s, w) => s + parseNumber(w.laborCost || w.labor_cost || 0), 0);
+      }
+
+      const totalExpenses = materialsCost + laborCost + travelCost;
+      const profit = billingAmount - totalExpenses; // profit WITHOUT VAT (consistent with Jobs view)
+
+      console.log('📈 Job', j.id, 'profit (χωρίς ΦΠΑ):', profit, '(revenue:', billingAmount, '- expenses:', totalExpenses, ')');
+      return total + profit;
+    }, 0);
+
+    // NOTE: removed older fallback monthlyProfit calculation to avoid duplicate declaration.
+    // The `monthlyProfit` above (using billing without VAT minus expenses) is the canonical value.
+
+    const stats = {
       totalJobs: jobs.length,
       totalClients: clients.length,
       totalWorkers: workers.length,
@@ -206,16 +299,18 @@ window.DashboardView = {
                jobDate.getFullYear() === thisYear;
       }).length,
       newClientsThisMonth: 0, // Θα χρειαζόταν createdAt field
-      monthlyRevenue: jobs
-        .filter(j => {
-          const jobDate = new Date(j.date);
-          return (j.status === 'Ολοκληρώθηκε' || j.status === 'Εξοφλήθηκε') &&
-                 jobDate.getMonth() === thisMonth &&
-                 jobDate.getFullYear() === thisYear;
-        })
-        .reduce((total, j) => total + (j.totalCost || 0), 0),
+      monthlyRevenue: monthlyRevenue,
+      monthlyProfit: monthlyProfit,
       statusBreakdown: this.getStatusBreakdown(jobs)
     };
+    
+    console.log('📊 Dashboard stats calculated:', {
+      monthlyRevenue: stats.monthlyRevenue,
+      monthlyProfit: stats.monthlyProfit,
+      completedThisMonth: stats.completedThisMonth
+    });
+    
+    return stats;
   },
 
   getStatusBreakdown(jobs) {
@@ -224,6 +319,37 @@ window.DashboardView = {
       breakdown[status] = jobs.filter(j => j.status === status).length;
     });
     return breakdown;
+  },
+
+  async fetchServerStats() {
+    try {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+
+      const resp = await fetch(`/api/statistics.php?action=revenue&year=${year}`);
+      if (!resp.ok) return;
+      const json = await resp.json();
+      if (!json || !json.success) return;
+
+      const monthRow = (json.data || []).find(r => String(r.month) === month);
+      if (!monthRow) return;
+
+      // revenue: prefer billing_without_vat, else revenue
+      const billing = Number(monthRow.billing_without_vat ?? monthRow.revenue ?? 0);
+      const net = Number(monthRow.net_profit ?? monthRow.profit ?? 0);
+
+      const revEl = document.getElementById('monthlyRevenueValue');
+      const profEl = document.getElementById('monthlyProfitValue');
+      if (revEl) revEl.textContent = Utils.formatCurrency(billing);
+      if (profEl) {
+        profEl.textContent = (net >= 0 ? '+' : '') + Utils.formatCurrency(net);
+        profEl.style.color = net >= 0 ? getComputedStyle(document.documentElement).getPropertyValue('--success').trim() : getComputedStyle(document.documentElement).getPropertyValue('--error').trim();
+      }
+    } catch (e) {
+      // ignore network errors
+      console.debug('fetchServerStats error', e);
+    }
   },
 
   renderRecentActivities() {
@@ -284,7 +410,8 @@ window.DashboardView = {
     return `
       <ul class="activities-list">
         ${upcomingJobs.map(job => {
-          const client = State.data.clients.find(c => Number(c.id) === Number(job.clientId));
+          const clients = State.data?.clients || [];
+          const client = clients.find(c => Number(c.id) === Number(job.clientId));
           const clientName = client ? client.name : 'Άγνωστος πελάτης';
           const visitDate = new Date(job.nextVisit);
           visitDate.setHours(0, 0, 0, 0);
@@ -499,7 +626,7 @@ window.DashboardView = {
               <div style="display: flex; align-items: center; gap: 10px;">
                 <span>${client?.address || '-'}, ${client?.city || '-'}, ${client?.postal || '-'}</span>
                 ${client?.address && client?.city ? `
-                  <button class="btn-icon" onclick="DashboardView.openInMaps('${encodeURIComponent(client.address + ', ' + client.city + ', ' + (client.postal || 'Ελλάδα'))}')" title="Άνοιγμα στο Google Maps">
+                  <button class="btn-icon" onclick="Utils.openInMaps('${client.address}, ${client.city}, ${client.postal || 'Ελλάδα'}')" title="Άνοιγμα στο Google Maps">
                     <i class="fas fa-map-marked-alt"></i>
                   </button>
                 ` : ''}
@@ -646,18 +773,10 @@ window.DashboardView = {
         ` : ''}
       </div>
     `;
-
-    const footer = `
-      <button class="btn-ghost" onclick="Modal.close()">Κλείσιμο</button>
-      <button class="btn-primary" onclick="Modal.close(); setTimeout(() => Router.navigate('jobs'), 100);">
-        <i class="fas fa-list"></i> Προβολή στις Εργασίες
-      </button>
-    `;
     
     Modal.open({
       title: `${clientName}`,
       content: content,
-      footer: footer,
       size: 'lg'
     });
   },
@@ -743,11 +862,9 @@ window.DashboardView = {
     if (typeof window.loadGoogleMaps === 'function') {
       window.loadGoogleMaps()
         .then(() => {
-          console.log('✅ Google Maps loaded for dashboard');
           setTimeout(() => this.loadDashboardMap(), 100);
         })
         .catch(err => {
-          console.warn('⚠️ Google Maps not available for dashboard:', err);
           const mapElement = document.getElementById('dashboardMap');
           if (mapElement) {
             mapElement.innerHTML = `
@@ -914,7 +1031,6 @@ window.DashboardView = {
       const leafletScript = document.createElement('script');
       leafletScript.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
       leafletScript.onload = () => {
-        console.log('✅ Leaflet loaded for dashboard');
         this.renderLeafletMap();
       };
       leafletScript.onerror = () => {
@@ -1048,7 +1164,6 @@ window.DashboardView = {
         map.fitBounds(bounds, { padding: [20, 20] });
       }
 
-      console.log(`📍 Dashboard map loaded with ${markerCount} markers (Leaflet)`);
     } catch (error) {
       console.error('❌ Error loading Leaflet dashboard map:', error);
       mapElement.innerHTML = `
@@ -1062,4 +1177,3 @@ window.DashboardView = {
     }
   }
 };
-

@@ -85,41 +85,30 @@ window.MapView = {
 
       <!-- Map Controls -->
       <div class="card" style="margin-bottom: 1rem;">
-        <div style="display: flex; gap: 1.5rem; flex-wrap: wrap; align-items: center; justify-content: space-between;">
-          <div style="display: flex; gap: 1.5rem; flex-wrap: wrap; align-items: center;">
-            <label class="toggle-switch" title="Εμφάνιση όλων των πελατών με διεύθυνση">
-              <input type="checkbox" id="showClients" checked>
-              <span class="toggle-slider"></span>
-              <span class="toggle-label">
-                <span style="color: #2196F3; font-size: 1.2rem;">⬤</span> Πελάτες
-              </span>
-            </label>
-            
-            <label class="toggle-switch" title="Επισκέψεις που προγραμματίζονται τις επόμενες 7 ημέρες">
-              <input type="checkbox" id="showUpcoming" checked>
-              <span class="toggle-slider"></span>
-              <span class="toggle-label">
-                <span style="color: #4CAF50; font-size: 1.2rem;">⬤</span> Επόμενες Επισκέψεις
-              </span>
-            </label>
-            
-            <label class="toggle-switch" title="Επισκέψεις που έχουν προγραμματιστεί για σήμερα">
-              <input type="checkbox" id="showToday" checked>
-              <span class="toggle-slider"></span>
-              <span class="toggle-label">
-                <span style="color: #F44336; font-size: 1.2rem;">⬤</span> Σημερινές Επισκέψεις
-              </span>
-            </label>
-          </div>
-          
-          <div style="display: flex; gap: 1rem; align-items: center;">
-            <button class="btn btn-secondary" id="refreshMapBtn">
-              <i class="fas fa-sync-alt"></i> Ανανέωση
-            </button>
-            <span id="geocodeCount" style="color: #666; font-size: 0.9rem; white-space: nowrap;">
-              Requests: ${this.requestCount}/${this.maxRequests}
+        <div style="display: flex; gap: 1.5rem; flex-wrap: wrap; align-items: center;">
+          <label class="toggle-switch" title="Εμφάνιση όλων των πελατών με διεύθυνση">
+            <input type="checkbox" id="showClients" checked>
+            <span class="toggle-slider"></span>
+            <span class="toggle-label">
+              <span style="color: #2196F3; font-size: 1.2rem;">⬤</span> Πελάτες
             </span>
-          </div>
+          </label>
+          
+          <label class="toggle-switch" title="Επισκέψεις που προγραμματίζονται τις επόμενες 7 ημέρες">
+            <input type="checkbox" id="showUpcoming" checked>
+            <span class="toggle-slider"></span>
+            <span class="toggle-label">
+              <span style="color: #4CAF50; font-size: 1.2rem;">⬤</span> Επόμενες Επισκέψεις
+            </span>
+          </label>
+          
+          <label class="toggle-switch" title="Επισκέψεις που έχουν προγραμματιστεί για σήμερα">
+            <input type="checkbox" id="showToday" checked>
+            <span class="toggle-slider"></span>
+            <span class="toggle-label">
+              <span style="color: #F44336; font-size: 1.2rem;">⬤</span> Σημερινές Επισκέψεις
+            </span>
+          </label>
         </div>
       </div>
 
@@ -155,7 +144,6 @@ window.MapView = {
     document.getElementById('showClients').addEventListener('change', () => this.toggleLayer('clients'));
     document.getElementById('showUpcoming').addEventListener('change', () => this.toggleLayer('upcoming'));
     document.getElementById('showToday').addEventListener('change', () => this.toggleLayer('today'));
-    document.getElementById('refreshMapBtn').addEventListener('click', () => this.loadMap(true));
     
     // Scroll to top button (mobile only)
     if (isMobile) {
@@ -394,7 +382,6 @@ window.MapView = {
 
   async loadMap(forceRefresh = false) {
     if (!this.map) {
-      console.warn('⚠️ Map not initialized yet');
       return;
     }
 
@@ -441,7 +428,8 @@ window.MapView = {
     }
 
     // Add upcoming visit markers (green)
-    if (document.getElementById('showUpcoming').checked) {
+    const showUpcomingCheckbox = document.getElementById('showUpcoming');
+    if (showUpcomingCheckbox && showUpcomingCheckbox.checked) {
       for (const job of upcomingJobs) {
         const client = clients.find(c => c.id === job.clientId);
         if (client && client.address && client.city) {
@@ -451,19 +439,14 @@ window.MapView = {
     }
 
     // Add today's visit markers (red)
-    if (document.getElementById('showToday').checked) {
+    const showTodayCheckbox = document.getElementById('showToday');
+    if (showTodayCheckbox && showTodayCheckbox.checked) {
       for (const job of todayJobs) {
         const client = clients.find(c => c.id === job.clientId);
         if (client && client.address && client.city) {
           await this.addMarker(client, 'today', '#F44336', job);
         }
       }
-    }
-
-    // Update request count
-    const countElement = document.getElementById('geocodeCount');
-    if (countElement) {
-      countElement.textContent = `Requests: ${this.requestCount}/${this.maxRequests}`;
     }
 
     // Fit bounds to show all markers
@@ -489,7 +472,6 @@ window.MapView = {
     }
 
     if (!location || location === 'ZERO_RESULTS') {
-      console.warn('❌ Could not geocode:', address);
       return;
     }
 
@@ -518,8 +500,8 @@ window.MapView = {
       ` : `
         <div style="padding: 12px; min-width: 200px; background: white; position: relative;">
           <h3 style="margin: 0 0 8px 0; color: #333; font-size: 14px; font-weight: bold; padding-right: 24px;">${client.name}</h3>
-          <p style="margin: 0 0 4px 0; font-size: 12px; color: #666;"><strong>📞</strong> ${client.phone || '-'}</p>
-          <p style="margin: 0 0 4px 0; font-size: 12px; color: #666;"><strong>📧</strong> ${client.email || '-'}</p>
+          <p style="margin: 0 0 4px 0; font-size: 12px; color: #666;"><strong>📞</strong> ${client.phone ? `<a href="tel:${client.phone}" style="color: #4285F4; text-decoration: none;">${client.phone}</a>` : '-'}</p>
+          <p style="margin: 0 0 4px 0; font-size: 12px; color: #666;"><strong>📧</strong> ${client.email ? `<a href="mailto:${client.email}" style="color: #4285F4; text-decoration: none;">${client.email}</a>` : '-'}</p>
           <p style="margin: 0 0 10px 0; font-size: 11px; color: #888;">📍 ${address}</p>
           <button onclick="window.open('${mapsUrl}', '_blank')" 
                   style="width: 100%; padding: 8px 12px; background: #4285F4; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 500;">
@@ -586,10 +568,6 @@ window.MapView = {
           <p style="margin: 0 0 6px 0;"><strong>📊 Κατάσταση:</strong> ${job.status}</p>
           <p style="margin: 0 0 12px 0;"><strong>📍 Διεύθυνση:</strong><br>${address}</p>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button onclick="openJobFromMap('${job.id}')" 
-                    style="flex: 1; min-width: 100px; padding: 8px 12px; background: var(--color-primary); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;">
-              <i class="fas fa-eye"></i> Προβολή
-            </button>
             <button onclick="window.open('${mapsUrl}', '_blank')" 
                     style="flex: 1; min-width: 100px; padding: 8px 12px; background: #4285F4; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;">
               <i class="fas fa-route"></i> Οδηγίες
@@ -603,14 +581,10 @@ window.MapView = {
             ×
           </button>
           <h3 style="margin: 0 0 12px 0; color: #333; padding-right: 30px;">${client.name}</h3>
-          <p style="margin: 0 0 6px 0;"><strong>📞 Τηλέφωνο:</strong> ${client.phone || '-'}</p>
-          <p style="margin: 0 0 6px 0;"><strong>📧 Email:</strong> ${client.email || '-'}</p>
+          <p style="margin: 0 0 6px 0;"><strong>📞 Τηλέφωνο:</strong> ${client.phone ? `<a href="tel:${client.phone}" style="color: #4285F4; text-decoration: none;">${client.phone}</a>` : '-'}</p>
+          <p style="margin: 0 0 6px 0;"><strong>📧 Email:</strong> ${client.email ? `<a href="mailto:${client.email}" style="color: #4285F4; text-decoration: none;">${client.email}</a>` : '-'}</p>
           <p style="margin: 0 0 12px 0;"><strong>📍 Διεύθυνση:</strong><br>${address}</p>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button onclick="openClientFromMap('${client.id}')" 
-                    style="flex: 1; min-width: 100px; padding: 8px 12px; background: var(--color-primary); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;">
-              <i class="fas fa-eye"></i> Προβολή
-            </button>
             <button onclick="window.open('${mapsUrl}', '_blank')" 
                     style="flex: 1; min-width: 100px; padding: 8px 12px; background: #4285F4; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;">
               <i class="fas fa-route"></i> Οδηγίες
@@ -652,7 +626,7 @@ window.MapView = {
 
   async geocodeAddress(address) {
     try {
-      // Use Nominatim (OpenStreetMap) for free geocoding
+      // Use Nominatim (OpenStreetMap) for free geocoding - Direct client-side call
       // Try multiple query formats for better results
       const queries = [
         // Original full address
@@ -665,6 +639,8 @@ window.MapView = {
       
       for (const query of queries) {
         const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1&countrycodes=gr&addressdetails=1`;
+        
+        console.log(`📡 Fetching geocode for: ${query}`);
         
         const response = await fetch(url, {
           headers: {
@@ -680,6 +656,7 @@ window.MapView = {
         const data = await response.json();
         
         if (data && data.length > 0) {
+          console.log(`✅ Geocoded: ${query} -> ${data[0].display_name}`);
           return {
             lat: parseFloat(data[0].lat),
             lng: parseFloat(data[0].lon)
@@ -717,7 +694,6 @@ window.MapView = {
           }
         }
       } catch (error) {
-        console.warn('⚠️ Error toggling marker:', error);
       }
     });
   },
@@ -736,7 +712,6 @@ window.MapView = {
             }
           }
         } catch (error) {
-          console.warn('⚠️ Error removing marker:', error);
         }
       });
       markerArray.length = 0;

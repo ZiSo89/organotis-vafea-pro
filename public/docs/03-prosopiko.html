@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3. Διαχείριση Προσωπικού - Οργανωτής Βαφέα Pro</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../src/css/variables.css">
+    <link rel="stylesheet" href="../src/css/sidebar.css">
+    <link rel="stylesheet" href="help-style.css">
+</head>
+<body>
+    <!-- Sidebar Navigation -->
+    <aside id="helpSidebar" class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">
+                <i class="fas fa-paint-roller"></i>
+                <div class="logo-text">
+                    <span class="company-name">Οδηγός Χρήσης</span>
+                </div>
+            </div>
+            <button id="sidebarToggle" class="sidebar-toggle" aria-label="Toggle Sidebar">
+                <i class="fas fa-chevron-left"></i>
+            </button>
+        </div>
+
+        <nav class="sidebar-nav">
+            <a href="help.html" class="nav-item" data-tooltip="Αρχική">
+                <i class="fas fa-home"></i>
+                <span>Αρχική</span>
+            </a>
+            <a href="01-eisagogi.html" class="nav-item" data-tooltip="Εισαγωγή">
+                <i class="fas fa-book-open"></i>
+                <span>Εισαγωγή</span>
+            </a>
+            <a href="02-pelates.html" class="nav-item" data-tooltip="Πελάτες">
+                <i class="fas fa-users"></i>
+                <span>Πελάτες</span>
+            </a>
+            <a href="03-prosopiko.html" class="nav-item active" data-tooltip="Προσωπικό">
+                <i class="fas fa-hard-hat"></i>
+                <span>Προσωπικό</span>
+            </a>
+            <a href="04-ergasies.html" class="nav-item" data-tooltip="Εργασίες">
+                <i class="fas fa-briefcase"></i>
+                <span>Εργασίες</span>
+            </a>
+            <a href="05-imerologio.html" class="nav-item" data-tooltip="Ημερολόγιο">
+                <i class="fas fa-calendar-alt"></i>
+                <span>Ημερολόγιο</span>
+            </a>
+            <a href="06-xartis.html" class="nav-item" data-tooltip="Χάρτης">
+                <i class="fas fa-map-marked-alt"></i>
+                <span>Χάρτης</span>
+            </a>
+            <a href="07-statistika.html" class="nav-item" data-tooltip="Στατιστικά">
+                <i class="fas fa-chart-bar"></i>
+                <span>Στατιστικά</span>
+            </a>
+            <a href="08-rithmiseis.html" class="nav-item" data-tooltip="Ρυθμίσεις">
+                <i class="fas fa-cog"></i>
+                <span>Ρυθμίσεις</span>
+            </a>
+        </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="container">
+        <header class="help-header">
+            <h1>👷 Διαχείριση Προσωπικού</h1>
+            <p class="subtitle">Πώς να καταχωρείς και να διαχειρίζεσαι τους εργάτες σου</p>
+        </header>
+
+        <div class="content">
+            <h2>Τι είναι η σελίδα «Προσωπικό»;</h2>
+            <p>Στη σελίδα <strong>Προσωπικό</strong> κρατάς αρχείο με όλους τους εργάτες που δουλεύουν μαζί σου. Εδώ μπορείς να:</p>
+            <ul>
+                <li>✅ Προσθέτεις νέους εργάτες</li>
+                <li>✅ Βλέπεις όλους τους εργαζομένους σου</li>
+                <li>✅ Αναζητάς εργάτη με το όνομα ή την ειδικότητα</li>
+                <li>✅ Επεξεργάζεσαι τα στοιχεία και τις αμοιβές τους</li>
+                <li>✅ Απενεργοποιείς εργάτη που δεν δουλεύει πια</li>
+                <li>✅ Βλέπεις συνολικές ώρες και αποδοχές</li>
+            </ul>
+
+            <div class="info-box">
+                <h4>💡 Αν δουλεύεις μόνος σου</h4>
+                <p>Αν δεν έχεις εργάτες και δουλεύεις μόνος σου, μπορείς να παραλείψεις αυτή τη σελίδα. Δεν είναι υποχρεωτικό να έχεις προσωπικό!</p>
+            </div>
+
+            <h2>Πώς να προσθέσεις νέο εργάτη;</h2>
+            
+            <div class="step">
+                <span class="step-number">1</span>
+                <h3>Πήγαινε στη σελίδα «Προσωπικό»</h3>
+                <p>Πάτα στο μενού αριστερά <code>Προσωπικό</code>.</p>
+            </div>
+
+            <div class="step">
+                <span class="step-number">2</span>
+                <h3>Πάτα το κουμπί «➕ Νέος Εργάτης»</h3>
+                <p>Πάνω δεξιά στη σελίδα θα δεις ένα μπλε κουμπί. Πάτα το!</p>
+            </div>
+
+            <div class="step">
+                <span class="step-number">3</span>
+                <h3>Συμπλήρωσε τη φόρμα</h3>
+                <p>Θα εμφανιστεί μια φόρμα με πεδία. Συμπλήρωσε τα στοιχεία του εργάτη:</p>
+            </div>
+
+            <h3>Πεδία της Φόρμας Εργάτη</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Πεδίο</th>
+                        <th>Τι συμπληρώνεις;</th>
+                        <th>Υποχρεωτικό;</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Ονοματεπώνυμο</strong></td>
+                        <td>Το όνομα του εργάτη (π.χ. "Γιάννης Παπαδόπουλος")</td>
+                        <td><span class="badge required">ΝΑΙ</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Τηλέφωνο</strong></td>
+                        <td>Το κινητό του (π.χ. "6900000000")</td>
+                        <td><span class="badge required">ΝΑΙ</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Ειδικότητα</strong></td>
+                        <td>Τι ξέρει να κάνει: Όλες οι ειδικότητες, Ελαιοχρωματιστής, Βοηθός, Γυψαδόρος, Βαφέας, Ειδικός σε Ξύλο</td>
+                        <td><span class="badge required">ΝΑΙ</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Ωρομίσθιο (€)</strong></td>
+                        <td>Πόσα ευρώ πληρώνεται την ώρα (π.χ. "15.00")</td>
+                        <td><span class="badge required">ΝΑΙ</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Κατάσταση</strong></td>
+                        <td>Ενεργός (δουλεύει τώρα) ή Ανενεργός (έφυγε)</td>
+                        <td><span class="badge required">ΝΑΙ</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Ημερομηνία Πρόσληψης</strong></td>
+                        <td>Πότε άρχισε να δουλεύει μαζί σου (π.χ. "15/01/2024")</td>
+                        <td><span class="badge optional">ΟΧΙ</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Σημειώσεις</strong></td>
+                        <td>Ό,τι θέλεις να θυμάσαι για αυτόν τον εργάτη</td>
+                        <td><span class="badge optional">ΟΧΙ</span></td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="info-box warning">
+                <h4>💰 Πώς συμπληρώνω το ωρομίσθιο;</h4>
+                <p>Γράψε πόσα ευρώ πληρώνεις τον εργάτη για 1 ώρα δουλειάς. Για παράδειγμα, αν πληρώνεις 15 ευρώ την ώρα, γράψε <code>15.00</code> ή <code>15</code>.</p>
+            </div>
+
+            <div class="step">
+                <span class="step-number">4</span>
+                <h3>Πάτα «Αποθήκευση»</h3>
+                <p>Όταν τελειώσεις, πάτα το μπλε κουμπί <strong>«Αποθήκευση»</strong>.</p>
+            </div>
+
+            <div class="info-box success">
+                <h4>✅ Επιτυχία!</h4>
+                <p>Ο εργάτης προστέθηκε! Τώρα μπορείς να τον προσθέτεις στις εργασίες σου.</p>
+            </div>
+
+            <h2>Πώς να δεις το προσωπικό σου;</h2>
+            <p>Στη σελίδα «Προσωπικό» βλέπεις μια <strong>λίστα με όλους τους εργάτες</strong>. Κάθε εργάτης εμφανίζεται με τα εξής στοιχεία:</p>
+            <ul>
+                <li>Ονοματεπώνυμο</li>
+                <li>Τηλέφωνο</li>
+                <li>Ειδικότητα</li>
+                <li>Ωρομίσθιο</li>
+                <li>Κατάσταση (Ενεργός / Ανενεργός)</li>
+                <li>Συνολικές ώρες που έχει δουλέψει</li>
+                <li>Συνολικές αποδοχές (πόσα έχει πάρει συνολικά)</li>
+                <li>Κουμπιά για επεξεργασία και διαγραφή</li>
+            </ul>
+
+            <h2>Πώς να φιλτράρεις το προσωπικό;</h2>
+            <p>Πάνω από τη λίστα υπάρχουν φίλτρα για να βρεις γρήγορα έναν εργάτη:</p>
+
+            <h3>1. Αναζήτηση με όνομα</h3>
+            <p>Γράψε το όνομα του εργάτη στο πλαίσιο <code>🔍 Αναζήτηση...</code> και η λίστα θα φιλτράρει αυτόματα.</p>
+
+            <h3>2. Φίλτρο Κατάστασης</h3>
+            <p>Επίλεξε:</p>
+            <ul>
+                <li><strong>Όλοι:</strong> Δείχνει όλους τους εργάτες</li>
+                <li><strong>Ενεργοί:</strong> Δείχνει μόνο όσους δουλεύουν τώρα</li>
+                <li><strong>Ανενεργοί:</strong> Δείχνει όσους έχουν φύγει</li>
+            </ul>
+
+            <h3>3. Φίλτρο Ειδικότητας</h3>
+            <p>Επίλεξε μια ειδικότητα (π.χ. "Βοηθός") για να δεις μόνο τους εργάτες με αυτή την ειδικότητα.</p>
+
+            <h2>Πώς να επεξεργαστείς εργάτη;</h2>
+            <p>Αν θέλεις να αλλάξεις κάτι (π.χ. νέο τηλέφωνο, αύξηση στο ωρομίσθιο):</p>
+
+            <div class="step">
+                <span class="step-number">1</span>
+                <h3>Βρες τον εργάτη στη λίστα</h3>
+            </div>
+
+            <div class="step">
+                <span class="step-number">2</span>
+                <h3>Πάτα το κουμπί «Επεξεργασία» (✏️)</h3>
+            </div>
+
+            <div class="step">
+                <span class="step-number">3</span>
+                <h3>Άλλαξε τα στοιχεία και πάτα «Αποθήκευση»</h3>
+            </div>
+
+            <h2>Πώς να απενεργοποιήσεις εργάτη που έφυγε;</h2>
+            <p>Αν ένας εργάτης δεν δουλεύει πια μαζί σου, <strong>μην τον διαγράψεις!</strong> Αλλά απενεργοποίησέ τον:</p>
+
+            <div class="step">
+                <span class="step-number">1</span>
+                <h3>Άνοιξε την επεξεργασία του εργάτη</h3>
+            </div>
+
+            <div class="step">
+                <span class="step-number">2</span>
+                <h3>Άλλαξε την «Κατάσταση» σε «Ανενεργός»</h3>
+            </div>
+
+            <div class="step">
+                <span class="step-number">3</span>
+                <h3>Αποθήκευσε</h3>
+                <p>Ο εργάτης δεν θα διαγραφεί, αλλά δεν θα εμφανίζεται πια στις νέες εργασίες. Οι παλιές εργασίες που έχει κάνει θα παραμείνουν!</p>
+            </div>
+
+            <div class="info-box">
+                <h4>💡 Γιατί να μην τον διαγράψω;</h4>
+                <p>Αν διαγράψεις έναν εργάτη, θα χαθούν όλα τα ιστορικά στοιχεία για τις δουλειές που έκανε. Καλύτερα να τον κάνεις «Ανενεργό» για να κρατήσεις το αρχείο σου!</p>
+            </div>
+
+            <h2>Πώς υπολογίζονται οι συνολικές ώρες και αποδοχές;</h2>
+            <p>Το πρόγραμμα υπολογίζει αυτόματα:</p>
+            <ul>
+                <li><strong>Συνολικές Ώρες:</strong> Όλες οι ώρες που ο εργάτης έχει δουλέψει σε όλες τις εργασίες</li>
+                <li><strong>Συνολικές Αποδοχές:</strong> Ώρες × Ωρομίσθιο = Πόσα έχει πάρει συνολικά</li>
+            </ul>
+
+            <div class="info-box warning">
+                <h4>⚠️ Προσοχή</h4>
+                <p>Αυτά τα ποσά υπολογίζονται από τις εργασίες που έχεις καταχωρήσει. Για να είναι σωστά, πρέπει να έχεις βάλει τις ώρες κάθε εργάτη στις εργασίες!</p>
+            </div>
+
+            <h2>Συμβουλές για το Προσωπικό</h2>
+            <ul>
+                <li>💡 Κάνε <strong>διακριτές ειδικότητες</strong> για κάθε εργάτη. Έτσι ξέρεις ποιον να καλέσεις για κάθε δουλειά!</li>
+                <li>💡 Στις σημειώσεις μπορείς να γράψεις πληροφορίες όπως "Καλός σε ξύλινες επιφάνειες" ή "Προτιμάει πρωινό ωράριο".</li>
+                <li>💡 Ενημέρωνε τακτικά το ωρομίσθιο αν κάνεις αύξηση!</li>
+            </ul>
+
+            <div class="page-nav">
+                <a href="02-pelates.html" class="btn-back">← Πίσω: Πελάτες</a>
+                <a href="04-ergasies.html" class="btn-next">Επόμενο: Εργασίες →</a>
+            </div>
+        </div>
+    </main>
+
+    <script src="help-sidebar.js"></script>
+</body>
+</html>

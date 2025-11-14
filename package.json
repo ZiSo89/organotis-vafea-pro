@@ -1,11 +1,12 @@
 {
   "name": "organotis-vafea",
   "version": "1.0.1",
-  "description": "Οργανωτής Βαφέα - Desktop Application",
+  "description": "Οργανωτής Βαφέα - Desktop Application with Offline Support",
   "author": "Ζήσογλου Σάκης",
-  "main": "electron-main.js",
+  "main": "electron/main.js",
   "scripts": {
     "start": "electron .",
+    "dev": "electron . --dev",
     "build": "electron-builder",
     "package": "electron-packager . \"Οργανωτής Βαφέα\" --platform=win32 --arch=x64 --out=dist --overwrite"
   },
@@ -16,7 +17,9 @@
       "target": [
         {
           "target": "portable",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "assets/icons/favicon.ico"
@@ -25,18 +28,19 @@
       "artifactName": "Οργανωτής-Βαφέα-v${version}.exe"
     },
     "files": [
-      "index.html",
-      "electron-main.js",
-      "favicon.ico",
-      "icon.png",
-      "src/**/*",
-      "assets/**/*",
-      "build/**/*",
+      "public/**/*",
+      "electron/**/*",
+      "config/**/*",
+      "api/**/*",
+      "database/**/*",
       "!node_modules",
       "!dist",
       "!docs",
       "!**/*.md"
     ]
+  },
+  "dependencies": {
+    "better-sqlite3": "^9.6.0"
   },
   "devDependencies": {
     "electron": "^27.0.0",

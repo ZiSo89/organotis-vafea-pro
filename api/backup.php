@@ -35,6 +35,7 @@ if ($action === 'export') {
             'job_workers',
             'job_materials',
             'timesheets',
+            'calendar_events',
             'offers',
             'invoices',
             'templates',
@@ -147,6 +148,7 @@ if ($action === 'import') {
         // Σειρά διαγραφής (ανάποδη από τις foreign keys)
         $deleteOrder = [
             'timesheets',
+            'calendar_events',
             'job_materials',
             'job_workers',
             'invoices',
@@ -177,6 +179,7 @@ if ($action === 'import') {
             'job_workers',
             'job_materials',
             'timesheets',
+            'calendar_events',
             'offers',
             'invoices',
             'templates',

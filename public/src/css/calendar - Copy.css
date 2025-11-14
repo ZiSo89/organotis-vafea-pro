@@ -1,0 +1,693 @@
+/* ========================================
+   Calendar View Styles
+   Minimal & Ευδιάκριτο Design
+   ======================================== */
+
+/* ========================================
+   Calendar Container
+   ======================================== */
+.calendar-container {
+  display: flex;
+  gap: 24px;
+  margin-top: 24px;
+  width: 100%;
+  max-width: 100%;
+  align-items: stretch;
+}
+
+/* ========================================
+   Upcoming Visits Panel
+   ======================================== */
+.upcoming-visits-panel {
+  background: var(--color-surface);
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  overflow-y: auto;
+  width: 420px;
+  min-width: 420px;
+  box-sizing: border-box;
+}
+
+.upcoming-visits-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.upcoming-visits-panel h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0;
+  color: var(--color-text);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.upcoming-visits-panel h2 i {
+  color: var(--color-primary);
+}
+
+.upcoming-visits-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ========================================
+   Visit Item Card
+   ======================================== */
+.visit-item {
+  display: flex;
+  gap: 16px;
+  padding: 16px;
+  background: var(--color-background);
+  border-radius: 8px;
+  border-left: 4px solid var(--color-primary);
+  cursor: pointer;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.visit-date {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 60px;
+  background: var(--color-primary);
+  color: white;
+  border-radius: 8px;
+  padding: 8px;
+  text-align: center;
+}
+
+.visit-day {
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.visit-month {
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  opacity: 0.9;
+  margin-top: 4px;
+}
+
+.visit-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.visit-title {
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--color-text);
+  margin-bottom: 6px;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  line-height: 1.4;
+}
+
+.visit-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+  margin-bottom: 6px;
+}
+
+.visit-details span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.visit-details i {
+  width: 14px;
+  font-size: 0.75rem;
+  color: var(--color-primary);
+}
+
+.visit-time {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+
+.visit-status {
+  display: flex;
+  align-items: flex-start;
+  padding-top: 4px;
+}
+
+/* ========================================
+   Status Badges
+   ======================================== */
+.status-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.status-pending,
+.status-υποψήφιος,
+.status-σε.αναμονή {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.status-in_progress,
+.status-in-progress,
+.status-σε.εξέλιξη {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+.status-completed,
+.status-ολοκληρώθηκε {
+  background: #d1fae5;
+  color: #059669;
+}
+
+.status-cancelled,
+.status-ακυρώθηκε {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+/* ========================================
+   Calendar Main Area
+   ======================================== */
+.calendar-main {
+  background: var(--color-surface);
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  flex: 1;
+  box-sizing: border-box;
+}
+
+/* Calendar wrapper για να χωρέσει */
+#calendar {
+  width: 100%;
+}
+
+/* ========================================
+   FullCalendar Customization
+   ======================================== */
+.fc {
+  --fc-border-color: #e5e7eb;
+  --fc-button-bg-color: var(--color-primary);
+  --fc-button-border-color: var(--color-primary);
+  --fc-button-hover-bg-color: var(--color-primary-dark);
+  --fc-button-hover-border-color: var(--color-primary-dark);
+  --fc-button-active-bg-color: var(--color-primary-dark);
+  --fc-button-active-border-color: var(--color-primary-dark);
+  --fc-today-bg-color: rgba(59, 130, 246, 0.1);
+}
+
+.fc .fc-toolbar {
+  margin-bottom: 24px;
+  gap: 12px;
+}
+
+.fc .fc-toolbar-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.fc .fc-button {
+  padding: 8px 16px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-radius: 6px;
+  text-transform: none;
+  box-shadow: none;
+  cursor: pointer;
+  pointer-events: auto !important;
+  user-select: none;
+}
+
+.fc .fc-button-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Calendar Header */
+.fc .fc-col-header-cell {
+  padding: 12px 4px;
+  font-weight: 600;
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-text-secondary);
+  background: var(--color-background);
+  border-color: var(--fc-border-color);
+}
+
+/* Calendar Days */
+.fc .fc-daygrid-day-number {
+  padding: 8px;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.fc .fc-day-today .fc-daygrid-day-number {
+  background: var(--color-primary);
+  color: white;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 4px;
+}
+
+/* ========================================
+   Events Styling - Minimal, library defaults
+   ======================================== */
+
+/* Base event styling - minimal overrides */
+.fc .fc-event {
+  cursor: default !important; /* Βέλος (default cursor) */
+}
+
+/* Disable ALL hover effects from library */
+.fc .fc-event:hover,
+.fc .fc-daygrid-event:hover,
+.fc .fc-timegrid-event:hover,
+.fc .fc-event-main:hover {
+  background-color: inherit !important;
+  border-color: inherit !important;
+  box-shadow: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+}
+
+/* Disable hover on calendar cells/days */
+.fc .fc-daygrid-day:hover,
+.fc .fc-timegrid-slot:hover,
+.fc .fc-daygrid-day-frame:hover {
+  background-color: inherit !important;
+}
+
+/* Force default cursor on all event elements */
+.fc .fc-event,
+.fc .fc-event *,
+.fc .fc-event-main,
+.fc .fc-event-title,
+.fc .fc-event-time,
+.fc-timegrid-event,
+.fc-daygrid-event {
+  cursor: default !important; /* Βέλος παντού */
+}
+
+/* Next Visit Events - Special color */
+.fc-event[id^="next_"] {
+  background-color: #f97316 !important;
+  border-color: #ea580c !important;
+}
+
+/* More Link */
+.fc .fc-daygrid-more-link {
+  color: var(--color-primary);
+  font-weight: 600;
+  font-size: 0.75rem;
+  padding: 4px;
+}
+
+/* Popover */
+.fc .fc-popover {
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--fc-border-color);
+}
+
+.fc .fc-popover-header {
+  background: var(--color-primary);
+  color: white;
+  padding: 12px;
+  font-weight: 600;
+  border-radius: 8px 8px 0 0;
+}
+
+/* Week Numbers */
+.fc .fc-daygrid-week-number {
+  background: var(--color-background);
+  color: var(--color-text-secondary);
+  padding: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+/* Time Grid (Week/Day views) */
+.fc .fc-timegrid-slot {
+  height: 3em;
+}
+
+.fc .fc-timegrid-slot-label {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+}
+
+.fc .fc-timegrid-event {
+  border-radius: 4px;
+  padding: 4px;
+}
+
+/* ========================================
+   Event Details Modal
+   ======================================== */
+.event-details {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 8px 0;
+}
+
+.detail-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.detail-row strong {
+  min-width: 140px;
+  color: var(--color-text-secondary);
+  font-weight: 600;
+  font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.detail-row strong i {
+  width: 16px;
+  color: var(--color-primary);
+}
+
+.detail-row span {
+  flex: 1;
+  color: var(--color-text);
+}
+
+.detail-row a {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+/* ========================================
+   Empty States
+   ======================================== */
+.empty-state-small {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+.empty-state-small i {
+  font-size: 3rem;
+  color: var(--color-text-muted);
+  margin-bottom: 16px;
+  opacity: 0.3;
+}
+
+.empty-state-small p {
+  font-size: 0.875rem;
+  margin: 0;
+}
+
+/* ========================================
+   Loading State
+   ======================================== */
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+.loading::before {
+  content: '';
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--color-primary);
+  border-top-color: transparent;
+  border-radius: 50%;
+  margin-right: 12px;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ========================================
+   Responsive Design
+   ======================================== */
+@media (max-width: 1200px) {
+  .calendar-container {
+    grid-template-columns: 300px 1fr;
+    gap: 16px;
+  }
+  
+  .upcoming-visits-panel {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 968px) {
+  .calendar-container {
+    grid-template-columns: 1fr;
+    gap: 16px;
+    padding: 0;
+    margin-top: 16px;
+  }
+  
+  .upcoming-visits-panel {
+    max-height: 300px;
+    padding: 16px;
+    width: 100%;
+  }
+  
+  .fc .fc-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 0;
+  }
+  
+  .fc .fc-toolbar-chunk {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 4px;
+  }
+  
+  /* Mobile: Μικρότερα buttons */
+  .fc .fc-button-group {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 4px;
+    width: 100%;
+  }
+  
+  .fc .fc-button-group .fc-button {
+    flex: 1;
+    padding: 6px 8px;
+    font-size: 0.7rem;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 640px) {
+  .calendar-container {
+    padding: 0;
+    margin: 12px 0;
+    gap: 12px;
+  }
+  
+  .calendar-main {
+    padding: 8px;
+    border-radius: 8px;
+    overflow-x: auto; /* Horizontal scroll for mobile */
+    overflow-y: visible;
+  }
+  
+  /* Calendar με minimum width για horizontal scroll */
+  #calendar {
+    min-width: 320px; /* Minimum readable size */
+    width: 100%;
+  }
+  
+  /* Visible scrollbar hint */
+  .calendar-main::-webkit-scrollbar {
+    height: 8px;
+  }
+  
+  .calendar-main::-webkit-scrollbar-track {
+    background: var(--color-background);
+    border-radius: 4px;
+  }
+  
+  .calendar-main::-webkit-scrollbar-thumb {
+    background: var(--color-primary);
+    border-radius: 4px;
+  }
+  
+  .calendar-main::-webkit-scrollbar-thumb:hover {
+    background: var(--color-primary-dark);
+  }
+  
+  .upcoming-visits-panel {
+    padding: 12px;
+    max-height: 250px;
+  }
+  
+  .upcoming-visits-panel h2 {
+    font-size: 0.95rem;
+    margin-bottom: 10px;
+  }
+  
+  .visit-item {
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px;
+  }
+  
+  .visit-date {
+    flex-direction: row;
+    width: 100%;
+    justify-content: flex-start;
+    gap: 10px;
+    padding: 8px;
+    min-width: auto;
+  }
+  
+  .visit-day {
+    font-size: 1.3rem;
+  }
+  
+  .visit-month {
+    font-size: 0.8rem;
+    margin-top: 0;
+  }
+  
+  .visit-title {
+    font-size: 0.9rem;
+  }
+  
+  .visit-details {
+    font-size: 0.75rem;
+  }
+  
+  /* FullCalendar Mobile Optimizations - ΜΙΚΡΟ ΗΜΕΡΟΛΟΓΙΟ */
+  .fc {
+    font-size: 0.75rem;
+  }
+  
+  .fc .fc-toolbar {
+    padding: 0;
+    margin-bottom: 8px;
+  }
+  
+  .fc .fc-toolbar-title {
+    font-size: 0.85rem;
+    text-align: center;
+    padding: 4px 0;
+  }
+  
+  /* Mobile buttons */
+  .fc .fc-button {
+    padding: 4px 8px;
+    font-size: 0.7rem;
+  }
+  
+  .fc .fc-button-group .fc-button {
+    flex: 1;
+    padding: 4px 6px;
+    font-size: 0.7rem;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Extra small screens */
+  .calendar-container {
+    margin-top: 8px;
+    gap: 8px;
+  }
+  
+  .upcoming-visits-panel {
+    max-height: 200px;
+    padding: 8px;
+  }
+  
+  .visit-item {
+    padding: 8px;
+    gap: 6px;
+  }
+  
+  .calendar-main {
+    padding: 6px;
+  }
+}
+
+/* ========================================
+   Dark Mode Support
+   ======================================== */
+[data-theme="dark"] .fc {
+  --fc-border-color: #374151;
+  --fc-today-bg-color: rgba(59, 130, 246, 0.2);
+}
+
+[data-theme="dark"] .fc .fc-col-header-cell {
+  background: var(--color-surface-dark);
+}
+
+[data-theme="dark"] .fc .fc-popover {
+  background: var(--color-surface);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+/* ========================================
+   Print Styles
+   ======================================== */
+@media print {
+  .calendar-container {
+    display: block;
+  }
+  
+  .upcoming-visits-panel {
+    display: none;
+  }
+  
+  .fc .fc-toolbar {
+    display: none;
+  }
+  
+  .fc .fc-button {
+    display: none;
+  }
+}

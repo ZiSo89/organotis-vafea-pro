@@ -5,16 +5,136 @@
 
 class APIService {
     constructor() {
-        this.baseURL = window.location.origin.includes('localhost:8000') 
-            ? 'http://localhost:8000/api'
-            : '/api';
+        // In Electron, use the configured server URL, otherwise use relative paths
+        if (typeof window.electronAPI !== 'undefined') {
+            this.baseURL = localStorage.getItem('syncServerUrl') || 'https://nikolpaintmaster.e-gata.gr';
+        } else {
+            this.baseURL = window.location.origin.includes('localhost:8000') 
+                ? 'http://localhost:8000/api'
+                : '/api';
+        }
+        
         this.authChecked = false;
+        this.offlineMode = false;
+        this.isElectron = typeof window.electronAPI !== 'undefined';
+        
+        // Auto-detect offline mode in Electron
+        if (this.isElectron) {
+            this.checkOnlineStatus();
+        }
+    }
+
+    /**
+     * Check if online and set offline mode accordingly
+     */
+    async checkOnlineStatus() {
+        if (!this.isElectron) {
+            this.offlineMode = !navigator.onLine;
+            return;
+        }
+        
+        try {
+            const isOnline = await window.electronAPI.sync.checkOnline();
+            this.offlineMode = !isOnline;
+        } catch (error) {
+            this.offlineMode = false;
+        }
+    }
+
+    /**
+     * Route request to online or offline service
+     */
+    async routeRequest(table, action, data = null, id = null) {
+        // Force offline mode in Electron (always use SQLite)
+        if (this.isElectron) {
+            return this.handleOfflineRequest(table, action, data, id);
+        }
+        
+        // Web version uses online API
+        return this.handleOnlineRequest(table, action, data, id);
+    }
+
+    /**
+     * Handle request via online API
+     */
+    async handleOnlineRequest(table, action, data, id) {
+        let endpoint = `/${table}.php?action=${action}`;
+        let options = {};
+        let result;
+        
+        if (action === 'list') {
+            result = await this.request(endpoint);
+        } else if (action === 'get' && id) {
+            endpoint += `&id=${id}`;
+            result = await this.request(endpoint);
+        } else if (action === 'create' && data) {
+            options = { method: 'POST', body: JSON.stringify(data) };
+            result = await this.request(endpoint, options);
+        } else if (action === 'update' && id && data) {
+            endpoint += `&id=${id}`;
+            options = { method: 'PUT', body: JSON.stringify(data) };
+            result = await this.request(endpoint, options);
+        } else if (action === 'delete' && id) {
+            endpoint += `&id=${id}`;
+            options = { method: 'DELETE', body: JSON.stringify({ id }) };
+            result = await this.request(endpoint, options);
+        }
+        
+        // Extract data from the result object (PHP API returns {success, data})
+        if (result && result.data !== undefined) {
+            return result.data;
+        }
+        
+        // If no data field, return the whole result (for backwards compatibility)
+        return result;
+    }
+
+    /**
+     * Handle request via offline SQLite
+     */
+    async handleOfflineRequest(table, action, data, id) {
+        if (!window.OfflineService) {
+            throw new Error('Offline service not available');
+        }
+        
+        let result;
+        
+        if (action === 'list') {
+            result = await window.OfflineService.getAll(table);
+        } else if (action === 'get' && id) {
+            result = await window.OfflineService.getById(table, id);
+        } else if (action === 'create' && data) {
+            result = await window.OfflineService.insert(table, data);
+            // After insert, return the newly created record
+            if (result.success && result.data && result.data.id) {
+                const newRecord = await window.OfflineService.getById(table, result.data.id);
+                return newRecord.data;
+            }
+        } else if (action === 'update' && id && data) {
+            result = await window.OfflineService.update(table, id, data);
+            // After update, return the updated record
+            if (result.success) {
+                const updatedRecord = await window.OfflineService.getById(table, id);
+                return updatedRecord.data;
+            }
+        } else if (action === 'delete' && id) {
+            result = await window.OfflineService.delete(table, id);
+            return result.success ? true : false;
+        }
+        
+        // For list and get operations, return the data directly
+        if (result && result.success) {
+            return result.data;
+        } else {
+            throw new Error(result?.message || 'Operation failed');
+        }
     }
 
     /**
      * Generic fetch wrapper with error handling
      */
     async request(endpoint, options = {}) {
+        console.log('[API] Request:', endpoint, options.method || 'GET');
         const config = {
             headers: {
                 'Content-Type': 'application/json',
@@ -27,21 +147,25 @@ class APIService {
         try {
             const response = await fetch(`${this.baseURL}${endpoint}`, config);
             const data = await response.json();
+            console.log('[API] Response:', endpoint, 'Status:', response.status);
 
             // Handle authentication errors
             if (response.status === 401) {
+                console.warn('[API] Unauthorized access:', endpoint);
                 this.handleUnauthorized();
                 throw new Error('Μη εξουσιοδοτημένη πρόσβαση');
             }
 
             // Handle other errors
             if (!response.ok || !data.success) {
+                console.error('[API] Error response:', endpoint, data);
                 throw new Error(data.message || `HTTP error! status: ${response.status}`);
             }
 
+            console.log('[API] Success:', endpoint, 'Data:', data);
             return data;
         } catch (error) {
-            console.error('API Request Error:', error);
+            console.error('[API] Request failed:', endpoint, error);
             throw error;
         }
     }
@@ -50,6 +174,9 @@ class APIService {
      * Handle unauthorized access
      */
     handleUnauthorized() {
+        // Skip redirect in Electron
+        if (this.isElectron) return;
+        
         if (!window.location.pathname.includes('login.html')) {
             window.location.href = 'login.html';
         }
@@ -59,6 +186,12 @@ class APIService {
      * Check authentication status
      */
     async checkAuth() {
+        // Always authenticated in Electron
+        if (this.isElectron) {
+            this.authChecked = true;
+            return true;
+        }
+        
         try {
             const data = await this.request('/auth.php?action=check');
             this.authChecked = true;
@@ -77,7 +210,6 @@ class APIService {
             await this.request('/auth.php?action=logout', { method: 'POST' });
             window.location.href = 'login.html';
         } catch (error) {
-            console.error('Logout error:', error);
             // Redirect anyway
             window.location.href = 'login.html';
         }
@@ -148,246 +280,155 @@ class APIService {
     // ==================== CLIENTS ====================
 
     async getClients() {
-        const data = await this.request('/clients.php');
-        return data.data;
+        return await this.routeRequest('clients', 'list');
     }
 
     async getClient(id) {
-        const data = await this.request(`/clients.php?id=${id}`);
-        return data.data;
+        return await this.routeRequest('clients', 'get', null, id);
     }
 
     async createClient(clientData) {
-        const data = await this.request('/clients.php', {
-            method: 'POST',
-            body: JSON.stringify(clientData),
-        });
-        return data.data;
+        return await this.routeRequest('clients', 'create', clientData);
     }
 
     async updateClient(id, clientData) {
-        const data = await this.request(`/clients.php?id=${id}`, {
-            method: 'PUT',
-            body: JSON.stringify(clientData),
-        });
-        return data.data;
+        return await this.routeRequest('clients', 'update', clientData, id);
     }
 
     async deleteClient(id) {
-        await this.request(`/clients.php?id=${id}`, {
-            method: 'DELETE',
-        });
-        return true;
+        return await this.routeRequest('clients', 'delete', null, id);
     }
 
     // ==================== WORKERS ====================
 
     async getWorkers() {
-        const data = await this.request('/workers.php');
-        return data.data;
+        return await this.routeRequest('workers', 'list');
     }
 
     async getWorker(id) {
-        const data = await this.request(`/workers.php?id=${id}`);
-        return data.data;
+        return await this.routeRequest('workers', 'get', null, id);
     }
 
     async createWorker(workerData) {
-        const data = await this.request('/workers.php', {
-            method: 'POST',
-            body: JSON.stringify(workerData),
-        });
-        return data.data;
+        return await this.routeRequest('workers', 'create', workerData);
     }
 
     async updateWorker(id, workerData) {
-        const data = await this.request(`/workers.php?id=${id}`, {
-            method: 'PUT',
-            body: JSON.stringify(workerData),
-        });
-        return data.data;
+        return await this.routeRequest('workers', 'update', workerData, id);
     }
 
     async deleteWorker(id) {
-        await this.request(`/workers.php?id=${id}`, {
-            method: 'DELETE',
-        });
-        return true;
+        return await this.routeRequest('workers', 'delete', null, id);
     }
 
     // ==================== MATERIALS ====================
 
     async getMaterials() {
-        const data = await this.request('/materials.php');
-        return data.data;
+        return await this.routeRequest('materials', 'list');
     }
 
     async getMaterial(id) {
-        const data = await this.request(`/materials.php?id=${id}`);
-        return data.data;
+        return await this.routeRequest('materials', 'get', null, id);
     }
 
     async createMaterial(materialData) {
-        const data = await this.request('/materials.php', {
-            method: 'POST',
-            body: JSON.stringify(materialData),
-        });
-        return data.data;
+        return await this.routeRequest('materials', 'create', materialData);
     }
 
     async updateMaterial(id, materialData) {
-        const data = await this.request(`/materials.php?id=${id}`, {
-            method: 'PUT',
-            body: JSON.stringify(materialData),
-        });
-        return data.data;
+        return await this.routeRequest('materials', 'update', materialData, id);
     }
 
     async deleteMaterial(id) {
-        await this.request(`/materials.php?id=${id}`, {
-            method: 'DELETE',
-        });
-        return true;
+        return await this.routeRequest('materials', 'delete', null, id);
     }
 
     // ==================== JOBS ====================
 
     async getJobs() {
-        const data = await this.request('/jobs.php');
-        return data.data;
+        return await this.routeRequest('jobs', 'list');
     }
 
     async getJob(id) {
-        const data = await this.request(`/jobs.php?id=${id}`);
-        return data.data;
+        return await this.routeRequest('jobs', 'get', null, id);
     }
 
     async createJob(jobData) {
-        const data = await this.request('/jobs.php', {
-            method: 'POST',
-            body: JSON.stringify(jobData),
-        });
-        return data.data;
+        return await this.routeRequest('jobs', 'create', jobData);
     }
 
     async updateJob(id, jobData) {
-        const data = await this.request(`/jobs.php?id=${id}`, {
-            method: 'PUT',
-            body: JSON.stringify(jobData),
-        });
-        return data.data;
+        return await this.routeRequest('jobs', 'update', jobData, id);
     }
 
     async deleteJob(id) {
-        await this.request(`/jobs.php?id=${id}`, {
-            method: 'DELETE',
-        });
-        return true;
+        return await this.routeRequest('jobs', 'delete', null, id);
     }
 
     // ==================== OFFERS ====================
 
     async getOffers() {
-        const data = await this.request('/offers.php');
-        return data.data;
+        return await this.routeRequest('offers', 'list');
     }
 
     async getOffer(id) {
-        const data = await this.request(`/offers.php?id=${id}`);
-        return data.data;
+        return await this.routeRequest('offers', 'get', null, id);
     }
 
     async createOffer(offerData) {
-        const data = await this.request('/offers.php', {
-            method: 'POST',
-            body: JSON.stringify(offerData),
-        });
-        return data.data;
+        return await this.routeRequest('offers', 'create', offerData);
     }
 
     async updateOffer(id, offerData) {
-        const data = await this.request(`/offers.php?id=${id}`, {
-            method: 'PUT',
-            body: JSON.stringify(offerData),
-        });
-        return data.data;
+        return await this.routeRequest('offers', 'update', offerData, id);
     }
 
     async deleteOffer(id) {
-        await this.request(`/offers.php?id=${id}`, {
-            method: 'DELETE',
-        });
-        return true;
+        return await this.routeRequest('offers', 'delete', null, id);
     }
 
     // ==================== INVOICES ====================
 
     async getInvoices() {
-        const data = await this.request('/invoices.php');
-        return data.data;
+        return await this.routeRequest('invoices', 'list');
     }
 
     async getInvoice(id) {
-        const data = await this.request(`/invoices.php?id=${id}`);
-        return data.data;
+        return await this.routeRequest('invoices', 'get', null, id);
     }
 
     async createInvoice(invoiceData) {
-        const data = await this.request('/invoices.php', {
-            method: 'POST',
-            body: JSON.stringify(invoiceData),
-        });
-        return data.data;
+        return await this.routeRequest('invoices', 'create', invoiceData);
     }
 
     async updateInvoice(id, invoiceData) {
-        const data = await this.request(`/invoices.php?id=${id}`, {
-            method: 'PUT',
-            body: JSON.stringify(invoiceData),
-        });
-        return data.data;
+        return await this.routeRequest('invoices', 'update', invoiceData, id);
     }
 
     async deleteInvoice(id) {
-        await this.request(`/invoices.php?id=${id}`, {
-            method: 'DELETE',
-        });
-        return true;
+        return await this.routeRequest('invoices', 'delete', null, id);
     }
 
     // ==================== TEMPLATES ====================
 
     async getTemplates() {
-        const data = await this.request('/templates.php');
-        return data.data;
+        return await this.routeRequest('templates', 'list');
     }
 
     async getTemplate(id) {
-        const data = await this.request(`/templates.php?id=${id}`);
-        return data.data;
+        return await this.routeRequest('templates', 'get', null, id);
     }
 
     async createTemplate(templateData) {
-        const data = await this.request('/templates.php', {
-            method: 'POST',
-            body: JSON.stringify(templateData),
-        });
-        return data.data;
+        return await this.routeRequest('templates', 'create', templateData);
     }
 
     async updateTemplate(id, templateData) {
-        const data = await this.request(`/templates.php?id=${id}`, {
-            method: 'PUT',
-            body: JSON.stringify(templateData),
-        });
-        return data.data;
+        return await this.routeRequest('templates', 'update', templateData, id);
     }
 
     async deleteTemplate(id) {
-        await this.request(`/templates.php?id=${id}`, {
-            method: 'DELETE',
-        });
-        return true;
+        return await this.routeRequest('templates', 'delete', null, id);
     }
 
     // ==================== HELPER METHODS ====================
@@ -405,18 +446,30 @@ class APIService {
                 this.getInvoices(),
             ]);
 
+            // Helper to safely access is_paid field (handles both snake_case and camelCase)
+            const isUnpaid = (invoice) => {
+                const isPaid = invoice.is_paid !== undefined ? invoice.is_paid : invoice.isPaid;
+                return !isPaid || isPaid === 0 || isPaid === '0' || isPaid === false;
+            };
+
+            // Helper to safely access stock fields
+            const isLowStock = (material) => {
+                const stock = parseFloat(material.stock || 0);
+                const minStock = parseFloat(material.min_stock !== undefined ? material.min_stock : material.minStock || 0);
+                return stock <= minStock;
+            };
+
             return {
                 totalClients: clients.length,
                 totalWorkers: workers.length,
                 totalMaterials: materials.length,
-                activeJobs: jobs.filter(j => j.status === 'in-progress').length,
-                pendingJobs: jobs.filter(j => j.status === 'pending').length,
-                completedJobs: jobs.filter(j => j.status === 'completed').length,
-                unpaidInvoices: invoices.filter(i => !i.isPaid).length,
-                lowStockMaterials: materials.filter(m => parseFloat(m.stock) <= parseFloat(m.minStock)).length,
+                activeJobs: jobs.filter(j => j.status === 'in-progress' || j.status === 'Σε εξέλιξη').length,
+                pendingJobs: jobs.filter(j => j.status === 'pending' || j.status === 'Υποψήφιος' || j.status === 'Προγραμματισμένη').length,
+                completedJobs: jobs.filter(j => j.status === 'completed' || j.status === 'Ολοκληρώθηκε').length,
+                unpaidInvoices: invoices.filter(isUnpaid).length,
+                lowStockMaterials: materials.filter(isLowStock).length,
             };
         } catch (error) {
-            console.error('Error fetching dashboard stats:', error);
             throw error;
         }
     }

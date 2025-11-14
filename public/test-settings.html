@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Test Settings API</title>
+</head>
+<body>
+    <h1>Test Settings API</h1>
+    <button onclick="testGet()">GET Settings</button>
+    <button onclick="testSave()">Save Test Data</button>
+    <pre id="output"></pre>
+
+    <script>
+        async function testGet() {
+            const response = await fetch('/api/settings.php');
+            const data = await response.json();
+            document.getElementById('output').textContent = JSON.stringify(data, null, 2);
+        }
+
+        async function testSave() {
+            const testData = {
+                hourlyRate: 35,
+                vat: 24,
+                travelCost: 1
+            };
+            
+            const response = await fetch('/api/settings.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    key: 'pricing_settings', 
+                    value: testData 
+                })
+            });
+            
+            const data = await response.json();
+            document.getElementById('output').textContent = JSON.stringify(data, null, 2);
+            
+            // Reload to verify
+            setTimeout(testGet, 500);
+        }
+    </script>
+</body>
+</html>

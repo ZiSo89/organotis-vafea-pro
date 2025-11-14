@@ -2,7 +2,9 @@
 
 # Enable Rewrite Engine
 RewriteEngine On
-RewriteBase /
+# PRODUCTION: RewriteBase /
+# LOCAL: RewriteBase /nikolpaintmaster.e-gata.gr/
+RewriteBase /nikolpaintmaster.e-gata.gr/
 
 # Force HTTPS (σε production)
 # RewriteCond %{HTTPS} off
@@ -45,12 +47,14 @@ RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^api/([a-zA-Z_]+)$ api/$1.php [L,QSA]
 
 # Redirect root to public folder
-RewriteRule ^$ /public/login.html [L,R=301]
+RewriteRule ^$ public/login.html [L]
 
-# Allow direct access to /public/ and /api/
-RewriteCond %{REQUEST_URI} !^/public/
-RewriteCond %{REQUEST_URI} !^/api/
-RewriteRule ^(.*)$ /public/$1 [L,R=301]
+# Redirect everything else to public/ (except api/)
+RewriteCond %{REQUEST_URI} !^/nikolpaintmaster\.e-gata\.gr/public/
+RewriteCond %{REQUEST_URI} !^/nikolpaintmaster\.e-gata\.gr/api/
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ public/$1 [L]
 
 # UTF-8 Encoding
 AddDefaultCharset UTF-8

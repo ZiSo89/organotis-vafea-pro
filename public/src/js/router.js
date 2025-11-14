@@ -56,12 +56,17 @@ const Router = {
     const view = this.routes[routeName];
     
     if (!view) {
-      console.error(`❌ Route not found: ${routeName}`);
-      this.navigate('dashboard');
+      const fallback = 'dashboard';
+      if (routeName === fallback) {
+        console.warn('Route not found and fallback unavailable:', routeName);
+        return;
+      }
+      // Set hash to trigger a single navigation (avoids recursive calls)
+      if (window.location.hash.slice(1) !== fallback) {
+        window.location.hash = fallback;
+      }
       return;
     }
-
-    console.log(`🔹 Navigating to: ${routeName}`, params);
 
     // Update state
     State.currentSection = routeName;
@@ -82,11 +87,7 @@ const Router = {
       
       if (view.render && typeof view.render === 'function') {
         view.render(contentArea, params); // Pass params to view
-      } else {
-        console.error(`❌ view.render is not a function!`, view);
       }
-    } else {
-      console.error('❌ contentArea not found!');
     }
   }
 };
