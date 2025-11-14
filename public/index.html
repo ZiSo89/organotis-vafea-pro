@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self'; 
+    script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://cdn.sheetjs.com https://nominatim.openstreetmap.org https://unpkg.com; 
+    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com; 
+    img-src 'self' data: https: http:; 
+    font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com; 
+    connect-src 'self' https://maps.googleapis.com https://nominatim.openstreetmap.org https://*.googleapis.com https://*.tile.openstreetmap.org https://unpkg.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; 
+    frame-src 'self' https://www.google.com;
+  ">
+  <title>Οργανωτής Βαφέα Pro</title>
+  
+  <!-- Favicon & App Icons -->
+  <link rel="icon" type="image/x-icon" href="/public/assets/icons/favicon.ico">
+  <link rel="icon" type="image/png" sizes="192x192" href="/public/assets/icons/icon.png">
+  <link rel="apple-touch-icon" href="/public/assets/icons/icon.png">
+  
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="/public/manifest.json">
+  <meta name="theme-color" content="#1a1a2e">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Οργανωτής Βαφέα">
+
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Flatpickr Date Picker (για ημερομηνίες) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/gr.js"></script>
+  
+  <!-- FullCalendar -->
+  <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
+  <script src='https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.10/locales/el.global.min.js'></script>
+  
+  <!-- Google Maps -->
+  <script>
+    // Dummy callback to prevent errors
+    window.initMap = function() {};
+    
+    // Load Google Maps on demand (only when needed)
+    let googleMapsPromise = null; // Track loading state
+    
+    window.loadGoogleMaps = function() {
+      // Return existing promise if already loading or loaded
+      if (googleMapsPromise) {
+        return googleMapsPromise;
+      }
+      
+      googleMapsPromise = new Promise((resolve, reject) => {
+        // Check if already loaded
+        if (typeof google !== 'undefined' && google.maps) {
+          resolve();
+          return;
+        }
+        
+        // Check if script is already being loaded
+        const existingScript = document.querySelector('script[src*="maps.googleapis.com"]');
+        if (existingScript) {
+          // Wait for existing script to load
+          existingScript.addEventListener('load', () => resolve());
+          existingScript.addEventListener('error', () => reject('Failed to load'));
+          return;
+        }
+        
+        // Only load on desktop or when explicitly requested
+        if (window.innerWidth <= 768) {
+          googleMapsPromise = null; // Reset promise for future attempts
+          reject('Mobile device');
+          return;
+        }
+        
+        const script = document.createElement('script');
+        script.src = 'https://maps.googleapis.com/maps/api/js?key=AIzaSyDbO_6f6Y_y_2_2MreK0XTWAIsZw-2AKWQ&libraries=geometry,places&callback=initMap';
+        script.async = true;
+        script.onload = () => resolve();
+        script.onerror = () => {
+          googleMapsPromise = null; // Reset promise on error
+          reject('Failed to load');
+        };
+        document.head.appendChild(script);
+      });
+      
+      return googleMapsPromise;
+    };
+  </script>
+  
+  <!-- Leaflet Maps (Fallback) - Loaded conditionally via JavaScript -->
+  
+  <!-- Nominatim Geocoding (OpenStreetMap) - No API key needed -->
+  <script>
+    // Nominatim Geocoding Helper
+    const Geocoding = {
+      async getCoordinates(address, city = 'Αλεξανδρούπολη', country = 'Ελλάδα') {
+        try {
+          const query = `${address}, ${city}, ${country}`;
+          const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`;
+          
+          const response = await fetch(url, {
+            headers: {
+              'User-Agent': 'Painter-Organizer-App/1.0'
+            }
+          });
+          
+          if (!response.ok) throw new Error('Geocoding failed');
+          
+          const data = await response.json();
+          
+          if (data && data.length > 0) {
+            return {
+              lat: parseFloat(data[0].lat),
+              lng: parseFloat(data[0].lon)
+            };
+          }
+          
+          return null;
+        } catch (error) {
+          return null;
+        }
+      }
+    };
+  </script>
+  
+  <!-- Chart.js για γραφήματα -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+  
+  <!-- jsPDF για PDF export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  
+  <!-- SheetJS για Excel export -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+  
+  <!-- ExcelJS για Excel export με styling -->
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+  
+  <!-- Styles -->
+  <link rel="stylesheet" href="src/css/variables.css">
+  <link rel="stylesheet" href="src/css/base.css?v=20251111a">
+  <link rel="stylesheet" href="src/css/sidebar.css">
+  <link rel="stylesheet" href="src/css/components.css">
+  <link rel="stylesheet" href="src/css/dashboard.css">
+  <link rel="stylesheet" href="src/css/tables.css">
+  <link rel="stylesheet" href="src/css/modals.css">
+  <link rel="stylesheet" href="src/css/calendar.css?v=20251111R">
+  <link rel="stylesheet" href="src/css/calendar-mobile.css">
+  <link rel="stylesheet" href="src/css/animations.css">
+  <link rel="stylesheet" href="src/css/responsive.css">
+  <link rel="stylesheet" href="src/css/print.css">
+  
+  <!-- Disable Google Save Address Popup -->
+  <style>
+    /* Hide Google's "Save address?" popup */
+    [role="dialog"][aria-label*="Save"],
+    [role="dialog"][aria-label*="address"],
+    .gm-style-iw-chr,
+    .dismissButton {
+      display: none !important;
+      visibility: hidden !important;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Sidebar Navigation -->
+  <aside id="sidebar" class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">
+        <i class="fas fa-paint-roller"></i>
+        <div class="logo-text">
+          <span class="company-name" id="sidebarCompanyName">Οργανωτής Βαφέα</span>
+        </div>
+      </div>
+      <button id="sidebarToggle" class="sidebar-toggle" aria-label="Toggle Sidebar">
+        <i class="fas fa-chevron-left"></i>
+      </button>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a href="#dashboard" class="nav-item active" data-section="dashboard" data-tooltip="Αρχική">
+        <i class="fas fa-home"></i>
+        <span data-translate="dashboard">Αρχική</span>
+      </a>
+      <a href="#jobs" class="nav-item" data-section="jobs" data-tooltip="Εργασίες">
+        <i class="fas fa-briefcase"></i>
+        <span data-translate="jobs">Εργασίες</span>
+      </a>
+      <a href="#clients" class="nav-item" data-section="clients" data-tooltip="Πελάτες">
+        <i class="fas fa-users"></i>
+        <span data-translate="clients">Πελάτες</span>
+      </a>
+      <a href="#workers" class="nav-item" data-section="workers" data-tooltip="Προσωπικό">
+        <i class="fas fa-hard-hat"></i>
+        <span>Προσωπικό</span>
+      </a>
+      <a href="#inventory" class="nav-item" data-section="inventory" data-tooltip="Αποθήκη">
+        <i class="fas fa-boxes"></i>
+        <span data-translate="inventory">Αποθήκη</span>
+      </a>
+      <a href="#calendar" class="nav-item" data-section="calendar" data-tooltip="Ημερολόγιο">
+        <i class="fas fa-calendar-alt"></i>
+        <span data-translate="calendar">Ημερολόγιο</span>
+      </a>
+      <a href="#map" class="nav-item" data-section="map" data-tooltip="Χάρτης">
+        <i class="fas fa-map-marked-alt"></i>
+        <span>Χάρτης</span>
+      </a>
+      <a href="#statistics" class="nav-item" data-section="statistics" data-tooltip="Στατιστικά">
+        <i class="fas fa-chart-bar"></i>
+        <span>Στατιστικά</span>
+      </a>
+      <a href="#settings" class="nav-item" data-section="settings" data-tooltip="Ρυθμίσεις">
+        <i class="fas fa-cog"></i>
+        <span data-translate="settings">Ρυθμίσεις</span>
+      </a>
+    </nav>
+  </aside>
+
+  <!-- Main Content -->
+  <main id="mainContent" class="main-content">
+    
+    <!-- Header -->
+    <header class="header">
+      <button id="mobileMenuBtn" class="mobile-menu-btn" aria-label="Menu">
+        <i class="fas fa-bars"></i>
+      </button>
+      <img src="assets/icons/logo.png" alt="Οργανωτής Βαφέα" class="header-logo">
+    </header>
+
+    <!-- Content Area -->
+    <div id="contentArea" class="content-area">
+      <!-- Το περιεχόμενο θα φορτώνεται δυναμικά εδώ -->
+    </div>
+  </main>
+
+  <!-- Toast Container -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- Modal Container -->
+  <div id="modalContainer" class="modal-container"></div>
+
+  <!-- Scripts -->
+  <script src="src/js/services/api.js?v=20251111c"></script>
+  <script src="src/js/services/settings-service.js?v=20251112a"></script>
+  <script src="src/js/services/offline.js?v=20251111c"></script>
+  <script src="src/js/config.js?v=20251111c"></script>
+  <script src="src/js/i18n.js?v=20251111c"></script>
+  <script src="src/js/state.js?v=20251111c"></script>
+  <script src="src/js/utils.js?v=20251111b"></script>
+  <script src="src/js/validation.js?v=20251111b"></script>
+  <script src="src/js/toast.js?v=20251111b"></script>
+  <script src="src/js/modal.js?v=20251111b"></script>
+  <script src="src/js/autocomplete.js?v=20251111b"></script>
+  <script src="src/js/keyboard.js?v=20251111b"></script>
+  <script src="src/js/theme.js?v=20251111b"></script>
+  <script src="src/js/sidebar.js?v=20251111c"></script>
+  <script src="src/js/router.js?v=20251111b"></script>
+  <script src="src/js/search.js?v=20251111b"></script>
+  <script src="src/js/table.js?v=20251111b"></script>
+  <script src="src/js/pagination.js?v=20251111b"></script>
+  <script src="src/js/models/timesheet.js?v=20251111b"></script>
+  <script src="src/js/views/dashboard.js?v=20251111e"></script>
+  <script src="src/js/views/clients.js?v=20251111b"></script>
+  <script src="src/js/views/workers.js?v=20251111b"></script>
+  <script src="src/js/views/inventory.js?v=20251111b"></script>
+  <script src="src/js/views/jobs.js?v=20251111b"></script>
+  <script src="src/js/views/calendar.js?v=20251111S"></script>
+  <script src="src/js/views/map.js?v=20251111b"></script>
+  <script src="src/js/views/offers.js?v=20251111b"></script>
+  <script src="src/js/views/invoices.js?v=20251111b"></script>
+  <script src="src/js/views/statistics.js?v=20251111b"></script>
+  <script src="src/js/views/templates.js?v=20251111b"></script>
+  <script src="src/js/views/settings.js?v=20251111d"></script>
+  <script src="src/js/app.js?v=20251111b"></script>
+
+</body>
+</html>

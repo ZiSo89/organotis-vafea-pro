@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>4. Διαχείριση Εργασιών - Οργανωτής Βαφέα Pro</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../src/css/variables.css">
+    <link rel="stylesheet" href="../src/css/sidebar.css">
+    <link rel="stylesheet" href="help-style.css">
+</head>
+<body>
+    <!-- Sidebar Navigation -->
+    <aside id="helpSidebar" class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">
+                <i class="fas fa-paint-roller"></i>
+                <div class="logo-text">
+                    <span class="company-name">Οδηγός Χρήσης</span>
+                </div>
+            </div>
+            <button id="sidebarToggle" class="sidebar-toggle" aria-label="Toggle Sidebar">
+                <i class="fas fa-chevron-left"></i>
+            </button>
+        </div>
+
+        <nav class="sidebar-nav">
+            <a href="help.html" class="nav-item" data-tooltip="Αρχική">
+                <i class="fas fa-home"></i>
+                <span>Αρχική</span>
+            </a>
+            <a href="01-eisagogi.html" class="nav-item" data-tooltip="Εισαγωγή">
+                <i class="fas fa-book-open"></i>
+                <span>Εισαγωγή</span>
+            </a>
+            <a href="02-pelates.html" class="nav-item" data-tooltip="Πελάτες">
+                <i class="fas fa-users"></i>
+                <span>Πελάτες</span>
+            </a>
+            <a href="03-prosopiko.html" class="nav-item" data-tooltip="Προσωπικό">
+                <i class="fas fa-hard-hat"></i>
+                <span>Προσωπικό</span>
+            </a>
+            <a href="04-ergasies.html" class="nav-item active" data-tooltip="Εργασίες">
+                <i class="fas fa-briefcase"></i>
+                <span>Εργασίες</span>
+            </a>
+            <a href="05-imerologio.html" class="nav-item" data-tooltip="Ημερολόγιο">
+                <i class="fas fa-calendar-alt"></i>
+                <span>Ημερολόγιο</span>
+            </a>
+            <a href="06-xartis.html" class="nav-item" data-tooltip="Χάρτης">
+                <i class="fas fa-map-marked-alt"></i>
+                <span>Χάρτης</span>
+            </a>
+            <a href="07-statistika.html" class="nav-item" data-tooltip="Στατιστικά">
+                <i class="fas fa-chart-bar"></i>
+                <span>Στατιστικά</span>
+            </a>
+            <a href="08-rithmiseis.html" class="nav-item" data-tooltip="Ρυθμίσεις">
+                <i class="fas fa-cog"></i>
+                <span>Ρυθμίσεις</span>
+            </a>
+        </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="container">
+        <header class="help-header">
+            <h1>💼 Διαχείριση Εργασιών</h1>
+            <p class="subtitle">Πώς να καταχωρείς και να παρακολουθείς όλες τις δουλειές σου</p>
+        </header>
+
+        <div class="content">
+            <h2>Τι είναι η σελίδα «Εργασίες»;</h2>
+            <p>Η σελίδα <strong>Εργασίες</strong> είναι το κέντρο του προγράμματος! Εδώ κρατάς αρχείο με <strong>όλες τις δουλειές</strong> που έχεις κάνει ή θα κάνεις. Κάθε εργασία περιλαμβάνει:</p>
+            <ul>
+                <li>✅ Στοιχεία πελάτη και διεύθυνση</li>
+                <li>✅ Τύπο δουλειάς και λεπτομέρειες</li>
+                <li>✅ Εργάτες που θα δουλέψουν</li>
+                <li>✅ Υλικά (χρώματα) που θα χρησιμοποιήσεις</li>
+                <li>✅ Κοστολόγηση (έξοδα και έσοδα)</li>
+                <li>✅ Κατάσταση (σε εξέλιξη, ολοκληρωμένη κ.λπ.)</li>
+            </ul>
+
+            <h2>Πώς να δημιουργήσεις νέα εργασία;</h2>
+            
+            <div class="step">
+                <span class="step-number">1</span>
+                <h3>Πήγαινε στη σελίδα «Εργασίες»</h3>
+                <p>Πάτα στο μενού αριστερά <code>Εργασίες</code>.</p>
+            </div>
+
+            <div class="step">
+                <span class="step-number">2</span>
+                <h3>Πάτα το κουμπί «➕ Νέα Εργασία»</h3>
+                <p>Πάνω δεξιά στη σελίδα θα δεις ένα μπλε κουμπί. Πάτα το!</p>
+            </div>
+
+            <div class="step">
+                <span class="step-number">3</span>
+                <h3>Συμπλήρωσε τη φόρμα</h3>
+                <p>Η φόρμα εργασίας έχει <strong>5 καρτέλες</strong> (tabs). Δεν χρειάζεται να συμπληρώσεις όλα τα πεδία! Μόνο τα υποχρεωτικά.</p>
+            </div>
+
+            <h2>📋 Καρτέλα 1: Βασικά Στοιχεία</h2>
+            <p>Εδώ βάζεις τα βασικά στοιχεία της δουλειάς.</p>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Πεδίο</th>
+                        <th>Τι συμπληρώνεις;</th>
+                        <th>Υποχρεωτικό;</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Ημερομηνία</strong></td>
+                        <td>Πότε θα γίνει η δουλειά (π.χ. "15/12/2024")</td>
+                        <td><span class="badge required">ΝΑΙ</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Κατάσταση</strong></td>
+                        <td>Σε τι φάση είναι η δουλειά (Υποψήφιος, Προγραμματισμένη, Σε εξέλιξη, Ολοκληρώθηκε κ.λπ.)</td>
+                        <td><span class="badge required">ΝΑΙ</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Πελάτης</strong></td>
+                        <td>Επιλογή από τη λίστα πελατών. Αν δεν υπάρχει, πρόσθεσέ τον πρώτα!</td>
+                        <td><span class="badge required">ΝΑΙ</span></td>
+                    </tr>
+                    <tr>
+                        <td>Τηλέφωνο / Email</td>
+                        <td>Συμπληρώνεται αυτόματα από τον πελάτη</td>
+                        <td><span class="badge auto">Αυτόματο</span></td>
+                    </tr>
+                    <tr>
+                        <td>Διεύθυνση / Πόλη / ΤΚ</td>
+                        <td>Συμπληρώνεται αυτόματα από τον πελάτη</td>
+                        <td><span class="badge auto">Αυτόματο</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Επόμενη Επίσκεψη</strong></td>
+                        <td>Αν έχεις δεύτερη επίσκεψη, βάλε εδώ την ημερομηνία</td>
+                        <td><span class="badge optional">ΟΧΙ</span></td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="info-box">
+                <h4>💡 Τι σημαίνουν οι καταστάσεις;</h4>
+                <ul>
+                    <li><strong>Υποψήφιος:</strong> Ο πελάτης ρώτησε, αλλά δεν έχει επιβεβαιώσει</li>
+                    <li><strong>Προγραμματισμένη:</strong> Η δουλειά είναι κλεισμένη και θα γίνει</li>
+                    <li><strong>Σε εξέλιξη:</strong> Έχεις αρχίσει τη δουλειά</li>
+                    <li><strong>Σε αναμονή:</strong> Η δουλειά έχει σταματήσει προσωρινά</li>
+                    <li><strong>Ολοκληρώθηκε:</strong> Η δουλειά τελείωσε</li>
+                    <li><strong>Εξοφλήθηκε:</strong> Ο πελάτης πλήρωσε</li>
+                    <li><strong>Ακυρώθηκε:</strong> Η δουλειά ακυρώθηκε</li>
+                </ul>
+            </div>
+
+            <h2>🎨 Καρτέλα 2: Λεπτομέρειες</h2>
+            <p>Εδώ συμπληρώνεις τεχνικές λεπτομέρειες για τη δουλειά.</p>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Πεδίο</th>
+                        <th>Τι συμπληρώνεις;</th>
+                        <th>Υποχρεωτικό;</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Τύπος Εργασίας</strong></td>
+                        <td>Τι είδους δουλειά: Εσωτερικοί χώροι, Εξωτερικοί χώροι, Κάγκελα/Πέργκολα, Επαγγελματικός, Κατοικία, Μικροεπισκευή, Άλλο</td>
+                        <td><span class="badge required">ΝΑΙ</span></td>
+                    </tr>
+                    <tr>
+                        <td>Αριθμός Δωματίων</td>
+                        <td>Πόσα δωμάτια (π.χ. 3)</td>
+                        <td><span class="badge optional">ΟΧΙ</span></td>
+                    </tr>
+                    <tr>
+                        <td>Τετραγωνικά (m²)</td>
+                        <td>Συνολική επιφάνεια (π.χ. 85.50)</td>
+                        <td><span class="badge optional">ΟΧΙ</span></td>
+                    </tr>
+                    <tr>
+                        <td>Υπόστρωμα</td>
+                        <td>Τι είναι από κάτω (π.χ. Γυψοσανίδα, Σοβάς, Ξύλο)</td>
+                        <td><span class="badge optional">ΟΧΙ</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Χρώματα</strong></td>
+                        <td>Πάτα «Προσθήκη Χρώματος» και συμπλήρωσε Μάρκα, Απόχρωση, Τελείωμα (Ματ, Satin κ.λπ.), Αστάρι (Ναι/Όχι)</td>
+                        <td><span class="badge optional">ΟΧΙ</span></td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="info-box warning">
+                <h4>🎨 Πώς να προσθέσω χρώματα;</h4>
+                <p>Πάτα το κουμπί <strong>«➕ Προσθήκη Χρώματος»</strong> κάτω από τη λίστα χρωμάτων. Θα ανοίξει ένα παράθυρο όπου μπορείς να βάλεις μάρκα, απόχρωση και άλλες λεπτομέρειες. Μπορείς να προσθέσεις περισσότερα από ένα χρώματα!</p>
+            </div>
+
+            <h2>👷 Καρτέλα 3: Εργάτες</h2>
+            <p>Αν έχεις προσωπικό, εδώ ορίζεις ποιοι θα δουλέψουν σε αυτή την εργασία.</p>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Πεδίο</th>
+                        <th>Τι συμπληρώνεις;</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Προσθήκη Εργάτη</strong></td>
+                        <td>Πάτα «➕ Προσθήκη Εργάτη» και επίλεξε από τη λίστα προσωπικού</td>
+                    </tr>
+                    <tr>
+                        <td>Ημέρες</td>
+                        <td>Πόσες ημέρες θα δουλέψει ο εργάτης (π.χ. 2)</td>
+                    </tr>
+                    <tr>
+                        <td>Ώρες/Ημέρα</td>
+                        <td>Πόσες ώρες την ημέρα (π.χ. 8)</td>
+                    </tr>
+                    <tr>
+                        <td>Ωρομίσθιο</td>
+                        <td>Συμπληρώνεται αυτόματα από το προσωπικό, αλλά μπορείς να το αλλάξεις για αυτή τη δουλειά</td>
+                    </tr>
+                    <tr>
+                        <td>Κόστος Εργασίας</td>
+                        <td>Υπολογίζεται αυτόματα (Ημέρες × Ώρες × Ωρομίσθιο)</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="info-box">
+                <h4>💡 Αν δουλεύεις μόνος σου</h4>
+                <p>Παράλειψε αυτή την καρτέλα! Δεν χρειάζεται να προσθέσεις τον εαυτό σου ως εργάτη.</p>
+            </div>
+
+            <h2>💰 Καρτέλα 4: Κοστολόγηση</h2>
+            <p>Εδώ υπολογίζονται τα οικονομικά της δουλειάς (έξοδα, έσοδα, κέρδος).</p>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Πεδίο</th>
+                        <th>Τι συμπληρώνεις;</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Κόστος Υλικών (€)</strong></td>
+                        <td>Πόσα ξόδεψες για χρώματα και υλικά (π.χ. 150.00)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Χιλιόμετρα</strong></td>
+                        <td>Πόσα χιλιόμετρα έκανες για να πας/έρθεις (π.χ. 20)</td>
+                    </tr>
+                    <tr>
+                        <td>Κόστος Μετακίνησης (€/km)</td>
+                        <td>Πόσο κοστίζει το χιλιόμετρο (default 0.50€, μπορείς να το αλλάξεις στις Ρυθμίσεις)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Ώρες Χρέωσης</strong></td>
+                        <td>Πόσες ώρες χρεώνεις στον πελάτη (π.χ. 16)</td>
+                    </tr>
+                    <tr>
+                        <td>Τιμή Χρέωσης/Ώρα (€)</td>
+                        <td>Πόσο χρεώνεις την ώρα (default 25€, μπορείς να το αλλάξεις στις Ρυθμίσεις)</td>
+                    </tr>
+                    <tr>
+                        <td>ΦΠΑ (%)</td>
+                        <td>Ποσοστό ΦΠΑ (default 24%)</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>Αυτόματοι Υπολογισμοί</h3>
+            <p>Το πρόγραμμα υπολογίζει αυτόματα:</p>
+            <ul>
+                <li><strong>Κόστος Μετακίνησης:</strong> Χιλιόμετρα × Κόστος/km</li>
+                <li><strong>Κόστος Εργατών:</strong> Άθροισμα κόστους όλων των εργατών</li>
+                <li><strong>Συνολικά Έξοδα:</strong> Υλικά + Μετακίνηση + Εργάτες</li>
+                <li><strong>Καθαρά Έσοδα:</strong> (Ώρες Χρέωσης × Τιμή/Ώρα) χωρίς ΦΠΑ</li>
+                <li><strong>Έσοδα με ΦΠΑ:</strong> Καθαρά Έσοδα × (1 + ΦΠΑ/100)</li>
+                <li><strong>Καθαρό Κέρδος:</strong> Καθαρά Έσοδα - Έξοδα</li>
+            </ul>
+
+            <div class="info-box success">
+                <h4>💰 Παράδειγμα</h4>
+                <p><strong>Έξοδα:</strong> Υλικά 100€ + Μετακίνηση 10€ + Εργάτες 240€ = 350€<br>
+                <strong>Έσοδα:</strong> 16 ώρες × 25€ = 400€ (χωρίς ΦΠΑ), 496€ (με ΦΠΑ 24%)<br>
+                <strong>Κέρδος:</strong> 400€ - 350€ = 50€</p>
+            </div>
+
+            <h2>📝 Καρτέλα 5: Σημειώσεις</h2>
+            <p>Εδώ μπορείς να γράψεις ό,τι θέλεις να θυμάσαι για αυτή τη δουλειά. Για παράδειγμα:</p>
+            <ul>
+                <li>"Ο πελάτης θέλει ματ τελείωμα"</li>
+                <li>"Να πάρω και αστάρι"</li>
+                <li>"Προσοχή: έχει σκύλο"</li>
+            </ul>
+
+            <div class="step">
+                <span class="step-number">4</span>
+                <h3>Πάτα «Αποθήκευση»</h3>
+                <p>Όταν τελειώσεις με όλες τις καρτέλες, πάτα το μπλε κουμπί <strong>«Αποθήκευση»</strong> στο κάτω μέρος.</p>
+            </div>
+
+            <div class="info-box success">
+                <h4>✅ Επιτυχία!</h4>
+                <p>Η εργασία αποθηκεύτηκε! Θα την δεις στη λίστα εργασιών και (αν έχει ημερομηνία) στο ημερολόγιο!</p>
+            </div>
+
+            <h2>Πώς να δεις τις εργασίες σου;</h2>
+            <p>Στη σελίδα «Εργασίες» βλέπεις μια <strong>λίστα με όλες τις δουλειές</strong>. Κάθε εργασία δείχνει:</p>
+            <ul>
+                <li>Ημερομηνία</li>
+                <li>Πελάτης</li>
+                <li>Τύπος εργασίας</li>
+                <li>Κατάσταση (με χρώμα: πράσινο = ολοκληρωμένη, μπλε = σε εξέλιξη κ.λπ.)</li>
+                <li>Κόστος και Κέρδος</li>
+                <li>Κουμπιά για επεξεργασία και διαγραφή</li>
+            </ul>
+
+            <h2>Πώς να φιλτράρεις εργασίες;</h2>
+            <p>Πάνω από τη λίστα υπάρχουν φίλτρα:</p>
+
+            <h3>1. Αναζήτηση</h3>
+            <p>Γράψε όνομα πελάτη ή διεύθυνση και η λίστα θα φιλτράρει αυτόματα.</p>
+
+            <h3>2. Φίλτρο Κατάστασης</h3>
+            <p>Επίλεξε μια κατάσταση (π.χ. "Ολοκληρώθηκε") για να δεις μόνο αυτές τις εργασίες.</p>
+
+            <h2>Πώς να επεξεργαστείς εργασία;</h2>
+            <p>Πάτα το κουμπί <strong>«Επεξεργασία» (✏️)</strong> δίπλα από την εργασία. Θα ανοίξει η ίδια φόρμα με τα στοιχεία συμπληρωμένα. Άλλαξε ό,τι θέλεις και αποθήκευσε!</p>
+
+            <h2>Πώς να αλλάξεις την κατάσταση μιας εργασίας;</h2>
+            <p>Για να αλλάξεις την κατάσταση (π.χ. από "Σε εξέλιξη" σε "Ολοκληρώθηκε"):</p>
+            <ol>
+                <li>Άνοιξε την επεξεργασία της εργασίας</li>
+                <li>Πήγαινε στην καρτέλα «Βασικά»</li>
+                <li>Άλλαξε το πεδίο «Κατάσταση»</li>
+                <li>Αποθήκευσε</li>
+            </ol>
+
+            <div class="info-box">
+                <h4>💡 Συμβουλή</h4>
+                <p>Όταν τελειώνεις μια δουλειά, άλλαξε την κατάσταση σε <strong>«Ολοκληρώθηκε»</strong>. Όταν πληρωθείς, άλλαξέ την σε <strong>«Εξοφλήθηκε»</strong>. Έτσι ξέρεις πάντα ποιες δουλειές περιμένουν ακόμα πληρωμή!</p>
+            </div>
+
+            <div class="page-nav">
+                <a href="03-prosopiko.html" class="btn-back">← Πίσω: Προσωπικό</a>
+                <a href="05-imerologio.html" class="btn-next">Επόμενο: Ημερολόγιο →</a>
+            </div>
+        </div>
+    </main>
+
+    <script src="help-sidebar.js"></script>
+</body>
+</html>

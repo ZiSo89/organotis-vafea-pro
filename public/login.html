@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Σύνδεση - Οργανωτής Βαφέα Pro</title>
+    
+    <!-- Favicons -->
+    <link rel="icon" type="image/x-icon" href="/public/assets/icons/favicon.ico">
+    <link rel="icon" type="image/png" sizes="192x192" href="/public/assets/icons/icon.png">
+    <link rel="apple-touch-icon" href="/public/assets/icons/icon.png">
+    
+    <!-- Manifest -->
+    <link rel="manifest" href="/public/manifest.json">
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#1a1a2e">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Οργανωτής Βαφέα Pro">
+    
+    <link rel="stylesheet" href="src/css/variables.css">
+    <link rel="stylesheet" href="src/css/base.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        }
+
+        .login-container {
+            background: white;
+            padding: 3rem 2.5rem;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            width: 100%;
+            max-width: 400px;
+            animation: slideIn 0.4s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .login-header h1 {
+            color: var(--primary-color);
+            font-size: 1.8rem;
+            margin: 0 0 0.5rem 0;
+            font-weight: 600;
+        }
+
+        .login-header p {
+            color: #666;
+            margin: 0;
+            font-size: 0.95rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #333;
+            font-weight: 500;
+            font-size: 0.95rem;
+        }
+
+        .form-group input[type="password"] {
+            width: 100%;
+            padding: 0.9rem 1rem;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            box-sizing: border-box;
+        }
+
+        .form-group input[type="password"]:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            margin-right: 0.5rem;
+            cursor: pointer;
+        }
+
+        .checkbox-group label {
+            color: #666;
+            font-size: 0.9rem;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .btn-login {
+            width: 100%;
+            padding: 1rem;
+            background: #3498db;
+            color: #ffffff;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-login:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(52, 152, 219, 0.4);
+        }
+
+        .btn-login:active {
+            transform: translateY(0);
+        }
+
+        .btn-login:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .error-message {
+            background: #fee;
+            color: #c33;
+            padding: 0.8rem;
+            border-radius: 6px;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+            display: none;
+            border-left: 4px solid #c33;
+        }
+
+        .error-message.show {
+            display: block;
+            animation: shake 0.4s ease-in-out;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            75% { transform: translateX(10px); }
+        }
+
+        .loading {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 480px) {
+            .login-container {
+                padding: 2rem 1.5rem;
+                margin: 1rem;
+            }
+
+            .login-header h1 {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-header">
+            <h1>🎨 Οργανωτής Βαφέα Pro</h1>
+            <p>Συνδεθείτε για να συνεχίσετε</p>
+        </div>
+
+        <div id="errorMessage" class="error-message"></div>
+
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="password">Κωδικός Πρόσβασης</label>
+                <input 
+                    type="password" 
+                    id="password" 
+                    name="password" 
+                    placeholder="Εισάγετε τον κωδικό σας"
+                    autocomplete="current-password"
+                    required
+                >
+            </div>
+
+            <div class="checkbox-group">
+                <input 
+                    type="checkbox" 
+                    id="rememberMe" 
+                    name="rememberMe"
+                >
+                <label for="rememberMe">Να με θυμάσαι για 30 ημέρες</label>
+            </div>
+
+            <button type="submit" class="btn-login" id="loginBtn">
+                Σύνδεση
+            </button>
+        </form>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin.includes('localhost:8000') 
+            ? 'http://localhost:8000/api'
+            : '/api';
+
+        const loginForm = document.getElementById('loginForm');
+        const passwordInput = document.getElementById('password');
+        const rememberMeCheckbox = document.getElementById('rememberMe');
+        const loginBtn = document.getElementById('loginBtn');
+        const errorMessage = document.getElementById('errorMessage');
+
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.classList.add('show');
+            setTimeout(() => {
+                errorMessage.classList.remove('show');
+            }, 4000);
+        }
+
+        function setLoading(isLoading) {
+            if (isLoading) {
+                loginBtn.disabled = true;
+                loginBtn.innerHTML = '<span class="loading"></span>Σύνδεση...';
+            } else {
+                loginBtn.disabled = false;
+                loginBtn.innerHTML = 'Σύνδεση';
+            }
+        }
+
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const password = passwordInput.value.trim();
+            const rememberMe = rememberMeCheckbox.checked;
+
+            if (!password) {
+                showError('Παρακαλώ εισάγετε τον κωδικό πρόσβασης');
+                return;
+            }
+
+            setLoading(true);
+
+            try {
+                const response = await fetch(`${API_BASE}/auth.php?action=login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({ password, rememberMe })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    // Επιτυχής σύνδεση - redirect στο dashboard
+                    window.location.href = 'index.html';
+                } else {
+                    showError(data.message || 'Λάθος κωδικός πρόσβασης');
+                    passwordInput.value = '';
+                    passwordInput.focus();
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                showError('Σφάλμα σύνδεσης με τον server. Βεβαιωθείτε ότι το PHP server τρέχει.');
+            } finally {
+                setLoading(false);
+            }
+        });
+
+        // Enter key support
+        passwordInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                loginForm.dispatchEvent(new Event('submit'));
+            }
+        });
+
+        // Check if already logged in
+        (async () => {
+            try {
+                const response = await fetch(`${API_BASE}/auth.php?action=check`, {
+                    credentials: 'include'
+                });
+                const data = await response.json();
+                
+                if (data.success && data.authenticated) {
+                    // Already logged in, redirect to dashboard
+                    window.location.href = 'index.html';
+                }
+            } catch (error) {
+                // Not logged in or error, stay on login page
+                console.log('Not authenticated');
+            }
+        })();
+    </script>
+</body>
+</html>

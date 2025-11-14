@@ -1,0 +1,375 @@
+================================================================================
+PROMPT ΓΙΑ ΜΕΤΑΒΑΣΗ ΑΠΟ LOCALSTORAGE ΣΕ MYSQL DATABASE
+Οργανωτής Βαφέα Pro - Migration Guide
+================================================================================
+
+# 📋 Ανάλυση Τρεχουσών Σχέσεων Δεδομένων
+
+Μελέτησα όλα τα αρχεία και εντόπισα τις παρακάτω σχέσεις:
+
+## 🔗 Κύριες Σχέσεις Δεδομένων
+
+### 1. Jobs (Εργασίες)
+- clientId → συνδέεται με Clients (one-to-many)
+- workers[] → array με worker IDs (many-to-many)
+- materials[] → array με material objects με quantity (many-to-many)
+- timesheets[] → embedded timesheets array
+
+### 2. Clients (Πελάτες)
+- Έχουν πολλά Jobs
+- Έχουν πολλά Offers
+- Έχουν πολλά Invoices
+
+### 3. Workers (Εργάτες)
+- Συμμετέχουν σε πολλά Jobs
+- Έχουν timesheets σε κάθε Job
+
+### 4. Materials (Υλικά)
+- Χρησιμοποιούνται σε πολλά Jobs με διαφορετικές ποσότητες
+- Έχουν stock level
+
+### 5. Offers (Προσφορές)
+- clientId → συνδέεται με έναν Client
+- items[] → array με line items
+
+### 6. Invoices (Τιμολόγια)
+- jobId → συνδέεται με ένα Job
+- clientId → συνδέεται με έναν Client
+- items[] → array με line items
+
+### 7. Templates (Πρότυπα)
+- Ανεξάρτητα, χρησιμοποιούνται για δημιουργία Jobs
+
+================================================================================
+📝 PROMPT ΓΙΑ CLAUDE SONNET 3.5
+================================================================================
+
+Θέλω να μετατρέψω μια JavaScript single-page application από localStorage σε 
+MySQL database με PHP backend. Η εφαρμογή είναι ένας οργανωτής για 
+βαφείς/ελαιοχρωματιστές.
+
+## ΤΕΧΝΙΚΕΣ ΠΡΟΔΙΑΓΡΑΦΕΣ:
+
+### Environment:
+- Local development με PHP built-in server: php -S localhost:8000
+- Production: Θα ανέβει σε shared hosting
+- Database: MySQL μέσω XAMPP locally (Port: 3306)
+- Database Name: painter_app
+- Database User: painter_user  
+- Database Password: ~cjN4bOZcq77jqy@
+- Framework: Vanilla PHP (όχι Laravel/Symfony)
+- Frontend: Existing HTML/CSS/JavaScript (ΔΕΝ αλλάζει η δομή)
+- Login Password: admin (hardcoded)
+- Test Data: Ναι, δημιουργία sample data για testing
+
+### Project Structure που θέλω:
+```
+project/
+├── public/
+│   ├── index.html
+│   ├── login.html
+│   ├── assets/
+│   └── src/
+│       ├── css/
+│       └── js/
+├── api/
+│   ├── config.php
+│   ├── auth.php
+│   ├── clients.php
+│   ├── jobs.php
+│   ├── workers.php
+│   ├── materials.php
+│   ├── offers.php
+│   ├── invoices.php
+│   └── templates.php
+├── config/
+│   └── database.php
+├── .htaccess
+└── robots.txt
+```
+
+## ΑΠΑΙΤΗΣΕΙΣ ΑΣΦΑΛΕΙΑΣ:
+
+1. **Login System:**
+   - Simple login form με hardcoded password στο PHP
+   - Session-based authentication
+   - Remember me functionality (30 days cookie)
+   - Redirect to login.html αν δεν είναι authenticated
+
+2. **SEO Protection:**
+   - robots.txt με Disallow: /
+   - .htaccess με X-Robots-Tag: noindex, nofollow
+   - No-cache headers για sensitive pages
+
+## DATABASE SCHEMA:
+
+### Tables με AUTO_INCREMENT IDs:
+
+1. **clients**
+   - id (INT, PRIMARY KEY, AUTO_INCREMENT)
+   - name, phone, email, address, city, postalCode, afm, notes
+   - createdAt, updatedAt (TIMESTAMP)
+
+2. **workers**  
+   - id (INT, PRIMARY KEY, AUTO_INCREMENT)
+   - name, phone, specialty, hourlyRate, dailyRate
+   - createdAt, updatedAt
+
+3. **materials**
+   - id (INT, PRIMARY KEY, AUTO_INCREMENT)
+   - name, unit, unitPrice, stock, minStock, category
+   - createdAt, updatedAt
+
+4. **jobs**
+   - id (INT, PRIMARY KEY, AUTO_INCREMENT)
+   - client_id (FOREIGN KEY → clients.id)
+   - title, description, address, city, postalCode
+   - startDate, endDate, status, totalCost, isPaid
+   - coordinates (JSON για lat/lng)
+   - createdAt, updatedAt
+
+5. **job_workers** (many-to-many)
+   - job_id (FOREIGN KEY → jobs.id)
+   - worker_id (FOREIGN KEY → workers.id)
+   - hours, days
+
+6. **job_materials** (many-to-many)
+   - job_id (FOREIGN KEY → jobs.id)
+   - material_id (FOREIGN KEY → materials.id)
+   - quantity, totalCost
+
+7. **timesheets**
+   - id (INT, PRIMARY KEY, AUTO_INCREMENT)
+   - job_id, worker_id, date, hours, overtimeHours, description
+
+8. **offers**
+   - id (INT, PRIMARY KEY, AUTO_INCREMENT)
+   - client_id, offerNumber, date, validUntil
+   - items (JSON), subtotal, tax, discount, total, status
+
+9. **invoices**
+   - id (INT, PRIMARY KEY, AUTO_INCREMENT)
+   - job_id, client_id, invoiceNumber, date
+   - items (JSON), subtotal, tax, discount, total, isPaid
+
+10. **templates**
+    - id (INT, PRIMARY KEY, AUTO_INCREMENT)
+    - name, category, description, estimatedDuration
+    - materials (JSON), tasks (JSON)
+
+## PHP API ENDPOINTS:
+
+Όλα τα endpoints πρέπει να:
+- Ελέγχουν session authentication
+- Επιστρέφουν JSON responses
+- Χρησιμοποιούν prepared statements
+- Έχουν ελληνικά error messages
+
+### Format:
+```php
+GET /api/clients.php - Λίστα όλων
+GET /api/clients.php?id=1 - Συγκεκριμένο record
+POST /api/clients.php - Δημιουργία (data στο body)
+PUT /api/clients.php?id=1 - Update
+DELETE /api/clients.php?id=1 - Διαγραφή
+```
+
+## JAVASCRIPT MODIFICATIONS:
+
+### 1. Διαγραφή:
+- Όλος ο κώδικας localStorage από storage.js
+- Custom ID generation (Π-0001 format) από utils.js
+- Import/Export JSON functionality
+- Demo data loading
+- Offline indicator code
+
+### 2. Νέο API Service:
+Δημιούργησε src/js/services/api.js:
+
+```javascript
+class APIService {
+  constructor() {
+    this.baseURL = '/api';
+  }
+  
+  async request(endpoint, options = {}) {
+    const response = await fetch(`${this.baseURL}/${endpoint}`, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+      },
+      credentials: 'same-origin'
+    });
+    
+    if (response.status === 401) {
+      window.location.href = '/login.html';
+      return;
+    }
+    
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Σφάλμα στην επικοινωνία με τον server');
+    }
+    
+    return data;
+  }
+  
+  // CRUD methods για κάθε resource
+  async getClients() { 
+    return this.request('clients.php');
+  }
+  
+  async getClient(id) {
+    return this.request(`clients.php?id=${id}`);
+  }
+  
+  async createClient(data) {
+    return this.request('clients.php', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  }
+  
+  async updateClient(id, data) {
+    return this.request(`clients.php?id=${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+  }
+  
+  async deleteClient(id) {
+    return this.request(`clients.php?id=${id}`, {
+      method: 'DELETE'
+    });
+  }
+  
+  // Παρόμοια methods για:
+  // - Workers (getWorkers, createWorker, updateWorker, deleteWorker)
+  // - Materials (getMaterials, createMaterial, updateMaterial, deleteMaterial)
+  // - Jobs (getJobs, createJob, updateJob, deleteJob)
+  // - Offers (getOffers, createOffer, updateOffer, deleteOffer)
+  // - Invoices (getInvoices, createInvoice, updateInvoice, deleteInvoice)
+  // - Templates (getTemplates, createTemplate, updateTemplate, deleteTemplate)
+  // - Timesheets (getTimesheets, createTimesheet, updateTimesheet, deleteTimesheet)
+}
+
+const apiService = new APIService();
+```
+
+### 3. Update State Management:
+Το State.js πρέπει να χρησιμοποιεί το APIService αντί για localStorage:
+
+```javascript
+class State {
+  constructor() {
+    this.data = {
+      clients: [],
+      workers: [],
+      materials: [],
+      jobs: [],
+      offers: [],
+      invoices: [],
+      templates: []
+    };
+    this.listeners = [];
+  }
+  
+  async loadClients() {
+    this.data.clients = await apiService.getClients();
+    this.notify();
+  }
+  
+  async saveClient(client) {
+    let savedClient;
+    if (client.id) {
+      savedClient = await apiService.updateClient(client.id, client);
+      const index = this.data.clients.findIndex(c => c.id === client.id);
+      if (index !== -1) {
+        this.data.clients[index] = savedClient;
+      }
+    } else {
+      savedClient = await apiService.createClient(client);
+      this.data.clients.push(savedClient);
+    }
+    this.notify();
+    return savedClient;
+  }
+  
+  async deleteClient(id) {
+    await apiService.deleteClient(id);
+    this.data.clients = this.data.clients.filter(c => c.id !== id);
+    this.notify();
+  }
+  
+  // Παρόμοια methods για όλους τους resources
+  // loadWorkers, saveWorker, deleteWorker
+  // loadMaterials, saveMaterial, deleteMaterial
+  // loadJobs, saveJob, deleteJob
+  // loadOffers, saveOffer, deleteOffer
+  // loadInvoices, saveInvoice, deleteInvoice
+  // loadTemplates, saveTemplate, deleteTemplate
+}
+
+const state = new State();
+```
+
+### 4. Update Views:
+Όλα τα views (dashboard.js, clients.js, jobs.js κλπ) πρέπει να:
+- Χρησιμοποιούν numeric IDs αντί για string IDs
+- Κάνουν await στα API calls
+- Δείχνουν loading indicators
+- Handle errors με ελληνικά μηνύματα
+
+Παράδειγμα:
+```javascript
+// Αντί για:
+const client = { id: 'Π-0001', name: 'Γιάννης' };
+
+// Χρήση:
+const client = { id: 1, name: 'Γιάννης' };
+
+// Αντί για:
+Storage.saveClient(client);
+
+// Χρήση:
+try {
+  showLoading();
+  await state.saveClient(client);
+  showToast('Ο πελάτης αποθηκεύτηκε επιτυχώς', 'success');
+} catch (error) {
+  showToast(error.message, 'error');
+} finally {
+  hideLoading();
+}
+```
+
+## ΣΗΜΑΝΤΙΚΕΣ ΛΕΠΤΟΜΕΡΕΙΕΣ:
+
+1. **IDs**: Χρήση μόνο numeric AUTO_INCREMENT IDs, όχι custom formatted IDs
+2. **Relations**: Διατήρηση όλων των υπαρχουσών σχέσεων μέσω foreign keys
+3. **JSON Fields**: Για arrays (items, materials, coordinates) χρήση JSON columns
+4. **Dates**: Όλες οι ημερομηνίες σε ISO format (YYYY-MM-DD)
+5. **Error Messages**: Όλα τα μηνύματα στα ελληνικά
+6. **No Breaking Changes**: Η UI και UX παραμένουν ίδια
+
+## ΠΑΡΑΔΟΤΕΑ:
+
+1. SQL script για database creation με όλους τους πίνακες
+2. PHP files για όλα τα API endpoints
+3. Updated JavaScript files (api.js, state.js, και όλα τα views)
+4. Login page (login.html) με form
+5. Security files (.htaccess, robots.txt)
+6. Configuration files με σωστά credentials
+
+## ΣΤΟΧΟΣ:
+
+Η μετάβαση πρέπει να είναι smooth χωρίς να χαλάσει η υπάρχουσα λειτουργικότητα. 
+Ο χρήστης δεν πρέπει να καταλάβει διαφορά εκτός από το login requirement.
+
+Όλα τα δεδομένα που ήταν στο localStorage θα διαγραφούν και θα ξεκινήσουμε 
+με καθαρή βάση δεδομένων (clean start).
+
+================================================================================
+ΤΕΛΟΣ PROMPT
+================================================================================

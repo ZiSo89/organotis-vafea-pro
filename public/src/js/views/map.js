@@ -1,0 +1,787 @@
+/* ========================================
+   Map View - Χάρτης Πελατών & Επισκέψεων
+   ======================================== */
+
+window.MapView = {
+  map: null,
+  isLeaflet: false,
+  isInitializing: false, // Prevent multiple simultaneous initializations
+  currentInfoWindow: null, // Track currently open InfoWindow
+  markers: {
+    clients: [],
+    upcoming: [],
+    today: []
+  },
+  geocodeCache: {},
+  requestCount: 0,
+  maxRequests: 100,
+
+  render(container) {
+    const isMobile = Utils.isMobile();
+    const mapHeight = isMobile ? '450px' : '600px';
+    
+    container.innerHTML = `
+      <style>
+        /* Custom Leaflet popup styles */
+        .leaflet-popup-content-wrapper {
+          background: white !important;
+          border-radius: 8px;
+          box-shadow: 0 3px 14px rgba(0,0,0,0.4);
+          padding: 0 !important;
+          position: relative;
+        }
+        .leaflet-popup-content {
+          margin: 0 !important;
+          background: white;
+          width: auto !important;
+          min-width: 200px;
+        }
+        .leaflet-popup-tip {
+          background: white !important;
+        }
+        /* Hide default close button completely on mobile */
+        @media (max-width: 768px) {
+          .leaflet-popup-close-button {
+            display: none !important;
+          }
+        }
+        /* Desktop close button styling */
+        @media (min-width: 769px) {
+          .leaflet-popup-close-button {
+            position: absolute !important;
+            top: 8px !important;
+            right: 8px !important;
+            color: #666 !important;
+            font-size: 18px !important;
+            font-weight: bold !important;
+            width: 20px !important;
+            height: 20px !important;
+            padding: 0 !important;
+            line-height: 18px !important;
+            text-align: center !important;
+            border: none !important;
+            background: white !important;
+            z-index: 10000 !important;
+            cursor: pointer !important;
+          }
+          .leaflet-popup-close-button:hover {
+            color: #333 !important;
+          }
+        }
+        .leaflet-container {
+          font-family: inherit !important;
+        }
+        /* Fix popup positioning on mobile */
+        @media (max-width: 768px) {
+          .leaflet-popup {
+            margin-bottom: 20px !important;
+          }
+        }
+      </style>
+      
+      <div class="view-header">
+        <h1><i class="fas fa-map-marked-alt"></i> Χάρτης</h1>
+      </div>
+
+      <!-- Map Controls -->
+      <div class="card" style="margin-bottom: 1rem;">
+        <div style="display: flex; gap: 1.5rem; flex-wrap: wrap; align-items: center;">
+          <label class="toggle-switch" title="Εμφάνιση όλων των πελατών με διεύθυνση">
+            <input type="checkbox" id="showClients" checked>
+            <span class="toggle-slider"></span>
+            <span class="toggle-label">
+              <span style="color: #2196F3; font-size: 1.2rem;">⬤</span> Πελάτες
+            </span>
+          </label>
+          
+          <label class="toggle-switch" title="Επισκέψεις που προγραμματίζονται τις επόμενες 7 ημέρες">
+            <input type="checkbox" id="showUpcoming" checked>
+            <span class="toggle-slider"></span>
+            <span class="toggle-label">
+              <span style="color: #4CAF50; font-size: 1.2rem;">⬤</span> Επόμενες Επισκέψεις
+            </span>
+          </label>
+          
+          <label class="toggle-switch" title="Επισκέψεις που έχουν προγραμματιστεί για σήμερα">
+            <input type="checkbox" id="showToday" checked>
+            <span class="toggle-slider"></span>
+            <span class="toggle-label">
+              <span style="color: #F44336; font-size: 1.2rem;">⬤</span> Σημερινές Επισκέψεις
+            </span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Map Container -->
+      <div class="card" style="padding: 0; overflow: hidden; position: relative;">
+        <div id="map" style="width: 100%; height: ${mapHeight};"></div>
+        ${isMobile ? `
+          <button id="scrollToTopBtn" style="
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: var(--color-primary);
+            color: white;
+            border: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.3rem;
+            z-index: 1000;
+          " title="Πήγαινε στην αρχή">
+            <i class="fas fa-arrow-up"></i>
+          </button>
+        ` : ''}
+      </div>
+    `;
+
+    // Event listeners
+    document.getElementById('showClients').addEventListener('change', () => this.toggleLayer('clients'));
+    document.getElementById('showUpcoming').addEventListener('change', () => this.toggleLayer('upcoming'));
+    document.getElementById('showToday').addEventListener('change', () => this.toggleLayer('today'));
+    
+    // Scroll to top button (mobile only)
+    if (isMobile) {
+      const scrollBtn = document.getElementById('scrollToTopBtn');
+      if (scrollBtn) {
+        scrollBtn.addEventListener('click', () => {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+      }
+    }
+
+    // Load geocode cache from localStorage
+    const cached = localStorage.getItem('geocode_cache');
+    if (cached) {
+      this.geocodeCache = JSON.parse(cached);
+    }
+
+    // Reset initialization flag when rendering
+    this.isInitializing = false;
+
+    // Wait for Google Maps to be ready, then initialize
+    this.waitForGoogleMaps();
+  },
+
+  waitForGoogleMaps(attempts = 0) {
+    // Prevent multiple simultaneous initialization attempts
+    if (this.isInitializing) {
+      return;
+    }
+    
+    const maxAttempts = 20;
+    
+    // Check if Google Maps is already loaded
+    if (typeof google !== 'undefined' && google.maps && google.maps.Map) {
+      this.isInitializing = true;
+      setTimeout(() => {
+        this.initMap();
+        this.isInitializing = false;
+      }, 100);
+      return;
+    }
+    
+    // First attempt: Try to load Google Maps
+    if (attempts === 0 && typeof loadGoogleMaps === 'function') {
+      this.isInitializing = true;
+      loadGoogleMaps()
+        .then(() => {
+          setTimeout(() => {
+            this.initMap();
+            this.isInitializing = false;
+          }, 100);
+        })
+        .catch((err) => {
+          this.initLeafletMap();
+          this.isInitializing = false;
+        });
+      return;
+    }
+    
+    // Continue waiting if already loading
+    if (attempts < maxAttempts) {
+      setTimeout(() => this.waitForGoogleMaps(attempts + 1), 200);
+    } else {
+      // Timeout - fallback to Leaflet
+      this.isInitializing = true;
+      this.initLeafletMap();
+    }
+  },
+
+  initLeafletMap() {
+    const mapElement = document.getElementById('map');
+    if (!mapElement) {
+      console.error('❌ Map element not found!');
+      this.isInitializing = false;
+      return;
+    }
+
+    // Load Leaflet if not already loaded
+    if (typeof L === 'undefined') {
+      this.loadLeafletLibrary().then(() => {
+        this.createLeafletMap();
+      }).catch(error => {
+        console.error('❌ Failed to load Leaflet:', error);
+        mapElement.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #666;"><p><i class="fas fa-exclamation-triangle"></i> Αποτυχία φόρτωσης χάρτη</p></div>';
+        this.isInitializing = false;
+      });
+    } else {
+      this.createLeafletMap();
+    }
+  },
+
+  loadLeafletLibrary() {
+    return new Promise((resolve, reject) => {
+      // Load CSS
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      document.head.appendChild(link);
+
+      // Load JS
+      const script = document.createElement('script');
+      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      script.onload = resolve;
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  },
+
+  createLeafletMap() {
+    try {
+      const mapElement = document.getElementById('map');
+      
+      // Destroy existing map if it exists
+      if (this.map) {
+        this.clearMarkers();
+        
+        if (this.isLeaflet && this.map.remove) {
+          this.map.remove();
+        }
+        
+        this.map = null;
+      }
+      
+      // Clear the map container completely
+      mapElement.innerHTML = '';
+      
+      // Remove Leaflet's internal references
+      if (mapElement._leaflet_id) {
+        delete mapElement._leaflet_id;
+      }
+      
+      // Small delay to ensure cleanup is complete
+      setTimeout(() => {
+        try {
+          // Check map container
+          const mapContainer = document.getElementById('map');
+          if (!mapContainer) {
+            console.error('❌ Map container not found!');
+            this.isInitializing = false;
+            return;
+          }
+          
+          const containerHeight = mapContainer.offsetHeight;
+          const containerWidth = mapContainer.offsetWidth;
+          
+          if (containerHeight === 0 || containerWidth === 0) {
+            console.error('❌ Map container has zero size!');
+            this.isInitializing = false;
+            return;
+          }
+          
+          // Create new Leaflet map
+          this.map = L.map('map').setView([40.8473, 25.8753], 14);
+          this.isLeaflet = true;
+
+          // Add OpenStreetMap tiles
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 19
+          }).addTo(this.map);
+          
+          // Force Leaflet to recalculate size immediately
+          this.map.invalidateSize();
+
+          // Wait for tiles to load before adding markers
+          setTimeout(() => {
+            this.loadMap();
+            this.isInitializing = false;
+          }, 300);
+        } catch (innerError) {
+          console.error('❌ Error creating Leaflet map:', innerError);
+          this.isInitializing = false;
+        }
+      }, 100);
+      
+    } catch (error) {
+      console.error('❌ Error initializing Leaflet map:', error);
+      this.isInitializing = false;
+    }
+  },
+
+  initMap() {
+    const mapElement = document.getElementById('map');
+    if (!mapElement) {
+      console.error('❌ Map element not found!');
+      this.isInitializing = false;
+      return;
+    }
+
+    // Check if we need to create a new map instance
+    let needsNewInstance = !this.map || this.isLeaflet;
+    
+    if (this.map && !this.isLeaflet && typeof google !== 'undefined' && google.maps) {
+      // Verify the map's DOM element still exists and matches
+      try {
+        const currentMapDiv = this.map.getDiv();
+        if (!currentMapDiv || !document.body.contains(currentMapDiv)) {
+          needsNewInstance = true;
+        } else {
+          this.loadMap();
+          this.isInitializing = false;
+          return;
+        }
+      } catch (e) {
+        needsNewInstance = true;
+      }
+    }
+
+    // Center on Alexandroupoli
+    const center = { lat: 40.8473, lng: 25.8753 };
+    
+    try {
+      this.map = new google.maps.Map(mapElement, {
+        zoom: 14,
+        center: center,
+        mapTypeControl: true,
+        streetViewControl: false,
+        fullscreenControl: true
+      });
+      this.isLeaflet = false;
+
+      // Close InfoWindow when clicking on the map
+      this.map.addListener('click', () => {
+        if (this.currentInfoWindow) {
+          this.currentInfoWindow.close();
+        }
+      });
+
+      this.loadMap();
+      this.isInitializing = false;
+    } catch (error) {
+      console.error('❌ Error initializing map:', error);
+      this.isInitializing = false;
+    }
+  },
+
+  async loadMap(forceRefresh = false) {
+    if (!this.map) {
+      return;
+    }
+
+    // Clear existing markers
+    this.clearMarkers();
+
+    // Check if State.data exists
+    if (!State.data) {
+      console.error('❌ State.data is null!');
+      Toast.error('Δεν υπάρχουν δεδομένα');
+      return;
+    }
+
+    const clients = State.data.clients || [];
+    const jobs = State.data.jobs || [];
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const nextWeek = new Date(today);
+    nextWeek.setDate(nextWeek.getDate() + 7);
+
+    // Get upcoming jobs
+    const upcomingJobs = jobs.filter(job => {
+      if (!job.nextVisit) return false;
+      const visitDate = new Date(job.nextVisit);
+      visitDate.setHours(0, 0, 0, 0);
+      return visitDate >= today && visitDate <= nextWeek;
+    });
+
+    // Get today's jobs
+    const todayJobs = upcomingJobs.filter(job => {
+      const visitDate = new Date(job.nextVisit);
+      visitDate.setHours(0, 0, 0, 0);
+      return visitDate.getTime() === today.getTime();
+    });
+
+    // Add client markers (blue)
+    if (document.getElementById('showClients').checked) {
+      for (const client of clients) {
+        if (client.address && client.city) {
+          await this.addMarker(client, 'clients', '#2196F3');
+        }
+      }
+    }
+
+    // Add upcoming visit markers (green)
+    const showUpcomingCheckbox = document.getElementById('showUpcoming');
+    if (showUpcomingCheckbox && showUpcomingCheckbox.checked) {
+      for (const job of upcomingJobs) {
+        const client = clients.find(c => c.id === job.clientId);
+        if (client && client.address && client.city) {
+          await this.addMarker(client, 'upcoming', '#4CAF50', job);
+        }
+      }
+    }
+
+    // Add today's visit markers (red)
+    const showTodayCheckbox = document.getElementById('showToday');
+    if (showTodayCheckbox && showTodayCheckbox.checked) {
+      for (const job of todayJobs) {
+        const client = clients.find(c => c.id === job.clientId);
+        if (client && client.address && client.city) {
+          await this.addMarker(client, 'today', '#F44336', job);
+        }
+      }
+    }
+
+    // Fit bounds to show all markers
+    this.fitBounds();
+  },
+
+  async addMarker(client, type, color, job = null) {
+    const address = `${client.address}, ${client.city}, ${client.postal || ''} Greece`;
+    
+    // Check cache first
+    let location = this.geocodeCache[address];
+    
+    if (!location || location === 'ZERO_RESULTS') {
+      // Geocode if not in cache
+      location = await this.geocodeAddress(address);
+      
+      // Save to cache
+      this.geocodeCache[address] = location;
+      localStorage.setItem('geocode_cache', JSON.stringify(this.geocodeCache));
+      
+      // Small delay to respect Nominatim usage policy (max 1 request per second)
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+
+    if (!location || location === 'ZERO_RESULTS') {
+      return;
+    }
+
+    // Create marker based on map type
+    let marker;
+    
+    if (this.isLeaflet) {
+      // Use default Leaflet marker
+      marker = L.marker([location.lat, location.lng]).addTo(this.map);
+      
+      // Popup content with white background
+      const encodedAddress = encodeURIComponent(address);
+      const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodedAddress}`;
+      
+      const popupContent = job ? `
+        <div style="padding: 12px; min-width: 200px; background: white; position: relative;">
+          <h3 style="margin: 0 0 8px 0; color: #333; font-size: 14px; font-weight: bold; padding-right: 24px;">${client.name}</h3>
+          <p style="margin: 0 0 4px 0; font-size: 12px; color: #666;"><strong>📅 Επίσκεψη:</strong> ${Utils.formatDate(job.nextVisit)}</p>
+          <p style="margin: 0 0 4px 0; font-size: 12px; color: #666;"><strong>📊 Κατάσταση:</strong> ${job.status}</p>
+          <p style="margin: 0 0 10px 0; font-size: 11px; color: #888;">📍 ${address}</p>
+          <button onclick="window.open('${mapsUrl}', '_blank')" 
+                  style="width: 100%; padding: 8px 12px; background: #4285F4; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 500;">
+            <i class="fas fa-route"></i> Οδηγίες
+          </button>
+        </div>
+      ` : `
+        <div style="padding: 12px; min-width: 200px; background: white; position: relative;">
+          <h3 style="margin: 0 0 8px 0; color: #333; font-size: 14px; font-weight: bold; padding-right: 24px;">${client.name}</h3>
+          <p style="margin: 0 0 4px 0; font-size: 12px; color: #666;"><strong>📞</strong> ${client.phone ? `<a href="tel:${client.phone}" style="color: #4285F4; text-decoration: none;">${client.phone}</a>` : '-'}</p>
+          <p style="margin: 0 0 4px 0; font-size: 12px; color: #666;"><strong>📧</strong> ${client.email ? `<a href="mailto:${client.email}" style="color: #4285F4; text-decoration: none;">${client.email}</a>` : '-'}</p>
+          <p style="margin: 0 0 10px 0; font-size: 11px; color: #888;">📍 ${address}</p>
+          <button onclick="window.open('${mapsUrl}', '_blank')" 
+                  style="width: 100%; padding: 8px 12px; background: #4285F4; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 500;">
+            <i class="fas fa-route"></i> Οδηγίες
+          </button>
+        </div>
+      `;
+      
+      // Bind popup with auto-pan to ensure it's visible
+      const isMobile = Utils.isMobile();
+      marker.bindPopup(popupContent, {
+        maxWidth: 250,
+        minWidth: 200,
+        closeButton: !isMobile, // Close button only on desktop
+        autoClose: true, // Close when clicking another marker
+        closeOnClick: true, // Close when clicking on the map
+        autoPan: true,
+        autoPanPaddingTopLeft: [20, 100],
+        autoPanPaddingBottomRight: [20, 150],
+        keepInView: true,
+        className: 'custom-popup'
+      });
+      
+      // Force pan on popup open to ensure it's fully visible
+      marker.on('popupopen', (e) => {
+        if (isMobile) {
+          setTimeout(() => {
+            const px = this.map.project(e.popup._latlng);
+            px.y -= 180; // Offset upwards
+            px.x += 40; // Offset right to show the right edge
+            this.map.panTo(this.map.unproject(px), {animate: true, duration: 0.3});
+          }, 100);
+        }
+      });
+      
+    } else {
+      // Google Maps marker
+      marker = new google.maps.Marker({
+        position: location,
+        map: this.map,
+        title: client.name,
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 10,
+          fillColor: color,
+          fillOpacity: 0.8,
+          strokeColor: '#fff',
+          strokeWeight: 2
+        }
+      });
+
+      // Info window
+      const encodedAddress = encodeURIComponent(address);
+      const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodedAddress}`;
+      
+      const infoContent = job ? `
+        <div style="padding: 12px; min-width: 250px; position: relative;">
+          <button class="custom-close-btn" type="button"
+                  style="position: absolute; top: 8px; right: 8px; width: 24px; height: 24px; border-radius: 50%; background: rgba(0,0,0,0.05); border: none; color: #999; font-size: 16px; cursor: pointer; line-height: 24px; padding: 0; z-index: 1000;">
+            ×
+          </button>
+          <h3 style="margin: 0 0 12px 0; color: #333; padding-right: 30px;">${client.name}</h3>
+          <p style="margin: 0 0 6px 0;"><strong>📅 Επίσκεψη:</strong> ${Utils.formatDate(job.nextVisit)}</p>
+          <p style="margin: 0 0 6px 0;"><strong>📊 Κατάσταση:</strong> ${job.status}</p>
+          <p style="margin: 0 0 12px 0;"><strong>📍 Διεύθυνση:</strong><br>${address}</p>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button onclick="window.open('${mapsUrl}', '_blank')" 
+                    style="flex: 1; min-width: 100px; padding: 8px 12px; background: #4285F4; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;">
+              <i class="fas fa-route"></i> Οδηγίες
+            </button>
+          </div>
+        </div>
+      ` : `
+        <div style="padding: 12px; min-width: 250px; position: relative;">
+          <button class="custom-close-btn" type="button"
+                  style="position: absolute; top: 8px; right: 8px; width: 24px; height: 24px; border-radius: 50%; background: rgba(0,0,0,0.05); border: none; color: #999; font-size: 16px; cursor: pointer; line-height: 24px; padding: 0; z-index: 1000;">
+            ×
+          </button>
+          <h3 style="margin: 0 0 12px 0; color: #333; padding-right: 30px;">${client.name}</h3>
+          <p style="margin: 0 0 6px 0;"><strong>📞 Τηλέφωνο:</strong> ${client.phone ? `<a href="tel:${client.phone}" style="color: #4285F4; text-decoration: none;">${client.phone}</a>` : '-'}</p>
+          <p style="margin: 0 0 6px 0;"><strong>📧 Email:</strong> ${client.email ? `<a href="mailto:${client.email}" style="color: #4285F4; text-decoration: none;">${client.email}</a>` : '-'}</p>
+          <p style="margin: 0 0 12px 0;"><strong>📍 Διεύθυνση:</strong><br>${address}</p>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button onclick="window.open('${mapsUrl}', '_blank')" 
+                    style="flex: 1; min-width: 100px; padding: 8px 12px; background: #4285F4; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;">
+              <i class="fas fa-route"></i> Οδηγίες
+            </button>
+          </div>
+        </div>
+      `;
+
+      const infoWindow = new google.maps.InfoWindow({
+        content: infoContent
+      });
+
+      marker.addListener('click', () => {
+        // Close any open InfoWindows first
+        if (this.currentInfoWindow) {
+          this.currentInfoWindow.close();
+        }
+        
+        infoWindow.open(this.map, marker);
+        this.currentInfoWindow = infoWindow;
+        
+        // Add close button functionality after InfoWindow opens
+        google.maps.event.addListenerOnce(infoWindow, 'domready', () => {
+          const closeBtn = document.querySelector('.custom-close-btn');
+          if (closeBtn) {
+            closeBtn.onclick = (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              infoWindow.close();
+            };
+          }
+        });
+      });
+    }
+
+    // Store marker
+    this.markers[type].push(marker);
+  },
+
+  async geocodeAddress(address) {
+    try {
+      // Use Nominatim (OpenStreetMap) for free geocoding - Direct client-side call
+      // Try multiple query formats for better results
+      const queries = [
+        // Original full address
+        `${address}`,
+        // Without postal code
+        address.replace(/\d{5}\s*Greece/, 'Greece'),
+        // Just street and city
+        address.split(',').slice(0, 2).join(',') + ', Greece'
+      ];
+      
+      for (const query of queries) {
+        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1&countrycodes=gr&addressdetails=1`;
+        
+        console.log(`📡 Fetching geocode for: ${query}`);
+        
+        const response = await fetch(url, {
+          headers: {
+            'User-Agent': 'Painter-Organizer-App/1.0'
+          }
+        });
+        
+        if (!response.ok) {
+          console.warn(`⚠️ Nominatim request failed: ${response.status}`);
+          continue;
+        }
+        
+        const data = await response.json();
+        
+        if (data && data.length > 0) {
+          console.log(`✅ Geocoded: ${query} -> ${data[0].display_name}`);
+          return {
+            lat: parseFloat(data[0].lat),
+            lng: parseFloat(data[0].lon)
+          };
+        }
+        
+        // Wait a bit before trying next query
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      
+      console.warn(`❌ Nominatim: No results for any format of ${address}`);
+      return 'ZERO_RESULTS';
+    } catch (error) {
+      console.error(`❌ Geocode error for ${address}:`, error);
+      return 'ZERO_RESULTS';
+    }
+  },
+
+  toggleLayer(type) {
+    const visible = document.getElementById(`show${type.charAt(0).toUpperCase() + type.slice(1)}`).checked;
+    
+    this.markers[type].forEach(marker => {
+      try {
+        if (this.isLeaflet) {
+          if (marker && marker.remove && marker.addTo) {
+            if (visible) {
+              marker.addTo(this.map);
+            } else {
+              marker.remove();
+            }
+          }
+        } else {
+          if (marker && marker.setVisible) {
+            marker.setVisible(visible);
+          }
+        }
+      } catch (error) {
+      }
+    });
+  },
+
+  clearMarkers() {
+    Object.values(this.markers).forEach(markerArray => {
+      markerArray.forEach(marker => {
+        try {
+          if (this.isLeaflet) {
+            if (marker && marker.remove) {
+              marker.remove();
+            }
+          } else {
+            if (marker && marker.setMap) {
+              marker.setMap(null);
+            }
+          }
+        } catch (error) {
+        }
+      });
+      markerArray.length = 0;
+    });
+  },
+
+  fitBounds() {
+    if (this.isLeaflet) {
+      // Leaflet fit bounds
+      const allMarkers = [];
+      Object.values(this.markers).forEach(markerArray => {
+        allMarkers.push(...markerArray);
+      });
+      
+      if (allMarkers.length > 0) {
+        const group = L.featureGroup(allMarkers);
+        const bounds = group.getBounds();
+        
+        this.map.fitBounds(bounds.pad(0.1));
+        
+        // Don't zoom in too much
+        if (this.map.getZoom() > 15) {
+          this.map.setZoom(15);
+        }
+      }
+    } else {
+      // Google Maps fit bounds
+      const bounds = new google.maps.LatLngBounds();
+      let hasMarkers = false;
+
+      Object.values(this.markers).forEach(markerArray => {
+        markerArray.forEach(marker => {
+          if (marker.getVisible()) {
+            bounds.extend(marker.getPosition());
+            hasMarkers = true;
+          }
+        });
+      });
+
+      if (hasMarkers) {
+        this.map.fitBounds(bounds);
+        
+        // Don't zoom in too much for single marker
+        const listener = google.maps.event.addListener(this.map, 'idle', () => {
+          if (this.map.getZoom() > 15) this.map.setZoom(15);
+          google.maps.event.removeListener(listener);
+        });
+      }
+    }
+  }
+};
+
+// Global callback for Google Maps
+window.initMap = function() {
+  window.googleMapsLoaded = true;
+};
+
+// Global helper functions for map popup buttons
+window.openJobFromMap = function(jobId) {
+  if (window.JobsView && typeof window.JobsView.viewJob === 'function') {
+    window.JobsView.viewJob(jobId);
+  } else {
+    console.error('❌ JobsView.viewJob is not available');
+  }
+};
+
+window.openClientFromMap = function(clientId) {
+  if (window.ClientsView && typeof window.ClientsView.viewClient === 'function') {
+    window.ClientsView.viewClient(clientId);
+  } else {
+    console.error('❌ ClientsView.viewClient is not available');
+  }
+};
