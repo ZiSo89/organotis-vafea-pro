@@ -29,10 +29,34 @@ function logMessage($message, $level = 'INFO', $context = []) {
     
     // Format the log entry
     $timestamp = date('Y-m-d H:i:s');
-    $contextStr = !empty($context) ? ' | Context: ' . json_encode($context, JSON_UNESCAPED_UNICODE) : '';
+    // Encode context as UTF-8-friendly JSON (allow partial output on error)
+    $contextStr = '';
+    if (!empty($context)) {
+        $contextStr = ' | Context: ' . json_encode($context, JSON_UNESCAPED_UNICODE | JSON_PARTIAL_OUTPUT_ON_ERROR);
+    }
+
     $logEntry = "[{$timestamp}] [{$level}] {$message}{$contextStr}" . PHP_EOL;
-    
-    // Write to file
+
+    // Ensure the log entry is valid UTF-8. Try to detect and convert common encodings.
+    if (!function_exists('ensure_utf8')) {
+        function ensure_utf8($str) {
+            if (mb_detect_encoding($str, 'UTF-8', true) !== false) {
+                return $str;
+            }
+
+            $enc = mb_detect_encoding($str, array('UTF-8','ISO-8859-7','WINDOWS-1253','CP1253','ISO-8859-1','WINDOWS-1252'), true);
+            if ($enc && $enc !== 'UTF-8') {
+                return mb_convert_encoding($str, 'UTF-8', $enc);
+            }
+
+            // Last resort: attempt a best-effort conversion
+            return mb_convert_encoding($str, 'UTF-8', 'auto');
+        }
+    }
+
+    $logEntry = ensure_utf8($logEntry);
+
+    // Write to file (UTF-8 bytes). No BOM.
     file_put_contents($logFile, $logEntry, FILE_APPEND | LOCK_EX);
 }
 

@@ -20,7 +20,7 @@ function createWindow() {
     height: 900,
     minWidth: 1024,
     minHeight: 768,
-    icon: path.join(__dirname, '../public/assets/icons/icon-512x512.png'),
+    icon: path.join(__dirname, '../public/assets/icons/icon.png'),
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -93,60 +93,84 @@ app.on('window-all-closed', () => {
 // Get all data from a table
 ipcMain.handle('db:getAll', async (event, table) => {
   try {
-    return await db.getAll(table);
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    const data = await db.getAll(table);
+    return { success: true, data };
   } catch (error) {
     console.error(`Error getting all from ${table}:`, error);
-    throw error;
+    return { success: false, message: error.message };
   }
 });
 
 // Get single record by ID
 ipcMain.handle('db:getById', async (event, table, id) => {
   try {
-    return await db.getById(table, id);
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    const data = await db.getById(table, id);
+    return { success: true, data };
   } catch (error) {
     console.error(`Error getting ${table} by id ${id}:`, error);
-    throw error;
+    return { success: false, message: error.message };
   }
 });
 
 // Insert new record
 ipcMain.handle('db:insert', async (event, table, data) => {
   try {
-    return await db.insert(table, data);
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    const result = await db.insert(table, data);
+    return { success: true, data: result };
   } catch (error) {
     console.error(`Error inserting into ${table}:`, error);
-    throw error;
+    return { success: false, message: error.message };
   }
 });
 
 // Update record
 ipcMain.handle('db:update', async (event, table, id, data) => {
   try {
-    return await db.update(table, id, data);
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    const result = await db.update(table, id, data);
+    return { success: true, data: result };
   } catch (error) {
     console.error(`Error updating ${table} id ${id}:`, error);
-    throw error;
+    return { success: false, message: error.message };
   }
 });
 
 // Delete record
 ipcMain.handle('db:delete', async (event, table, id) => {
   try {
-    return await db.delete(table, id);
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    const result = await db.delete(table, id);
+    return { success: true, data: result };
   } catch (error) {
     console.error(`Error deleting from ${table} id ${id}:`, error);
-    throw error;
+    return { success: false, message: error.message };
   }
 });
 
 // Execute custom query
 ipcMain.handle('db:query', async (event, sql, params) => {
   try {
-    return await db.query(sql, params);
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    const data = await db.query(sql, params);
+    return { success: true, data };
   } catch (error) {
     console.error('Error executing query:', error);
-    throw error;
+    return { success: false, message: error.message };
   }
 });
 
@@ -157,6 +181,9 @@ ipcMain.handle('db:query', async (event, sql, params) => {
 // Check online status
 ipcMain.handle('sync:checkOnline', async () => {
   try {
+    if (!syncManager) {
+      return false;
+    }
     return await syncManager.checkOnline();
   } catch (error) {
     console.error('Error checking online status:', error);
@@ -167,6 +194,9 @@ ipcMain.handle('sync:checkOnline', async () => {
 // Download data from server
 ipcMain.handle('sync:download', async (event, serverUrl) => {
   try {
+    if (!syncManager) {
+      throw new Error('Sync manager not initialized');
+    }
     const result = await syncManager.downloadFromServer(serverUrl);
     return result;
   } catch (error) {
@@ -178,6 +208,9 @@ ipcMain.handle('sync:download', async (event, serverUrl) => {
 // Upload data to server
 ipcMain.handle('sync:upload', async (event, serverUrl) => {
   try {
+    if (!syncManager) {
+      throw new Error('Sync manager not initialized');
+    }
     const result = await syncManager.uploadToServer(serverUrl);
     return result;
   } catch (error) {
@@ -189,20 +222,58 @@ ipcMain.handle('sync:upload', async (event, serverUrl) => {
 // Get sync status
 ipcMain.handle('sync:getStatus', async () => {
   try {
+    if (!syncManager) {
+      return null;
+    }
     return await syncManager.getStatus();
   } catch (error) {
     console.error('Error getting sync status:', error);
-    throw error;
+    return null;
   }
 });
 
 // Get pending changes count
 ipcMain.handle('sync:getPendingCount', async () => {
   try {
+    if (!syncManager) {
+      return 0;
+    }
     return await syncManager.getPendingChangesCount();
   } catch (error) {
     console.error('Error getting pending changes:', error);
     return 0;
+  }
+});
+
+/* ========================================
+   IPC Handlers - Backup & Restore
+   ======================================== */
+
+// Export database to JSON
+ipcMain.handle('db:export', async () => {
+  try {
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    const backup = db.exportToJSON();
+    return { success: true, data: backup };
+  } catch (error) {
+    console.error('Error exporting database:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Import database from JSON
+ipcMain.handle('db:import', async (event, backupData) => {
+  try {
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    const result = db.importFromJSON(backupData);
+    return { success: true };
+  } catch (error) {
+    console.error('Error importing database:', error);
+    return { success: false, error: error.message };
   }
 });
 

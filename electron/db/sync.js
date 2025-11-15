@@ -203,11 +203,13 @@ class SyncManager {
   // Convert object keys from camelCase to snake_case, filtering out invalid columns
   convertKeysToSnakeCase(obj, table) {
     const validColumns = this.getTableColumns(table);
+    console.log(`[Sync] Converting keys for table ${table}, valid columns:`, Array.from(validColumns));
     const converted = {};
     
     for (const key in obj) {
       if (obj.hasOwnProperty(key)) {
         const snakeKey = this.camelToSnake(key);
+        console.log(`[Sync]   ${key} → ${snakeKey} (valid: ${validColumns.has(snakeKey)})`);
         // Only include fields that exist in the database schema
         if (validColumns.has(snakeKey)) {
           let value = obj[key];
@@ -221,6 +223,7 @@ class SyncManager {
         }
       }
     }
+    console.log(`[Sync] Converted keys:`, Object.keys(converted));
     return converted;
   }
 

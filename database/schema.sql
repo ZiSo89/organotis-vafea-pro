@@ -30,6 +30,7 @@ CREATE TABLE `clients` (
   `postal_code` varchar(10) DEFAULT NULL,
   `afm` varchar(20) DEFAULT NULL,
   `notes` text DEFAULT NULL,
+  `coordinates` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`coordinates`)),
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`)

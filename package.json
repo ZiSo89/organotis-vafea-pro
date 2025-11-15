@@ -22,7 +22,7 @@
           ]
         }
       ],
-      "icon": "assets/icons/favicon.ico"
+      "icon": "public/assets/icons/favicon.ico"
     },
     "portable": {
       "artifactName": "Οργανωτής-Βαφέα-v${version}.exe"
@@ -45,6 +45,7 @@
   "devDependencies": {
     "electron": "^27.0.0",
     "electron-builder": "^24.6.4",
-    "electron-packager": "^17.1.2"
+    "electron-packager": "^17.1.2",
+    "electron-rebuild": "^3.2.9"
   }
 }

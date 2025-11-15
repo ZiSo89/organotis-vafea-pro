@@ -16,8 +16,8 @@ if (!is_dir($logDir)) {
 }
 ini_set('error_log', $logDir . '/php_errors.log');
 
-// Debug mode - Set to false in production
-define('DEBUG_MODE', false);
+// Debug mode - Set to true for local testing (disable in production)
+define('DEBUG_MODE', true);
 
 // Database credentials
 define('DB_HOST', 'localhost');

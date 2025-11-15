@@ -147,7 +147,8 @@ window.StatisticsView = {
     try {
       // Χρήση Electron API για τοπικά δεδομένα
       if (typeof window.electronAPI !== 'undefined') {
-        const jobs = await window.electronAPI.db.query("SELECT DISTINCT strftime('%Y', date) as year FROM jobs WHERE date IS NOT NULL ORDER BY year DESC");
+        const response = await window.electronAPI.db.query("SELECT DISTINCT strftime('%Y', date) as year FROM jobs WHERE date IS NOT NULL ORDER BY year DESC");
+        const jobs = response.success ? response.data : [];
         const years = jobs.map(j => j.year).filter(y => y);
         
         if (years.length === 0) {
@@ -207,14 +208,14 @@ window.StatisticsView = {
 
   async loadStatistics() {
     try {
-
+      console.log('📊 Loading statistics for year:', this.currentYear);
       
       if (typeof window.electronAPI !== 'undefined') {
-
+        console.log('⚡ Using Electron mode for statistics');
         // Υπολογισμός στατιστικών από SQLite
         await this.loadStatisticsFromElectron();
       } else {
-
+        console.log('🌐 Using web API mode for statistics');
         // Φόρτωση από server
         const [summary, revenue, jobsType, jobsStatus, materials, topJobs] = await Promise.all([
           API.get(`/api/statistics.php?action=summary&year=${this.currentYear}`),
@@ -225,7 +226,7 @@ window.StatisticsView = {
           API.get(`/api/statistics.php?action=top_jobs&limit=10&year=${this.currentYear}`)
         ]);
 
-
+        console.log('✅ API data loaded:', { summary, revenue, jobsType, jobsStatus, materials, topJobs });
 
         // Ενημέρωση summary cards
         this.updateSummaryCards(summary.data);
@@ -237,6 +238,8 @@ window.StatisticsView = {
         this.createMaterialsChart(materials.data);
         this.createTopJobsChart(topJobs.data);
       }
+      
+      console.log('✅ Statistics loaded successfully');
     } catch (error) {
       console.error('❌ Σφάλμα φόρτωσης στατιστικών:', error);
       console.error('Error stack:', error.stack);
@@ -253,15 +256,25 @@ window.StatisticsView = {
       // Convert year to string for SQL comparison
       const yearString = String(this.currentYear);
       
+      // First, get total count of ALL jobs for the year
+      console.log('📊 Fetching total jobs count for year:', yearString);
+      const totalJobsResponse = await window.electronAPI.db.query(`
+        SELECT COUNT(*) as total FROM jobs WHERE strftime('%Y', date) = ?
+      `, [yearString]);
+      const allJobsCount = totalJobsResponse.success && totalJobsResponse.data[0] ? totalJobsResponse.data[0].total : 0;
+      console.log('📊 Total jobs in year (all statuses):', allJobsCount);
+      
       // Fetch detailed jobs for the year (only completed/paid jobs considered for revenue/profit)
-      console.log('📊 Fetching jobs for year (detailed) :', yearString);
-      const jobsRows = await window.electronAPI.db.query(`
+      console.log('📊 Fetching completed/paid jobs for year:', yearString);
+      const response = await window.electronAPI.db.query(`
         SELECT * FROM jobs
         WHERE strftime('%Y', date) = ?
         AND (status = 'Ολοκληρώθηκε' OR status = 'Εξοφλήθηκε' OR is_paid = 1)
       `, [yearString]);
+      
+      const jobsRows = response.success ? response.data : [];
 
-      console.log('📊 Retrieved jobs count:', jobsRows.length);
+      console.log('📊 Completed/paid jobs count:', jobsRows.length);
 
       // Aggregate totals and monthly revenue/profit using same logic as JobsView/Dashboard
       const parseNumber = (v) => {
@@ -330,62 +343,45 @@ window.StatisticsView = {
 
       // Prepare data arrays for charts (month, revenue, profit)
       const revenueByMonth = monthlyAgg.map(m => ({ month: m.month, revenue: m.revenue, profit: m.profit }));
+      console.log('📊 Revenue by month (aggregated):', revenueByMonth);
 
       // Update summary cards using aggregated values
+      console.log('📊 Updating summary cards with totals:', { totalRevenue, totalProfit, totalJobs, completedJobs, allJobsCount });
       this.updateSummaryCards({
         total_revenue: totalRevenue,
         total_profit: totalProfit,
-        total_jobs: totalJobs,
-        completed_jobs: completedJobs
+        total_jobs: allJobsCount,  // Show ALL jobs count
+        completed_jobs: completedJobs  // Show only completed/paid
       });
 
       // Use aggregated monthly data for revenue chart
+      console.log('📈 Creating revenue chart...');
       this.createRevenueChart(revenueByMonth);
-      
 
-
-
-
-
-      
-      // Also check what statuses exist
-      const statuses = await window.electronAPI.db.query(`
-        SELECT DISTINCT status FROM jobs WHERE strftime('%Y', date) = ?
-      `, [yearString]);
-
-      
-      this.updateSummaryCards(jobs[0] || {});
-
-      // Revenue by month
-
-      const revenue = await window.electronAPI.db.query(`
-        SELECT 
-          strftime('%m', date) as month,
-          SUM(CASE WHEN status = 'Εξοφλήθηκε' OR is_paid = 1 THEN total_cost ELSE 0 END) as revenue,
-          SUM(CASE WHEN status = 'Εξοφλήθηκε' OR is_paid = 1 THEN (total_cost - materials_cost) ELSE 0 END) as profit
-        FROM jobs 
-        WHERE strftime('%Y', date) = ?
-        GROUP BY month
-        ORDER BY month
-      `, [yearString]);
-      
-
-      this.createRevenueChart(revenue);
-
-      // Jobs by type
-
+      // Jobs by type (ALL jobs to show distribution)
+      console.log('🔍 Fetching jobs by type (all jobs)...');
       const jobsType = await window.electronAPI.db.query(`
         SELECT type, COUNT(*) as count
         FROM jobs 
         WHERE strftime('%Y', date) = ?
         GROUP BY type
       `, [yearString]);
+      console.log('📊 Jobs type data:', jobsType);
+
+      this.createJobsTypeChart(jobsType.success ? jobsType.data : []);
+
+      // Jobs by status (ALL jobs to show pipeline, not just completed)
+      console.log('🔍 Fetching jobs by status (all statuses)...');
       
-
-      this.createJobsTypeChart(jobsType);
-
-      // Jobs by status
-      console.log('🔍 Fetching jobs by status...');
+      // First, let's see what actual status values exist in the database
+      const actualStatuses = await window.electronAPI.db.query(`
+        SELECT DISTINCT status, COUNT(*) as count 
+        FROM jobs 
+        WHERE strftime('%Y', date) = ?
+        GROUP BY status
+      `, [yearString]);
+      console.log('🔍 Actual status values in DB:', actualStatuses);
+      
       const jobsStatus = await window.electronAPI.db.query(`
         SELECT 
           CASE 
@@ -396,20 +392,23 @@ window.StatisticsView = {
             WHEN LOWER(status) LIKE '%ολοκληρ%' THEN 'Ολοκληρώθηκε'
             WHEN LOWER(status) LIKE '%εξοφλ%' THEN 'Εξοφλήθηκε'
             WHEN LOWER(status) LIKE '%ακυρ%' THEN 'Ακυρώθηκε'
-            ELSE 'Άλλες'
+            ELSE status
           END as status,
           COUNT(*) as count
         FROM jobs 
         WHERE strftime('%Y', date) = ?
-        GROUP BY status
+        GROUP BY 1
       `, [yearString]);
-      console.log('📊 Jobs status data:', jobsStatus);
+      console.log('📊 Jobs status raw response:', jobsStatus);
+      
+      const statusData = jobsStatus.success ? jobsStatus.data : [];
+      console.log('📊 Jobs status data:', statusData);
 
-      this.createJobsStatusChart(jobsStatus);
+      this.createJobsStatusChart(statusData);
 
       // Materials usage - Get paints from jobs
-
-      const jobsWithPaints = await window.electronAPI.db.query(`
+      console.log('🎨 Fetching jobs with paints...');
+      const jobsWithPaintsResult = await window.electronAPI.db.query(`
         SELECT 
           j.id,
           j.title,
@@ -427,7 +426,8 @@ window.StatisticsView = {
         LIMIT 50
       `, [yearString]);
       
-
+      const jobsWithPaints = jobsWithPaintsResult.success ? jobsWithPaintsResult.data : [];
+      console.log('🎨 Jobs with paints count:', jobsWithPaints.length);
       
       // Parse and aggregate paints
       const paintsMap = new Map();
@@ -476,11 +476,12 @@ window.StatisticsView = {
         })
         .slice(0, 10);
       
+      console.log('🎨 Aggregated paints:', aggregatedPaints);
       this.createMaterialsChart(aggregatedPaints);
 
       // Top jobs
-
-      const topJobs = await window.electronAPI.db.query(`
+      console.log('🏆 Fetching top jobs...');
+      const topJobsResult = await window.electronAPI.db.query(`
         SELECT 
           title, 
           total_cost as revenue,
@@ -494,6 +495,8 @@ window.StatisticsView = {
         LIMIT 10
       `, [yearString]);
       
+      const topJobs = topJobsResult.success ? topJobsResult.data : [];
+      console.log('🏆 Top jobs data:', topJobs);
 
       this.createTopJobsChart(topJobs);
       
@@ -541,11 +544,11 @@ window.StatisticsView = {
   },
 
   createRevenueChart(data) {
-
+    console.log('📈 Creating revenue chart with data:', data);
     
     // Καταστροφή προηγούμενου chart
     if (this.charts.revenue) {
-
+      console.log('🔄 Destroying previous revenue chart');
       this.charts.revenue.destroy();
     }
 
@@ -566,13 +569,17 @@ window.StatisticsView = {
 
     data.forEach(item => {
       const monthIndex = parseInt(item.month) - 1;
-      revenueData[monthIndex] = item.revenue;
-      profitData[monthIndex] = item.profit;
+      revenueData[monthIndex] = item.revenue || 0;
+      profitData[monthIndex] = item.profit || 0;
     });
+    
+    console.log('📊 Revenue data by month:', revenueData);
+    console.log('📊 Profit data by month:', profitData);
     
     // Υπολογισμός συνολικών
     const totalRevenue = revenueData.reduce((sum, val) => sum + val, 0);
     const totalProfit = profitData.reduce((sum, val) => sum + val, 0);
+    console.log('💰 Chart Totals - Revenue:', totalRevenue, 'Profit:', totalProfit);
     
 
 
@@ -636,7 +643,7 @@ window.StatisticsView = {
   },
 
   createJobsTypeChart(data) {
-
+    console.log('📊 Creating jobs type chart with data:', data);
     
     if (this.charts.jobsType) {
       this.charts.jobsType.destroy();
@@ -644,7 +651,7 @@ window.StatisticsView = {
 
     const ctx = document.getElementById('jobsTypeChart');
     if (!ctx || !data || data.length === 0) {
-
+      console.warn('⚠️ No data or canvas for jobs type chart');
       if (ctx) {
         ctx.parentElement.innerHTML = '<p class="text-muted text-center">Δεν υπάρχουν δεδομένα</p>';
       }
@@ -663,7 +670,7 @@ window.StatisticsView = {
     // Support both formats: type (Electron), job_type (Online), or category
     const labels = data.map(item => {
       const label = item.type || item.job_type || item.category || 'Άγνωστο';
-
+      console.log('🏷️ Job type label:', label, 'count:', item.count);
       return label;
     });
 
@@ -795,7 +802,7 @@ window.StatisticsView = {
   },
 
   createMaterialsChart(data) {
-
+    console.log('🎨 Creating materials chart with data:', data);
     
     if (this.charts.materials) {
       this.charts.materials.destroy();
@@ -803,7 +810,7 @@ window.StatisticsView = {
 
     const ctx = document.getElementById('materialsChart');
     if (!ctx || !data || data.length === 0) {
-
+      console.warn('⚠️ No data for materials chart');
       if (ctx) {
         ctx.parentElement.innerHTML = '<p class="text-muted text-center">Δεν υπάρχουν δεδομένα</p>';
       }
@@ -812,7 +819,7 @@ window.StatisticsView = {
 
     // Top 10
     const topMaterials = data.slice(0, 10);
-    
+    console.log('🔝 Top 10 materials:', topMaterials);
 
     
     // Για χρώματα από paints, δείχνουμε πόσες φορές χρησιμοποιήθηκαν (jobs count)
@@ -937,7 +944,7 @@ window.StatisticsView = {
   },
 
   createTopJobsChart(data) {
-
+    console.log('🏆 Creating top jobs chart with data:', data);
     
     if (this.charts.topJobs) {
       this.charts.topJobs.destroy();
@@ -945,13 +952,14 @@ window.StatisticsView = {
 
     const ctx = document.getElementById('topJobsChart');
     if (!ctx || !data || data.length === 0) {
-
+      console.warn('⚠️ No data for top jobs chart');
       if (ctx) {
         ctx.parentElement.innerHTML = '<p class="text-muted text-center">Δεν υπάρχουν δεδομένα</p>';
       }
       return;
     }
     
+    console.log('📋 Processing top jobs data...');
 
 
     this.charts.topJobs = new Chart(ctx, {

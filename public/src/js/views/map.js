@@ -15,6 +15,16 @@ window.MapView = {
   geocodeCache: {},
   requestCount: 0,
   maxRequests: 100,
+  // Stored handlers to avoid duplicate event listeners
+  showClientsHandler: null,
+  showUpcomingHandler: null,
+  showTodayHandler: null,
+  scrollBtnHandler: null,
+  // Geocode queue to process addresses in the background (throttled)
+  geocodeQueue: [],
+  geocodeQueueSet: new Set(),
+  geocodeQueueRunning: false,
+  geocodeIntervalMs: 1100,
 
   render(container) {
     const isMobile = Utils.isMobile();
@@ -140,18 +150,42 @@ window.MapView = {
       </div>
     `;
 
-    // Event listeners
-    document.getElementById('showClients').addEventListener('change', () => this.toggleLayer('clients'));
-    document.getElementById('showUpcoming').addEventListener('change', () => this.toggleLayer('upcoming'));
-    document.getElementById('showToday').addEventListener('change', () => this.toggleLayer('today'));
+    // Geocode status UI (below controls)
+    const statusEl = document.createElement('div');
+    statusEl.id = 'geocodeStatus';
+    statusEl.style = 'margin-top:0.5rem; font-size:0.9rem; color:var(--color-text-muted);';
+    statusEl.innerText = '';
+    container.appendChild(statusEl);
+
+    // Event listeners (remove previous handlers to prevent duplicates)
+    const showClientsEl = document.getElementById('showClients');
+    if (showClientsEl) {
+      if (this.showClientsHandler) showClientsEl.removeEventListener('change', this.showClientsHandler);
+      this.showClientsHandler = () => this.toggleLayer('clients');
+      showClientsEl.addEventListener('change', this.showClientsHandler);
+    }
+
+    const showUpcomingEl = document.getElementById('showUpcoming');
+    if (showUpcomingEl) {
+      if (this.showUpcomingHandler) showUpcomingEl.removeEventListener('change', this.showUpcomingHandler);
+      this.showUpcomingHandler = () => this.toggleLayer('upcoming');
+      showUpcomingEl.addEventListener('change', this.showUpcomingHandler);
+    }
+
+    const showTodayEl = document.getElementById('showToday');
+    if (showTodayEl) {
+      if (this.showTodayHandler) showTodayEl.removeEventListener('change', this.showTodayHandler);
+      this.showTodayHandler = () => this.toggleLayer('today');
+      showTodayEl.addEventListener('change', this.showTodayHandler);
+    }
     
     // Scroll to top button (mobile only)
     if (isMobile) {
       const scrollBtn = document.getElementById('scrollToTopBtn');
       if (scrollBtn) {
-        scrollBtn.addEventListener('click', () => {
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        });
+        if (this.scrollBtnHandler) scrollBtn.removeEventListener('click', this.scrollBtnHandler);
+        this.scrollBtnHandler = () => window.scrollTo({ top: 0, behavior: 'smooth' });
+        scrollBtn.addEventListener('click', this.scrollBtnHandler);
       }
     }
 
@@ -419,9 +453,10 @@ window.MapView = {
     });
 
     // Add client markers (blue)
-    if (document.getElementById('showClients').checked) {
+    if (document.getElementById('showClients') && document.getElementById('showClients').checked) {
       for (const client of clients) {
         if (client.address && client.city) {
+          // Use existing coordinates (from State or DB) if available to avoid extra geocoding
           await this.addMarker(client, 'clients', '#2196F3');
         }
       }
@@ -455,20 +490,35 @@ window.MapView = {
 
   async addMarker(client, type, color, job = null) {
     const address = `${client.address}, ${client.city}, ${client.postal || ''} Greece`;
-    
-    // Check cache first
-    let location = this.geocodeCache[address];
-    
-    if (!location || location === 'ZERO_RESULTS') {
-      // Geocode if not in cache
-      location = await this.geocodeAddress(address);
-      
-      // Save to cache
-      this.geocodeCache[address] = location;
-      localStorage.setItem('geocode_cache', JSON.stringify(this.geocodeCache));
-      
-      // Small delay to respect Nominatim usage policy (max 1 request per second)
-      await new Promise(resolve => setTimeout(resolve, 1000));
+
+    // Prefer using stored coordinates on the client object (from frontend geocoding or DB)
+    let location = null;
+    if (client.coordinates) {
+      try {
+        const coords = (typeof client.coordinates === 'string') ? JSON.parse(client.coordinates) : client.coordinates;
+        // Accept either {lat,lng} or {latitude,longitude}
+        if (coords && (coords.lat !== undefined || coords.latitude !== undefined)) {
+          location = {
+            lat: parseFloat(coords.lat !== undefined ? coords.lat : coords.latitude),
+            lng: parseFloat(coords.lng !== undefined ? coords.lng : coords.longitude)
+          };
+        }
+      } catch (e) {
+        // Invalid JSON - ignore and fall back to geocoding
+        location = null;
+      }
+    }
+
+    // If no coordinates available, check cache; otherwise enqueue for background geocoding
+    if (!location) {
+      // Check cache first
+      location = this.geocodeCache[address];
+
+      // If not in cache, enqueue for background geocoding and return (don't block rendering)
+      if (!location || location === 'ZERO_RESULTS') {
+        this.enqueueForGeocoding(client, type, color, job, address);
+        return;
+      }
     }
 
     if (!location || location === 'ZERO_RESULTS') {
@@ -673,6 +723,69 @@ window.MapView = {
       console.error(`❌ Geocode error for ${address}:`, error);
       return 'ZERO_RESULTS';
     }
+  },
+
+  // Enqueue client address for background geocoding (throttled)
+  enqueueForGeocoding(client, type, color, job, address) {
+    if (!address) return;
+    if (this.geocodeQueueSet.has(address)) return; // already enqueued
+    this.geocodeQueueSet.add(address);
+    this.geocodeQueue.push({ clientId: client.id, address, type, color, job });
+    // Start processing if not already running
+    if (!this.geocodeQueueRunning) {
+      this.processGeocodeQueue();
+    }
+  },
+
+  async processGeocodeQueue() {
+    if (this.geocodeQueueRunning) return;
+    this.geocodeQueueRunning = true;
+
+    while (this.geocodeQueue.length > 0) {
+      const item = this.geocodeQueue.shift();
+        try {
+        const location = await this.geocodeAddress(item.address);
+        // Save to cache
+        this.geocodeCache[item.address] = location;
+        localStorage.setItem('geocode_cache', JSON.stringify(this.geocodeCache));
+
+        if (location && location !== 'ZERO_RESULTS') {
+          // Persist coordinates to server/state so future loads don't geocode again
+          try {
+            await State.update('clients', item.clientId, { coordinates: { lat: location.lat, lng: location.lng } });
+            // If update succeeded, read updated client and add marker
+            const updatedClient = State.read('clients', item.clientId);
+            if (updatedClient) {
+              // Add marker now that coordinates exist
+              await this.addMarker(updatedClient, item.type, item.color, item.job);
+            }
+          } catch (err) {
+            console.warn('Failed to persist geocoded coordinates for', item.clientId, err);
+          }
+        }
+      } catch (err) {
+        console.error('Error processing geocode queue item', item, err);
+      }
+
+      // Update UI status
+      this.updateGeocodeStatus();
+
+      // Respect Nominatim rate limits
+      await new Promise(resolve => setTimeout(resolve, this.geocodeIntervalMs));
+    }
+
+    // Finished
+    this.geocodeQueueRunning = false;
+    this.geocodeQueueSet.clear();
+    this.updateGeocodeStatus();
+  },
+
+  updateGeocodeStatus() {
+    const el = document.getElementById('geocodeStatus');
+    if (!el) return;
+    const queued = this.geocodeQueue.length;
+    const running = this.geocodeQueueRunning ? 'running' : 'idle';
+    el.innerText = `Geocode queue: ${queued} pending — status: ${running}`;
   },
 
   toggleLayer(type) {

@@ -7,7 +7,11 @@ window.OfflineService = {
   
   // Check if running in Electron
   isElectron() {
-    return typeof window.electronAPI !== 'undefined';
+    return (
+      typeof window.electronAPI !== 'undefined' &&
+      typeof window.electronAPI.db !== 'undefined' &&
+      typeof window.electronAPI.sync !== 'undefined'
+    );
   },
 
   /* ========================================
@@ -16,12 +20,15 @@ window.OfflineService = {
 
   async getAll(table) {
     if (!this.isElectron()) {
-      throw new Error('Offline mode only available in Electron app');
+      return { success: false, message: 'Offline mode only available in Electron app or Electron API not loaded.' };
     }
-    
     try {
-      const data = await window.electronAPI.db.getAll(table);
-      return { success: true, data };
+      if (!window.electronAPI.db || typeof window.electronAPI.db.getAll !== 'function') {
+        throw new Error('Electron API db.getAll is not available');
+      }
+      const result = await window.electronAPI.db.getAll(table);
+      // IPC already returns {success, data}, so just return it directly
+      return result;
     } catch (error) {
       console.error(`Error getting all ${table}:`, error);
       return { success: false, message: error.message };
@@ -30,12 +37,14 @@ window.OfflineService = {
 
   async getById(table, id) {
     if (!this.isElectron()) {
-      throw new Error('Offline mode only available in Electron app');
+      return { success: false, message: 'Offline mode only available in Electron app or Electron API not loaded.' };
     }
-    
     try {
-      const data = await window.electronAPI.db.getById(table, id);
-      return { success: true, data };
+      if (!window.electronAPI.db || typeof window.electronAPI.db.getById !== 'function') {
+        throw new Error('Electron API db.getById is not available');
+      }
+      const result = await window.electronAPI.db.getById(table, id);
+      return result;
     } catch (error) {
       console.error(`Error getting ${table} by id:`, error);
       return { success: false, message: error.message };
@@ -44,12 +53,14 @@ window.OfflineService = {
 
   async insert(table, data) {
     if (!this.isElectron()) {
-      throw new Error('Offline mode only available in Electron app');
+      return { success: false, message: 'Offline mode only available in Electron app or Electron API not loaded.' };
     }
-    
     try {
+      if (!window.electronAPI.db || typeof window.electronAPI.db.insert !== 'function') {
+        throw new Error('Electron API db.insert is not available');
+      }
       const result = await window.electronAPI.db.insert(table, data);
-      return { success: true, data: result };
+      return result;
     } catch (error) {
       console.error(`Error inserting into ${table}:`, error);
       return { success: false, message: error.message };
@@ -58,12 +69,14 @@ window.OfflineService = {
 
   async update(table, id, data) {
     if (!this.isElectron()) {
-      throw new Error('Offline mode only available in Electron app');
+      return { success: false, message: 'Offline mode only available in Electron app or Electron API not loaded.' };
     }
-    
     try {
+      if (!window.electronAPI.db || typeof window.electronAPI.db.update !== 'function') {
+        throw new Error('Electron API db.update is not available');
+      }
       const result = await window.electronAPI.db.update(table, id, data);
-      return { success: true, data: result };
+      return result;
     } catch (error) {
       console.error(`Error updating ${table}:`, error);
       return { success: false, message: error.message };
@@ -72,12 +85,14 @@ window.OfflineService = {
 
   async delete(table, id) {
     if (!this.isElectron()) {
-      throw new Error('Offline mode only available in Electron app');
+      return { success: false, message: 'Offline mode only available in Electron app or Electron API not loaded.' };
     }
-    
     try {
+      if (!window.electronAPI.db || typeof window.electronAPI.db.delete !== 'function') {
+        throw new Error('Electron API db.delete is not available');
+      }
       const result = await window.electronAPI.db.delete(table, id);
-      return { success: true, data: result };
+      return result;
     } catch (error) {
       console.error(`Error deleting from ${table}:`, error);
       return { success: false, message: error.message };
@@ -86,10 +101,12 @@ window.OfflineService = {
 
   async query(sql, params = []) {
     if (!this.isElectron()) {
-      throw new Error('Offline mode only available in Electron app');
+      return { success: false, message: 'Offline mode only available in Electron app or Electron API not loaded.' };
     }
-    
     try {
+      if (!window.electronAPI.db || typeof window.electronAPI.db.query !== 'function') {
+        throw new Error('Electron API db.query is not available');
+      }
       const data = await window.electronAPI.db.query(sql, params);
       return { success: true, data };
     } catch (error) {
@@ -106,8 +123,10 @@ window.OfflineService = {
     if (!this.isElectron()) {
       return navigator.onLine;
     }
-    
     try {
+      if (!window.electronAPI.sync || typeof window.electronAPI.sync.checkOnline !== 'function') {
+        throw new Error('Electron API sync.checkOnline is not available');
+      }
       return await window.electronAPI.sync.checkOnline();
     } catch (error) {
       console.error('Error checking online status:', error);
@@ -117,19 +136,19 @@ window.OfflineService = {
 
   async downloadFromServer(serverUrl) {
     if (!this.isElectron()) {
-      throw new Error('Sync only available in Electron app');
+      return { success: false, message: 'Sync only available in Electron app or Electron API not loaded.' };
     }
-    
     try {
+      if (!window.electronAPI.sync || typeof window.electronAPI.sync.download !== 'function') {
+        throw new Error('Electron API sync.download is not available');
+      }
       Toast.info('Λήψη δεδομένων από server...');
       const result = await window.electronAPI.sync.download(serverUrl);
-      
       if (result.success) {
         Toast.success(`✅ Λήψη ολοκληρώθηκε! ${result.totalRecords} εγγραφές`);
       } else {
         Toast.warning(`⚠️ Λήψη με σφάλματα: ${result.errors.join(', ')}`);
       }
-      
       return result;
     } catch (error) {
       console.error('Error downloading from server:', error);
@@ -140,19 +159,19 @@ window.OfflineService = {
 
   async uploadToServer(serverUrl) {
     if (!this.isElectron()) {
-      throw new Error('Sync only available in Electron app');
+      return { success: false, message: 'Sync only available in Electron app or Electron API not loaded.' };
     }
-    
     try {
+      if (!window.electronAPI.sync || typeof window.electronAPI.sync.upload !== 'function') {
+        throw new Error('Electron API sync.upload is not available');
+      }
       Toast.info('Αποστολή δεδομένων στον server...');
       const result = await window.electronAPI.sync.upload(serverUrl);
-      
       if (result.success) {
         Toast.success(`✅ Αποστολή ολοκληρώθηκε! ${result.totalRecords} αλλαγές`);
       } else {
         Toast.warning(`⚠️ Αποστολή με σφάλματα: ${result.errors.join(', ')}`);
       }
-      
       return result;
     } catch (error) {
       console.error('Error uploading to server:', error);
@@ -165,8 +184,10 @@ window.OfflineService = {
     if (!this.isElectron()) {
       return null;
     }
-    
     try {
+      if (!window.electronAPI.sync || typeof window.electronAPI.sync.getStatus !== 'function') {
+        throw new Error('Electron API sync.getStatus is not available');
+      }
       return await window.electronAPI.sync.getStatus();
     } catch (error) {
       console.error('Error getting sync status:', error);
@@ -178,8 +199,10 @@ window.OfflineService = {
     if (!this.isElectron()) {
       return 0;
     }
-    
     try {
+      if (!window.electronAPI.sync || typeof window.electronAPI.sync.getPendingCount !== 'function') {
+        throw new Error('Electron API sync.getPendingCount is not available');
+      }
       return await window.electronAPI.sync.getPendingCount();
     } catch (error) {
       console.error('Error getting pending count:', error);

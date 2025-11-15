@@ -29,7 +29,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     delete: (table, id) => ipcRenderer.invoke('db:delete', table, id),
     
     // Execute custom query
-    query: (sql, params) => ipcRenderer.invoke('db:query', sql, params)
+    query: (sql, params) => ipcRenderer.invoke('db:query', sql, params),
+    
+    // Export database to JSON
+    export: () => ipcRenderer.invoke('db:export'),
+    
+    // Import database from JSON
+    import: (backupData) => ipcRenderer.invoke('db:import', backupData)
   },
   
   /* ========================================

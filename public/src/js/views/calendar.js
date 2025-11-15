@@ -350,7 +350,8 @@ window.CalendarView = {
           ORDER BY ce.start_date ASC
         `;
         
-        const result = await window.electronAPI.db.query(sql, [startStr, endStr]);
+        const response = await window.electronAPI.db.query(sql, [startStr, endStr]);
+        const result = response.success ? response.data : [];
         
         // Transform database results to FullCalendar format
         events = result.map(event => this.transformEventFromDB(event));
@@ -398,6 +399,25 @@ window.CalendarView = {
      Transform Event from Database
      ======================================== */
   transformEventFromDB(dbEvent) {
+    console.log('🔄 Transforming DB event:', dbEvent);
+    
+    // Check what field names exist
+    let startDate = dbEvent.start_date || dbEvent.startDate || dbEvent.date;
+    let endDate = dbEvent.end_date || dbEvent.endDate;
+    const startTime = dbEvent.start_time || dbEvent.startTime;
+    const endTime = dbEvent.end_time || dbEvent.endTime;
+    const allDay = dbEvent.all_day !== undefined ? dbEvent.all_day : dbEvent.allDay;
+    
+    // Clean up date format - remove time part if it's ' 00:00:00'
+    if (startDate && typeof startDate === 'string') {
+      startDate = startDate.replace(' 00:00:00', '');
+    }
+    if (endDate && typeof endDate === 'string') {
+      endDate = endDate.replace(' 00:00:00', '');
+    }
+    
+    console.log('🔍 Date fields:', { startDate, endDate, startTime, endTime, allDay });
+    
     const title = dbEvent.client_name 
       ? `${dbEvent.client_name} - ${dbEvent.title}` 
       : dbEvent.title;
@@ -405,11 +425,11 @@ window.CalendarView = {
     return {
       id: dbEvent.id,
       title: title,
-      start: dbEvent.all_day ? dbEvent.start_date : `${dbEvent.start_date}T${dbEvent.start_time || '00:00:00'}`,
-      end: dbEvent.end_date 
-        ? (dbEvent.all_day ? dbEvent.end_date : `${dbEvent.end_date}T${dbEvent.end_time || '23:59:59'}`)
+      start: allDay ? startDate : `${startDate}T${startTime || '00:00:00'}`,
+      end: endDate 
+        ? (allDay ? endDate : `${endDate}T${endTime || '23:59:59'}`)
         : null,
-      allDay: Boolean(dbEvent.all_day),
+      allDay: Boolean(allDay),
       backgroundColor: this.getStatusColor(dbEvent.status),
       borderColor: this.getStatusColor(dbEvent.status),
       extendedProps: {
@@ -421,8 +441,8 @@ window.CalendarView = {
         address: dbEvent.address,
         description: dbEvent.description,
         status: dbEvent.status,
-        start_time: dbEvent.start_time,
-        end_time: dbEvent.end_time
+        start_time: startTime,
+        end_time: endTime
       }
     };
   },
@@ -461,6 +481,7 @@ window.CalendarView = {
       
       // In Electron, use SQLite database
       if (typeof window.electronAPI !== 'undefined') {
+        console.log('📅 Loading upcoming visits from SQLite...');
         const sql = `
           SELECT 
             ce.*,
@@ -471,16 +492,19 @@ window.CalendarView = {
           LEFT JOIN clients c ON ce.client_id = c.id
           LEFT JOIN jobs j ON ce.job_id = j.id
           WHERE ce.start_date >= ? AND ce.start_date <= ?
+          AND ce.start_date IS NOT NULL
           ORDER BY ce.start_date ASC
           LIMIT 10
-        `;
+        `;  
         
-        const result = await window.electronAPI.db.query(sql, [start, end]);
+        const response = await window.electronAPI.db.query(sql, [start, end]);
+        console.log('📅 SQLite response:', response);
+        const result = response.success ? response.data : [];
+        console.log('📅 Calendar events from DB:', result);
         
         // Transform database results
         events = result.map(event => this.transformEventFromDB(event));
-        
-      } else {
+        console.log('📅 Transformed events:', events);      } else {
         // Web version - use API
         const url = `/api/calendar.php?start=${start}&end=${end}`;
         const response = await fetch(url, { credentials: 'include' });
@@ -509,7 +533,7 @@ window.CalendarView = {
      Render Upcoming Visits List
      ======================================== */
   renderUpcomingVisits(visits) {
-    
+    console.log('📅 Rendering upcoming visits:', visits);
     const container = document.getElementById('upcomingVisitsList');
     
     if (visits.length === 0) {
@@ -530,7 +554,22 @@ window.CalendarView = {
     });
     
     container.innerHTML = visits.map(visit => {
+      console.log('📅 Processing visit:', visit);
+      
+      // Check if visit.start exists and is valid
+      if (!visit.start) {
+        console.error('❌ Visit missing start date:', visit);
+        return '';
+      }
+      
       const startDate = new Date(visit.start);
+      
+      // Check if date is valid
+      if (isNaN(startDate.getTime())) {
+        console.error('❌ Invalid start date:', visit.start, 'for visit:', visit);
+        return '';
+      }
+      
       const props = visit.extendedProps || {};
       
       // Normalize status - handle both from API and from calendar
@@ -1659,7 +1698,10 @@ window.CalendarView = {
       // In Electron, use SQLite database
       if (typeof window.electronAPI !== 'undefined') {
         // Get all jobs from database
-        const jobs = await window.electronAPI.db.getAll('jobs');
+        const jobsResponse = await window.electronAPI.db.getAll('jobs');
+        const jobs = jobsResponse.success ? jobsResponse.data : [];
+        
+        console.log('📋 Syncing jobs to calendar:', jobs.length, 'jobs');
         
         let created = 0;
         let updated = 0;
@@ -1677,7 +1719,8 @@ window.CalendarView = {
           
           // Check if calendar event already exists for this job
           const sql = `SELECT id FROM calendar_events WHERE job_id = ?`;
-          const existing = await window.electronAPI.db.query(sql, [job.id]);
+          const existingResponse = await window.electronAPI.db.query(sql, [job.id]);
+          const existing = existingResponse.success ? existingResponse.data : [];
           
           const eventData = {
             title: job.title || 'Εργασία',
@@ -1743,6 +1786,43 @@ window.CalendarView = {
         btn.disabled = false;
         btn.innerHTML = '<i class="fas fa-sync-alt"></i> Συγχρονισμός';
       }
+    }
+  },
+  
+  /* ========================================
+     Καθαρισμός Διπλότυπων Events
+     ======================================== */
+  async cleanDuplicateEvents() {
+    if (typeof window.electronAPI === 'undefined') {
+      Toast.show('Η λειτουργία είναι διαθέσιμη μόνο σε Electron mode', 'warning');
+      return;
+    }
+    
+    try {
+      console.log('🧹 Cleaning duplicate calendar events...');
+      
+      // Delete all events where job_id is NOT NULL (keep only manually created events)
+      // Then we'll sync again to recreate them properly
+      const deleteJobEvents = await window.electronAPI.db.query(
+        'DELETE FROM calendar_events WHERE job_id IS NOT NULL',
+        []
+      );
+      
+      console.log('🗑️ Deleted job-linked events:', deleteJobEvents);
+      
+      Toast.show('✅ Καθαρίστηκαν τα διπλότυπα events. Πατήστε Συγχρονισμός για να τα ξαναδημιουργήσετε.', 'success');
+      
+      // Refresh calendar
+      if (this.calendar) {
+        this.calendar.refetchEvents();
+      }
+      
+      // Refresh upcoming visits
+      await this.loadUpcomingVisits();
+      
+    } catch (error) {
+      console.error('Error cleaning duplicates:', error);
+      Toast.show('❌ Σφάλμα κατά τον καθαρισμό', 'error');
     }
   },
   
