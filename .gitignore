@@ -1,37 +1,39 @@
-# Database configuration
-config/database.php
+# Node modules
+node_modules/
 
-# Logs
-logs/
-*.log
-
-# Environment files
-.env
-.env.local
-.env.production
+# Build outputs
+build/
+dist/
+out/
 
 # OS files
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# IDE files
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Environment
+.env
+.env.local
+.env.production
+
+# Database configuration (sensitive)
+config/database.php
+
 # PHP
 vendor/
 composer.phar
-
-# Node.js (if applicable)
-node_modules/
-npm-debug.log
-yarn-error.log
-package-lock.json
-yarn.lock
 
 # Backup files
 *.bak
@@ -41,6 +43,8 @@ backup/
 backups/
 
 # Temporary files
+*.tmp
+*.temp
 tmp/
 temp/
 cache/
@@ -55,6 +59,6 @@ cache/
 # uploads/
 # public/uploads/
 
-# Build artifacts
-dist/
-# build/
+# Lock files (optional)
+# package-lock.json
+# yarn.lock

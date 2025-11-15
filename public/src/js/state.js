@@ -60,6 +60,8 @@ const State = {
    */
   async loadFromSQLite() {
     try {
+      console.log('📥 [State] Loading data from SQLite...');
+      
       // Use OfflineService directly in Electron (already extracts data properly)
       const [clients, workers, materials, jobs, offers, invoices, templates] = await Promise.all([
         window.OfflineService.getClients(),
@@ -71,18 +73,49 @@ const State = {
         window.OfflineService.getTemplates(),
       ]);
 
-      console.log('✅ Data loaded from SQLite via OfflineService');
+      console.log('📦 [State] Raw responses:', { clients, workers, materials, jobs, offers, invoices, templates });
+      console.log('📦 [State] jobs response:', jobs);
+      console.log('📦 [State] jobs.data type:', typeof jobs?.data, 'isArray:', Array.isArray(jobs?.data));
 
-      return {
-        clients: clients?.data || [],
-        workers: workers?.data || [],
-        inventory: materials?.data || [], // materials -> inventory
-        jobs: jobs?.data || [],
-        offers: offers?.data || [],
-        invoices: invoices?.data || [],
-        templates: templates?.data || [],
+      // Helper function to extract data from response
+      const extractData = (response, fallback = []) => {
+        if (!response) return fallback;
+        
+        // If response has success and data properties (OfflineService format)
+        if (response.success !== undefined && response.data !== undefined) {
+          // Ensure data is array
+          if (Array.isArray(response.data)) {
+            return response.data;
+          }
+          console.warn('[State] Response data is not an array:', response);
+          return fallback;
+        }
+        
+        // If response is already an array (direct format)
+        if (Array.isArray(response)) {
+          return response;
+        }
+        
+        console.warn('[State] Response format unknown:', response);
+        return fallback;
+      };
+
+      const stateData = {
+        clients: extractData(clients, []),
+        workers: extractData(workers, []),
+        inventory: extractData(materials, []), // materials -> inventory
+        jobs: extractData(jobs, []),
+        offers: extractData(offers, []),
+        invoices: extractData(invoices, []),
+        templates: extractData(templates, []),
         timesheets: [],
       };
+
+      console.log('✅ Data loaded from SQLite via OfflineService');
+      console.log('📊 [State] Final state.data:', stateData);
+      console.log('📊 [State] state.data.jobs type:', typeof stateData.jobs, 'isArray:', Array.isArray(stateData.jobs), 'length:', stateData.jobs?.length);
+
+      return stateData;
     } catch (error) {
       console.error('Error loading from SQLite:', error);
       

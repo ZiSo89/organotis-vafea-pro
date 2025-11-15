@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="el">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>09 - Workflow: Sourcetree → deploy branch → Plesk</title>
+  <style>
+    body{font-family:Segoe UI, Roboto, Arial;line-height:1.5;color:#222;margin:24px}
+    h1,h2{color:#0b62a4}
+    code{background:#f4f4f4;padding:2px 6px;border-radius:4px}
+    pre{background:#f8f8f8;padding:12px;border-radius:6px;overflow:auto}
+    .steps{margin:14px 0;padding-left:18px}
+    .note{background:#fffbe6;border-left:4px solid #ffd54f;padding:8px;margin:10px 0}
+  </style>
+</head>
+<body>
+  <h1>Οδηγίες: Τοπική εργασία (Sourcetree) και ασφαλές deploy μέσω branch <code>deploy</code></h1>
+
+  <p>Αυτό το έγγραφο περιγράφει μία απλή, ασφαλή διαδικασία για να εργάζεστε τοπικά (Sourcetree) και να στέλνετε στο server μέσω του branch <code>deploy</code> που είναι συνδεδεμένο με το Plesk.</p>
+
+  <h2>Γενική ιδέα</h2>
+  <ul>
+    <li>Δουλεύετε κανονικά σε <strong>feature</strong> branches ή σε <code>develop</code>.</li>
+    <li>Όταν είστε έτοιμος/η να ανεβάσετε στο server, ενημερώνετε (merge/rebase) το τοπικό branch <code>deploy</code> με τις τελικές αλλαγές.</li>
+    <li>Κάνετε <code>Push</code> προς <code>origin/deploy</code>. Το Plesk θα τραβήξει το branch <code>deploy</code> και θα κάνει deploy στο webroot.</li>
+  </ul>
+
+  <h2>Προαπαιτούμενα</h2>
+  <ul>
+    <li>Έχετε ρυθμίσει στο Plesk το repository και το branch <code>deploy</code> (όπως περιγράφεται στη διαμόρφωση).</li>
+    <li>Το branch <code>deploy</code> περιέχει τα αρχεία που θέλει ο server (π.χ. <code>api</code>, <code>config</code>, <code>public</code> και το τελικό <code>.htaccess</code>).</li>
+    <li>Έχετε πρόσβαση push στο repo (SSH key ή HTTPS με PAT).</li>
+  </ul>
+
+  <h2>Βασικά βήματα στο Sourcetree (GUI)</h2>
+  <ol class="steps">
+    <li><strong>Fetch / Pull</strong> από το remote για να είστε up‑to‑date: κουμπί <em>Fetch</em>, μετά <em>Pull</em> στον κάθε branch που σας ενδιαφέρει.</li>
+    <li><strong>Εργασία στο feature/develop</strong>: κάνετε commit τοπικά όπως συνήθως.</li>
+    <li><strong>Checkout στο <code>deploy</code></strong>: στο αριστερό panel κάντε διπλό κλικ ή δεξί κλικ → <em>Checkout</em> στο branch <code>deploy</code>.</li>
+    <li><strong>Pull origin/deploy</strong>: πατήστε <em>Pull</em> για να φέρετε τυχόν αλλαγές από το remote.</li>
+    <li><strong>Merge από develop</strong>: πατήστε <em>Merge</em>, επιλέξτε <code>develop</code> (ή το feature branch) και συγχωνεύστε.
+      <ul>
+        <li>Επίλυση conflicts: το Sourcetree εμφανίζει τα conflicted files — ανοίξτε το diff/merge tool και κάντε <em>Mark Resolved</em>.</li>
+      </ul>
+    </li>
+    <li><strong>Commit και Push</strong>: μετά το merge κάντε commit (αν χρειάζεται) και πατήστε <em>Push</em> προς <code>origin/deploy</code>. Επιβεβαιώστε ότι το branch που θα στείλετε είναι το <code>deploy</code>.</li>
+    <li><strong>Έλεγχος</strong>: στο GitHub επιβεβαιώστε ότι ο commit εμφανίζεται στο history του branch <code>deploy</code>. Στο Plesk, κάνετε <em>Pull now</em> ή ελέγξτε το auto-deploy logs.</li>
+  </ol>
+
+  <h2>Εναλλακτική: Επιλεκτική μεταφορά μόνο συγκεκριμένων paths</h2>
+  <p>Αν θέλετε το branch <code>deploy</code> να περιέχει αποκλειστικά συγκεκριμένους φακέλους (π.χ. <code>api</code>, <code>config</code>, <code>public</code>), χρησιμοποιήστε την εξής μέθοδο στο Sourcetree terminal:</p>
+  <pre><code>git checkout deploy
+git pull origin deploy
+git checkout develop -- api config public .htaccess.production
+git add api config public .htaccess.production
+git commit -m "Update deploy: selected files from develop"
+git push origin deploy</code></pre>
+  <p>Αυτό αντιγράφει ΜΟΝΟ τα συγκεκριμένα paths από το <code>develop</code> στο branch <code>deploy</code> και δεν φέρνει άλλα αρχεία.</p>
+
+  <h2>Τι κάνει το Plesk μετά το push</h2>
+  <ol class="steps">
+    <li>Όταν γίνει push στο <code>origin/deploy</code>, το Plesk θα κάνει <em>Pull</em> (automatic ή manual) και θα πάρει το περιεχόμενο του branch.</li>
+    <li>Αν χρειάζεται μετονομασία <code>.htaccess.production</code> → <code>.htaccess</code>, βεβαιωθείτε ότι το έχετε ήδη στο branch (προτιμητέο) ή χρησιμοποιήστε ένα μικρό post‑deploy script στο Plesk για rename μόνο.</li>
+    <li>Ελέγξτε το Deployment log στο Plesk για τυχόν errors (permissions, missing files, syntax errors σε scripts).</li>
+  </ol>
+
+  <h2>Καλές πρακτικές και συμβουλές ασφαλείας</h2>
+  <ul>
+    <li>Μην ανεβάζετε ευαίσθητες ρυθμίσεις (passwords, .env) στο repo — χρησιμοποιήστε server env ή Plesk settings.</li>
+    <li>Προτιμήστε <code>--force-with-lease</code> μόνο σε σπάνιες περιπτώσεις όταν χρειάζεται override (προειδοποίηση: χάνονται απομακρυσμένα commits).</li>
+    <li>Χρησιμοποιήστε Pull Requests αν δουλεύετε με ομάδα — επιπλέον έλεγχος πριν το merge στο <code>deploy</code>.</li>
+    <li>Αν θέλετε πλήρη αυτοματοποίηση, προσθέστε ένα GitHub Actions workflow που σε push στο <code>develop</code> θα ενημερώνει το <code>deploy</code> (επιλογή διαθέσιμη, χρειάζεται PAT).</li>
+  </ul>
+
+  <h2>Σύντομη αναφορά λαθών</h2>
+  <ul>
+    <li><strong>fatal: not a git repository</strong> — σημαίνει ότι το Plesk έκανε export αντί για clone. Λύση: είτε ενεργοποιήστε πραγματικό clone στο Plesk, είτε βάλτε ένα μικρό post-deploy script που κάνει προσωρινό shallow clone πριν αντιγραφή.</li>
+    <li><strong>Syntax error / chrootsh</strong> — βεβαιωθείτε ότι τα scripts είναι με LF newlines και χρησιμοποιούν POSIX sh σύνταξη.</li>
+  </ul>
+
+  <h2>Παράδειγμα γρήγορου checklist πριν κάθε deploy</h2>
+  <ol class="steps">
+    <li>Fetch / Pull όλα τα remotes.</li>
+    <li>Checkout <code>deploy</code> και Pull origin/deploy.</li>
+    <li>Merge ή checkout των επιλεγμένων paths από <code>develop</code>.</li>
+    <li>Commit & Push στο <code>deploy</code>.</li>
+    <li>Στο Plesk κάνε Pull now και έλεγξε logs.</li>
+  </ol>
+
+  <p class="note">Αν θέλεις, μπορώ να προσθέσω εδώ και ένα παραδειγματικό GitHub Actions YAML που θα κάνει αυτόματα update του <code>deploy</code> όταν γίνεται push σε <code>develop</code>.</p>
+
+  <p>Τελειώνοντας — αν θέλεις, φτιάχνω και ένα μικρό screenshot walkthrough για Sourcetree ή το YAML για GitHub Actions. Πες τι προτιμάς.</p>
+</body>
+</html>

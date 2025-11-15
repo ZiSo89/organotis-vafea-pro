@@ -54,11 +54,31 @@ window.SettingsView = {
 
   async exportDatabase() {
     try {
-      const apiUrl = window.API?.baseURL || '/api';
-      const response = await fetch(`${apiUrl}/backup.php?action=export`);
-      if (!response.ok) throw new Error('Export failed');
+      let backupData;
       
-      const blob = await response.blob();
+      // Check if running in Electron
+      if (window.electronAPI) {
+        // Use Electron API for export
+        console.log('📤 Exporting via Electron API...');
+        const result = await window.electronAPI.db.export();
+        
+        if (!result.success) {
+          throw new Error(result.error || 'Export failed');
+        }
+        
+        backupData = result.data;
+      } else {
+        // Use PHP API for web app
+        console.log('📤 Exporting via PHP API...');
+        const apiUrl = window.API?.baseURL || '/api';
+        const response = await fetch(`${apiUrl}/backup.php?action=export`);
+        if (!response.ok) throw new Error('Export failed');
+        
+        backupData = await response.json();
+      }
+      
+      // Download the backup file
+      const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -88,29 +108,50 @@ window.SettingsView = {
       }
       
       try {
-        const formData = new FormData();
-        formData.append('backup', file);
+        // Read file content
+        const fileContent = await file.text();
+        const backupData = JSON.parse(fileContent);
         
-        const apiUrl = window.API?.baseURL || '/api';
-        const response = await fetch(`${apiUrl}/backup.php?action=import`, {
-          method: 'POST',
-          body: formData
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-          Toast.success('Η βάση δεδομένων εισήχθη επιτυχώς!');
-          setTimeout(() => location.reload(), 1500);
+        // Check if running in Electron
+        if (window.electronAPI) {
+          // Use Electron API for import
+          console.log('📥 Importing via Electron API...');
+          const result = await window.electronAPI.db.import(backupData);
+          
+          if (result.success) {
+            Toast.success('Η βάση δεδομένων εισήχθη επιτυχώς!');
+            setTimeout(() => location.reload(), 1500);
+          } else {
+            console.error('Import error:', result.error);
+            Toast.error(result.error || 'Σφάλμα κατά την εισαγωγή');
+          }
         } else {
-          console.error('Import error details:', result);
-          const errorMsg = result.error || 'Σφάλμα κατά την εισαγωγή';
-          const debugInfo = result.debug ? ` (${result.debug.file}:${result.debug.line})` : '';
-          Toast.error(errorMsg + debugInfo);
+          // Use PHP API for web app
+          console.log('📥 Importing via PHP API...');
+          const formData = new FormData();
+          formData.append('backup', file);
+          
+          const apiUrl = window.API?.baseURL || '/api';
+          const response = await fetch(`${apiUrl}/backup.php?action=import`, {
+            method: 'POST',
+            body: formData
+          });
+          
+          const result = await response.json();
+          
+          if (result.success) {
+            Toast.success('Η βάση δεδομένων εισήχθη επιτυχώς!');
+            setTimeout(() => location.reload(), 1500);
+          } else {
+            console.error('Import error details:', result);
+            const errorMsg = result.error || 'Σφάλμα κατά την εισαγωγή';
+            const debugInfo = result.debug ? ` (${result.debug.file}:${result.debug.line})` : '';
+            Toast.error(errorMsg + debugInfo);
+          }
         }
       } catch (error) {
         console.error('Import error:', error);
-        Toast.error('Σφάλμα κατά την εισαγωγή της βάσης');
+        Toast.error('Σφάλμα κατά την εισαγωγή της βάσης: ' + error.message);
       }
     };
     input.click();
@@ -1120,9 +1161,17 @@ window.SettingsView = {
         await this.updateSyncStatus();
         
         // Reload state data
+        console.log('[Settings] Reloading state data after sync...');
         if (typeof State !== 'undefined' && State.loadAll) {
           await State.loadAll();
+          console.log('[Settings] State reloaded successfully');
         }
+        
+        // Force refresh current view
+        Toast.info('🔄 Ανανέωση δεδομένων...');
+        setTimeout(() => {
+          window.location.reload();
+        }, 1000);
       } else {
         Toast.error(`❌ Αποτυχία: ${result.errors.join(', ')}`);
       }

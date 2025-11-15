@@ -155,8 +155,9 @@ window.DashboardView = {
     
     // Initialize dashboard map
     this.initDashboardMap();
-    // Fetch server-side aggregates (if available) and update displayed widgets
-    if (typeof this.fetchServerStats === 'function') {
+    
+    // Fetch server-side aggregates only in web mode (not Electron)
+    if (typeof window.electronAPI === 'undefined' && typeof this.fetchServerStats === 'function') {
       this.fetchServerStats();
     }
   },
@@ -186,7 +187,22 @@ window.DashboardView = {
   },
 
   calculateStats() {
-    const jobs = State.data.jobs;
+    console.log('📊 [Dashboard] calculateStats - State.data:', State.data);
+    console.log('📊 [Dashboard] State.data.jobs type:', typeof State.data.jobs, 'isArray:', Array.isArray(State.data.jobs));
+    console.log('📊 [Dashboard] State.data.jobs:', State.data.jobs);
+    
+    // Ensure jobs is an array
+    let jobs = State.data.jobs;
+    if (!Array.isArray(jobs)) {
+      console.warn('⚠️ [Dashboard] jobs is not an array, trying to extract from response object');
+      if (jobs && typeof jobs === 'object' && Array.isArray(jobs.data)) {
+        jobs = jobs.data;
+      } else {
+        console.error('❌ [Dashboard] Cannot extract jobs array, defaulting to empty array');
+        jobs = [];
+      }
+    }
+    
     const clients = State.data.clients;
     const workers = State.data.workers || [];
     
@@ -194,6 +210,8 @@ window.DashboardView = {
     const thisMonth = now.getMonth();
     const thisYear = now.getFullYear();
     const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    console.log('📊 [Dashboard] Processing', jobs.length, 'jobs');
 
     // Calculate monthly revenue and profit
     const monthlyJobs = jobs.filter(j => {

@@ -1,0 +1,15 @@
+[
+    {
+        "id": 1,
+        "title": "Εσωτερικοί χώροι",
+        "total_cost": "496.00",
+        "materials_cost": "150.00",
+        "assigned_workers": "\"[{\\\"workerId\\\":1,\\\"workerName\\\":\\\"\\u0394\\u03b7\\u03bc\\u03ae\\u03c4\\u03c1\\u03b7\\u03c2 \\u0392\\u03b1\\u03c3\\u03b9\\u03bb\\u03b5\\u03af\\u03bf\\u03c5\\\",\\\"workerSpecialty\\\":\\\"\\u0392\\u03b1\\u03c6\\u03ad\\u03b1\\u03c2 Senior\\\",\\\"hoursAllocated\\\":8,\\\"hourlyRate\\\":15,\\\"laborCost\\\":120}]\"",
+        "billing_hours": "8.00",
+        "billing_rate": "50.00",
+        "vat": "24.00",
+        "kilometers": "5.00",
+        "cost_per_km": "0.50",
+        "start_date": "2025-11-13"
+    }
+]
