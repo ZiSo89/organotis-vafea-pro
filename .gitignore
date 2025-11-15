@@ -1,0 +1,60 @@
+# Database configuration
+config/database.php
+
+# Logs
+logs/
+*.log
+
+# Environment files
+.env
+.env.local
+.env.production
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# PHP
+vendor/
+composer.phar
+
+# Node.js (if applicable)
+node_modules/
+npm-debug.log
+yarn-error.log
+package-lock.json
+yarn.lock
+
+# Backup files
+*.bak
+*.backup
+*.sql
+backup/
+backups/
+
+# Temporary files
+tmp/
+temp/
+cache/
+
+# Sensitive data
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Upload directories (uncomment if needed)
+# uploads/
+# public/uploads/
+
+# Build artifacts
+dist/
+# build/
