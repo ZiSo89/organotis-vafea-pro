@@ -58,7 +58,15 @@ Write-Host ""
 Write-Host "Step 5: Merging develop into deploy (selective files)..." -ForegroundColor Yellow
 
 # Selective checkout mono ton fakelwn pou chreiazontai
-git checkout develop -- api config public .htaccess
+git checkout develop -- api config public .htaccess.production
+
+# Replace .htaccess with .htaccess.production
+Write-Host "   Replacing .htaccess with production version..." -ForegroundColor Cyan
+if (Test-Path ".htaccess.production") {
+    Copy-Item ".htaccess.production" ".htaccess" -Force
+    git add .htaccess
+    Write-Host "   .htaccess updated for production" -ForegroundColor Gray
+}
 
 # Enimerwsi database.php me production settings
 Write-Host "   Updating database.php with production settings..." -ForegroundColor Cyan
