@@ -1,0 +1,66 @@
+name: Update Deploy from Develop
+
+# Αυτό το workflow τρέχει χειροκίνητα (manually) όταν θέλεις να ενημερώσεις το deploy
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "yes" to confirm deploy update'
+        required: true
+        default: 'no'
+
+jobs:
+  update-deploy:
+    name: Merge develop → deploy
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Validate confirmation
+        if: ${{ github.event.inputs.confirm != 'yes' }}
+        run: |
+          echo "❌ Deployment not confirmed. Exiting."
+          exit 1
+      
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Configure Git
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+      
+      - name: Checkout deploy branch
+        run: git checkout deploy
+      
+      - name: Merge develop into deploy
+        run: |
+          git merge origin/develop --no-ff -m "Auto-merge develop into deploy (GitHub Actions)"
+      
+      - name: Remove development-only files
+        run: |
+          # Διαγραφή φακέλων που δεν χρειάζονται σε production
+          git rm -r --ignore-unmatch database electron tools dist node_modules
+          git rm --ignore-unmatch router.php package.json package-lock.json .htaccess.production
+          
+          # Commit αν υπάρχουν αλλαγές
+          if ! git diff --cached --quiet; then
+            git commit -m "Clean deploy: remove development files"
+          fi
+      
+      - name: Push to deploy branch
+        run: git push origin deploy
+      
+      - name: Summary
+        run: |
+          echo "✅ Deploy branch updated successfully!"
+          echo "📦 Production files: api/, config/, public/"
+          echo "🚀 Plesk will auto-deploy (if enabled)"
+
+# Πώς να το χρησιμοποιήσεις:
+# 1. Πήγαινε στο GitHub → Actions → "Update Deploy from Develop"
+# 2. Κάνε "Run workflow"
+# 3. Γράψε "yes" στο confirmation field
+# 4. Το workflow θα κάνει merge develop → deploy και θα διαγράψει dev files

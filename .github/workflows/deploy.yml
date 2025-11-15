@@ -1,0 +1,47 @@
+name: Auto Deploy to Production
+
+on:
+  push:
+    branches:
+      - deploy
+
+jobs:
+  deploy:
+    name: Deploy to Production Server
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout deploy branch
+        uses: actions/checkout@v3
+        with:
+          ref: deploy
+      
+      - name: Verify only production files exist
+        run: |
+          echo "Checking directory structure..."
+          ls -la
+          
+          # Verify only api, config, public exist
+          if [ -d "electron" ] || [ -d "database" ] || [ -d "tools" ]; then
+            echo "ERROR: Development folders found in deploy branch!"
+            exit 1
+          fi
+          
+          if [ ! -d "api" ] || [ ! -d "config" ] || [ ! -d "public" ]; then
+            echo "ERROR: Required production folders missing!"
+            exit 1
+          fi
+          
+          echo "✅ Deploy branch structure is correct"
+      
+      - name: Deploy to Plesk via Git
+        run: |
+          echo "Deployment triggered!"
+          echo "Plesk will automatically pull from origin/deploy"
+          echo "Check Plesk Git deployment logs for status"
+
+# Σημειώσεις:
+# 1. Αυτό το workflow τρέχει κάθε φορά που γίνεται push στο deploy branch
+# 2. Επαληθεύει ότι υπάρχουν ΜΟΝΟ οι production φάκελοι (api, config, public)
+# 3. Το Plesk θα κάνει αυτόματα pull από το origin/deploy (αν έχεις ενεργοποιήσει auto-deploy)
+# 4. Αν θέλεις manual deploy, πήγαινε στο Plesk → Git → Pull now
