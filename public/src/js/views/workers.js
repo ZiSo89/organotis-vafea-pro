@@ -59,7 +59,7 @@ window.WorkersView = {
 
           <div class="form-group">
             <label>Ωρομίσθιο (€) <span class="required">*</span></label>
-            <input type="number" id="w_hourlyRate" step="0.01" min="0" placeholder="π.χ. 15.00" required />
+            <input type="number" id="w_hourlyRate" min="0" placeholder="π.χ. 15" required />
           </div>
 
           <div class="form-group">

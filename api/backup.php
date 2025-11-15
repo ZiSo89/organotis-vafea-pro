@@ -134,9 +134,30 @@ if ($action === 'import') {
             throw new Exception('Μη έγκυρο JSON αρχείο: ' . json_last_error_msg());
         }
         
-        // Έλεγχος δομής backup
-        if (!isset($backup['version']) || !isset($backup['tables'])) {
-            throw new Exception('Μη έγκυρη δομή backup αρχείου');
+        // Έλεγχος δομής backup και normalization
+        if (!isset($backup['version'])) {
+            throw new Exception('Μη έγκυρη δομή backup αρχείου - λείπει version');
+        }
+        
+        // Υποστήριξη δύο μορφών:
+        // 1. Electron format: { "data": { "clients": [...], "workers": [...] } }
+        // 2. PHP format: { "tables": { "clients": { "data": [...] }, "workers": { "data": [...] } } }
+        $tablesData = null;
+        
+        if (isset($backup['data'])) {
+            // Electron format - μετατροπή σε PHP format
+            $tablesData = [];
+            foreach ($backup['data'] as $tableName => $rows) {
+                $tablesData[$tableName] = [
+                    'count' => is_array($rows) ? count($rows) : 0,
+                    'data' => is_array($rows) ? $rows : []
+                ];
+            }
+        } elseif (isset($backup['tables'])) {
+            // PHP format - χρήση ως έχει
+            $tablesData = $backup['tables'];
+        } else {
+            throw new Exception('Μη έγκυρη δομή backup αρχείου - λείπουν tables ή data');
         }
         
         $db = getDBConnection();
@@ -190,24 +211,42 @@ if ($action === 'import') {
         
         // Εισαγωγή δεδομένων
         foreach ($insertOrder as $table) {
-            if (!isset($backup['tables'][$table])) {
+            if (!isset($tablesData[$table])) {
                 $stats[$table] = 0;
                 continue;
             }
             
-            $tableData = $backup['tables'][$table]['data'];
+            $tableData = $tablesData[$table]['data'];
             $count = 0;
             
             if (!empty($tableData)) {
                 try {
                     // Δημιουργία prepared statement
                     $firstRow = $tableData[0];
-                    $columns = array_keys($firstRow);
+                    
+                    // Convert camelCase to snake_case for Electron compatibility
+                    $convertedRow = [];
+                    foreach ($firstRow as $key => $value) {
+                        // Convert camelCase to snake_case
+                        $snakeKey = strtolower(preg_replace('/(?<!^)[A-Z]/', '_$0', $key));
+                        $convertedRow[$snakeKey] = $value;
+                    }
+                    
+                    $columns = array_keys($convertedRow);
                     
                     // Έλεγχος ποια columns υπάρχουν στον πίνακα
                     $describeStmt = $db->query("DESCRIBE `$table`");
                     $tableColumnsData = $describeStmt->fetchAll(PDO::FETCH_ASSOC);
                     $tableColumns = array_column($tableColumnsData, 'Field');
+                    
+                    // Build column info map (for NOT NULL checks)
+                    $columnInfo = [];
+                    foreach ($tableColumnsData as $colData) {
+                        $columnInfo[$colData['Field']] = [
+                            'null' => $colData['Null'] === 'YES',
+                            'default' => $colData['Default']
+                        ];
+                    }
                     
                     // Κρατάμε μόνο τα columns που υπάρχουν στον πίνακα
                     $validColumns = array_intersect($columns, $tableColumns);
@@ -224,13 +263,44 @@ if ($action === 'import') {
                     $insertStmt = $db->prepare($sql);
                     
                     foreach ($tableData as $row) {
+                        // Convert camelCase to snake_case
+                        $convertedRow = [];
+                        foreach ($row as $key => $value) {
+                            $snakeKey = strtolower(preg_replace('/(?<!^)[A-Z]/', '_$0', $key));
+                            $convertedRow[$snakeKey] = $value;
+                        }
+                        
                         // Bind values μόνο για τα έγκυρα columns
                         foreach ($validColumns as $column) {
-                            $value = isset($row[$column]) ? $row[$column] : null;
+                            $value = isset($convertedRow[$column]) ? $convertedRow[$column] : null;
+                            
                             // Μετατροπή boolean σε integer για MySQL
                             if (is_bool($value)) {
                                 $value = $value ? 1 : 0;
                             }
+                            
+                            // Μετατροπή arrays/objects σε JSON string για longtext columns
+                            if ((is_array($value) || is_object($value)) && $value !== null) {
+                                $value = json_encode($value, JSON_UNESCAPED_UNICODE);
+                            }
+                            
+                            // Handle NOT NULL columns with missing values
+                            if ($value === null && isset($columnInfo[$column]) && !$columnInfo[$column]['null']) {
+                                // Set default value for NOT NULL columns
+                                if ($columnInfo[$column]['default'] !== null) {
+                                    $value = $columnInfo[$column]['default'];
+                                } else {
+                                    // Use sensible defaults based on column name
+                                    if ($column === 'title') {
+                                        $value = 'Εργασία'; // Default title
+                                    } elseif ($column === 'status') {
+                                        $value = 'Εκκρεμεί';
+                                    } else {
+                                        $value = ''; // Empty string for other NOT NULL columns
+                                    }
+                                }
+                            }
+                            
                             $insertStmt->bindValue(":$column", $value);
                         }
                         $insertStmt->execute();

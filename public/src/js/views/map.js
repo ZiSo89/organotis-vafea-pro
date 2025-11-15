@@ -674,50 +674,83 @@ window.MapView = {
     this.markers[type].push(marker);
   },
 
+  // Convert Greek to Greeklish for better geocoding results
+  greeklishify(text) {
+    const greekToLatin = {
+      'α': 'a', 'ά': 'a', 'Α': 'A', 'Ά': 'A',
+      'β': 'v', 'Β': 'V',
+      'γ': 'g', 'Γ': 'G',
+      'δ': 'd', 'Δ': 'D',
+      'ε': 'e', 'έ': 'e', 'Ε': 'E', 'Έ': 'E',
+      'ζ': 'z', 'Ζ': 'Z',
+      'η': 'i', 'ή': 'i', 'Η': 'I', 'Ή': 'I',
+      'θ': 'th', 'Θ': 'Th',
+      'ι': 'i', 'ί': 'i', 'ϊ': 'i', 'ΐ': 'i', 'Ι': 'I', 'Ί': 'I', 'Ϊ': 'I',
+      'κ': 'k', 'Κ': 'K',
+      'λ': 'l', 'Λ': 'L',
+      'μ': 'm', 'Μ': 'M',
+      'ν': 'n', 'Ν': 'N',
+      'ξ': 'x', 'Ξ': 'X',
+      'ο': 'o', 'ό': 'o', 'Ο': 'O', 'Ό': 'O',
+      'π': 'p', 'Π': 'P',
+      'ρ': 'r', 'Ρ': 'R',
+      'σ': 's', 'ς': 's', 'Σ': 'S',
+      'τ': 't', 'Τ': 'T',
+      'υ': 'y', 'ύ': 'y', 'ϋ': 'y', 'ΰ': 'y', 'Υ': 'Y', 'Ύ': 'Y', 'Ϋ': 'Y',
+      'φ': 'f', 'Φ': 'F',
+      'χ': 'ch', 'Χ': 'Ch',
+      'ψ': 'ps', 'Ψ': 'Ps',
+      'ω': 'o', 'ώ': 'o', 'Ω': 'O', 'Ώ': 'O'
+    };
+    
+    return text.split('').map(char => greekToLatin[char] || char).join('');
+  },
+
   async geocodeAddress(address) {
     try {
-      // Use Nominatim (OpenStreetMap) for free geocoding - Direct client-side call
-      // Try multiple query formats for better results
-      const queries = [
-        // Original full address
-        `${address}`,
-        // Without postal code
-        address.replace(/\d{5}\s*Greece/, 'Greece'),
-        // Just street and city
-        address.split(',').slice(0, 2).join(',') + ', Greece'
+      // Try multiple search patterns for better results
+      const searchPatterns = [
+        address, // Original address (Greek)
+        address.replace(/\s+/g, ' ').trim(), // Normalized spaces
+        this.greeklishify(address), // Greeklish version
+        // Try without street number if first attempts fail
+        address.replace(/\d+/g, '').replace(/\s+/g, ' ').trim(),
+        this.greeklishify(address.replace(/\d+/g, '').replace(/\s+/g, ' ').trim())
       ];
       
-      for (const query of queries) {
-        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1&countrycodes=gr&addressdetails=1`;
+      for (let i = 0; i < searchPatterns.length; i++) {
+        const searchAddress = searchPatterns[i];
+        if (!searchAddress || searchAddress.length < 5) continue; // Skip invalid patterns
         
-        console.log(`📡 Fetching geocode for: ${query}`);
+        // Use backend proxy to avoid CORS issues with Nominatim
+        const url = `/api/geocode.php?address=${encodeURIComponent(searchAddress)}`;
         
-        const response = await fetch(url, {
-          headers: {
-            'User-Agent': 'Painter-Organizer-App/1.0'
-          }
-        });
+        if (i === 0) {
+          console.log(`📡 Fetching geocode for: ${address}`);
+        } else {
+          console.log(`🔄 Retry ${i}: ${searchAddress}`);
+        }
+        
+        const response = await fetch(url);
         
         if (!response.ok) {
-          console.warn(`⚠️ Nominatim request failed: ${response.status}`);
-          continue;
+          console.warn(`⚠️ Geocode request failed: ${response.status}`);
+          continue; // Try next pattern
         }
         
-        const data = await response.json();
+        const result = await response.json();
         
-        if (data && data.length > 0) {
-          console.log(`✅ Geocoded: ${query} -> ${data[0].display_name}`);
+        if (result.success && result.data && result.data.length > 0) {
+          const location = result.data[0];
+          console.log(`✅ Geocoded: ${address} -> ${location.display_name}`);
           return {
-            lat: parseFloat(data[0].lat),
-            lng: parseFloat(data[0].lon)
+            lat: parseFloat(location.lat),
+            lng: parseFloat(location.lon)
           };
         }
-        
-        // Wait a bit before trying next query
-        await new Promise(resolve => setTimeout(resolve, 500));
       }
       
-      console.warn(`❌ Nominatim: No results for any format of ${address}`);
+      console.warn(`❌ No geocode results for: ${address}`);
       return 'ZERO_RESULTS';
     } catch (error) {
       console.error(`❌ Geocode error for ${address}:`, error);
