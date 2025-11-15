@@ -143,7 +143,7 @@ window.JobsView = {
 
               <div class="form-group">
                 <label>Τετραγωνικά (m²)</label>
-                <input type="number" id="jobArea" step="0.01">
+                <input type="number" id="jobArea">
               </div>
 
               <div class="form-group">
@@ -185,7 +185,7 @@ window.JobsView = {
                 <label title="Το κόστος των υλικών που χρησιμοποιήθηκαν">
                   Κόστος Υλικών (€) <i class="fas fa-info-circle" style="font-size: 0.8em; color: var(--text-muted);"></i>
                 </label>
-                <input type="number" id="jobMaterialsCost" step="0.01" min="0" value="0" 
+                <input type="number" id="jobMaterialsCost" min="0" value="0" 
                        title="Το κόστος των υλικών που χρησιμοποιήθηκαν (έξοδα)">
               </div>
 
@@ -193,7 +193,7 @@ window.JobsView = {
                 <label title="Χιλιόμετρα μετακίνησης για την εργασία">
                   Χιλιόμετρα <i class="fas fa-info-circle" style="font-size: 0.8em; color: var(--text-muted);"></i>
                 </label>
-                <input type="number" id="jobKilometers" step="1" min="0" value="0"
+                <input type="number" id="jobKilometers" min="0" value="0"
                        title="Χιλιόμετρα μετακίνησης για την εργασία (έξοδα)">
               </div>
 
@@ -201,7 +201,7 @@ window.JobsView = {
                 <label title="Οι ώρες που χρεώνεις τον πελάτη (δικές σου ώρες)">
                   Ώρες Χρέωσης <i class="fas fa-info-circle" style="font-size: 0.8em; color: var(--text-muted);"></i>
                 </label>
-                <input type="number" id="jobBillingHours" step="0.5" min="0" value="0"
+                <input type="number" id="jobBillingHours" min="0" value="0"
                        title="Οι ώρες που χρεώνεις τον πελάτη - δικές σου ώρες εργασίας (έσοδα)">
               </div>
 
@@ -209,7 +209,7 @@ window.JobsView = {
                 <label title="Η τιμή ανά ώρα που χρεώνεις τον πελάτη (από Ρυθμίσεις)">
                   Τιμή Χρέωσης/Ώρα (€) <i class="fas fa-info-circle" style="font-size: 0.8em; color: var(--text-muted);"></i>
                 </label>
-                <input type="number" id="jobBillingRate" step="0.01" min="0" value="50" readonly
+                <input type="number" id="jobBillingRate" min="0" value="50" readonly
                        style="background-color: var(--bg-secondary); cursor: not-allowed;"
                        title="Η τιμή ανά ώρα που χρεώνεις τον πελάτη (από Ρυθμίσεις > Ωριαία Αμοιβή)">
               </div>
@@ -1308,7 +1308,7 @@ window.JobsView = {
 
         <div class="form-group">
           <label>Ώρες Εργασίας <span class="required">*</span></label>
-          <input type="number" id="modalWorkerHours" step="0.5" min="0.5" value="1">
+          <input type="number" id="modalWorkerHours" min="1" value="1">
         </div>
 
         <div class="form-group">
@@ -1504,7 +1504,7 @@ window.JobsView = {
 
         <div class="form-group">
           <label>Ώρες Εργασίας <span class="required">*</span></label>
-          <input type="number" id="editWorkerHours" step="0.5" min="0.5" value="${worker.hoursAllocated}">
+          <input type="number" id="editWorkerHours" min="1" value="${worker.hoursAllocated}">
         </div>
 
         <div class="form-group">

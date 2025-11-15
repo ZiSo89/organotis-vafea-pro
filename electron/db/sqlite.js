@@ -3,7 +3,6 @@
    Local database for offline support
    ======================================== */
 
-const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 const { app } = require('electron');
@@ -12,9 +11,27 @@ class SQLiteDB {
   constructor() {
     // Database path in user data directory
     const userDataPath = app.getPath('userData');
+    
+    // Ensure directory exists
+    if (!fs.existsSync(userDataPath)) {
+      fs.mkdirSync(userDataPath, { recursive: true });
+    }
+    
     const dbPath = path.join(userDataPath, 'painter_app.db');
     
     console.log('📁 Database path:', dbPath);
+    console.log('📁 User data path:', userDataPath);
+    
+    // Load better-sqlite3 with proper path handling for packaged app
+    let Database;
+    try {
+      // Always try normal require first - electron-builder handles this correctly
+      Database = require('better-sqlite3');
+      console.log('✅ better-sqlite3 loaded successfully');
+    } catch (error) {
+      console.error('❌ Error loading better-sqlite3:', error);
+      throw error; // Don't continue if we can't load the database
+    }
     
     this.db = new Database(dbPath, { verbose: console.log });
     this.db.pragma('journal_mode = WAL'); // Better performance

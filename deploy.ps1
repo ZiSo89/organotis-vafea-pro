@@ -67,15 +67,15 @@ $dbFile = "config/database.php"
 $dbContent = Get-Content $dbFile -Raw
 
 # Replace DEBUG_MODE
-$dbContent = $dbContent -replace "define\('DEBUG_MODE',\s*true\);", "define('DEBUG_MODE', false);"
+$dbContent = $dbContent -replace 'define\(''DEBUG_MODE'',\s*true\);', 'define(''DEBUG_MODE'', false);'
 
 # Replace DB credentials
-$dbContent = $dbContent -replace "define\('DB_USER',\s*'[^']*'\);", "define('DB_USER', 'painter_user');"
-$dbContent = $dbContent -replace "define\('DB_PASS',\s*'[^']*'\);", "define('DB_PASS', '~cjN4bOZcq77jqy@');"
+$dbContent = $dbContent -replace 'define\(''DB_USER'',\s*''[^'']*''\);', 'define(''DB_USER'', ''painter_user'');'
+$dbContent = $dbContent -replace 'define\(''DB_PASS'',\s*''[^'']*''\);', 'define(''DB_PASS'', ''~cjN4bOZcq77jqy@'');'
 
 # Update comment
-$dbContent = $dbContent -replace "// Database credentials.*", "// Database credentials (Production)"
-$dbContent = $dbContent -replace "// Debug mode.*", "// Debug mode - ALWAYS false in production"
+$dbContent = $dbContent -replace '// Database credentials.*', '// Database credentials (Production)'
+$dbContent = $dbContent -replace '// Debug mode.*', '// Debug mode - ALWAYS false in production'
 
 Set-Content $dbFile -Value $dbContent -NoNewline
 
@@ -155,3 +155,4 @@ Write-Host "   1. Go to Plesk → Git → Pull now" -ForegroundColor White
 Write-Host "   2. Check deployment logs" -ForegroundColor White
 Write-Host "   3. Test the application" -ForegroundColor White
 Write-Host ""
+

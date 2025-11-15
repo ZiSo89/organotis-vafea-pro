@@ -485,7 +485,10 @@ const State = {
   // Refresh Dashboard if currently viewing it
   refreshDashboardIfNeeded() {
     if (this.currentSection === 'dashboard' && window.DashboardView) {
-      window.DashboardView.render();
+      const container = document.getElementById('main-content');
+      if (container) {
+        window.DashboardView.render(container);
+      }
     }
   }
 };

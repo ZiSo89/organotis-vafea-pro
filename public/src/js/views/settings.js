@@ -920,15 +920,15 @@ window.SettingsView = {
           <form class="form-grid" id="pricingForm">
             <div class="form-group">
               <label>Ωριαία Αμοιβή (€)</label>
-              <input type="number" id="defaultHourlyRate" value="25" step="0.5">
+              <input type="number" id="defaultHourlyRate" value="25">
             </div>
             <div class="form-group">
               <label>ΦΠΑ (%)</label>
-              <input type="number" id="defaultVat" value="24" step="1">
+              <input type="number" id="defaultVat" value="24">
             </div>
             <div class="form-group">
               <label>Κόστος Μετακίνησης (€/km)</label>
-              <input type="number" id="defaultTravelCost" value="0.5" step="0.1">
+              <input type="number" id="defaultTravelCost" value="1">
             </div>
             <div class="form-group span-2">
               <button type="submit" class="btn btn-primary">

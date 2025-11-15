@@ -4,6 +4,39 @@
 
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
+const fs = require('fs');
+
+// Log file setup
+const logDir = app.getPath('logs');
+const logFile = path.join(logDir, 'main.log');
+
+// Simple logger
+function log(message) {
+  const timestamp = new Date().toISOString();
+  const logMessage = `[${timestamp}] ${message}\n`;
+  console.log(message);
+  try {
+    fs.appendFileSync(logFile, logMessage);
+  } catch (err) {
+    console.error('Failed to write to log file:', err);
+  }
+}
+
+// Catch uncaught exceptions
+process.on('uncaughtException', (error) => {
+  log('❌ Uncaught Exception: ' + error.message);
+  log('Stack: ' + error.stack);
+  console.error('Uncaught Exception:', error);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  log('❌ Unhandled Rejection at: ' + promise + ', reason: ' + reason);
+  console.error('Unhandled Rejection:', reason);
+});
+
+log('🚀 Electron app starting...');
+log('📁 Log file: ' + logFile);
+
 const Database = require('./db/sqlite');
 const Sync = require('./db/sync');
 
@@ -51,25 +84,41 @@ function createWindow() {
 // Initialize database
 async function initDatabase() {
   try {
+    log('📦 Initializing database...');
     db = new Database();
     await db.init();
-    console.log('✅ SQLite database initialized');
+    log('✅ SQLite database initialized');
     
     // Initialize sync manager
     syncManager = new Sync(db);
-    console.log('✅ Sync manager initialized');
+    log('✅ Sync manager initialized');
     
     return true;
   } catch (error) {
-    console.error('❌ Database initialization failed:', error);
+    log('❌ Database initialization failed: ' + error.message);
+    log('Stack: ' + error.stack);
     return false;
   }
 }
 
 // App ready
 app.whenReady().then(async () => {
-  await initDatabase();
+  log('📱 App ready event fired');
+  const dbReady = await initDatabase();
+  if (!dbReady) {
+    log('❌ Failed to initialize database, exiting...');
+    app.quit();
+    return;
+  }
+  
+  log('🪟 Creating window...');
   createWindow();
+  
+  // Notify renderer that database is ready
+  mainWindow.webContents.on('did-finish-load', () => {
+    log('📱 Window loaded, database ready');
+    mainWindow.webContents.send('db:ready', { ready: true });
+  });
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

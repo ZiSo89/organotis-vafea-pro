@@ -7,7 +7,9 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
+    "prebuild": "npx electron-rebuild",
     "build": "electron-builder",
+    "build:portable": "electron-builder --win portable",
     "package": "electron-packager . \"Οργανωτής Βαφέα\" --platform=win32 --arch=x64 --out=dist --overwrite"
   },
   "build": {
@@ -33,10 +35,18 @@
       "config/**/*",
       "api/**/*",
       "database/**/*",
-      "!node_modules",
+      "!node_modules/**/*",
+      "node_modules/better-sqlite3/**/*",
+      "node_modules/bindings/**/*",
+      "node_modules/file-uri-to-path/**/*",
       "!dist",
       "!docs",
       "!**/*.md"
+    ],
+    "asarUnpack": [
+      "node_modules/better-sqlite3/**/*",
+      "node_modules/bindings/**/*",
+      "node_modules/file-uri-to-path/**/*"
     ]
   },
   "dependencies": {

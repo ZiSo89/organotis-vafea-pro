@@ -94,6 +94,21 @@ function setupGlobalEventListeners() {
 
   // Global Search
   setupGlobalSearch();
+  
+  // Απενεργοποίηση scroll στα number inputs
+  document.addEventListener('wheel', (e) => {
+    if (e.target.type === 'number' && document.activeElement === e.target) {
+      e.preventDefault();
+    }
+  }, { passive: false });
+  
+  document.addEventListener('focus', (e) => {
+    if (e.target.type === 'number') {
+      e.target.addEventListener('wheel', (evt) => {
+        evt.preventDefault();
+      }, { passive: false });
+    }
+  }, true);
 }
 
 function setupGlobalSearch() {

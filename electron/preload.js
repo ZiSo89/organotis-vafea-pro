@@ -5,6 +5,18 @@
 
 const { contextBridge, ipcRenderer } = require('electron');
 
+// Database ready promise
+let dbReadyResolve;
+const dbReadyPromise = new Promise((resolve) => {
+  dbReadyResolve = resolve;
+});
+
+// Listen for database ready event
+ipcRenderer.on('db:ready', () => {
+  console.log('✅ Database ready event received');
+  dbReadyResolve(true);
+});
+
 // Expose safe APIs to renderer process
 contextBridge.exposeInMainWorld('electronAPI', {
   
@@ -13,6 +25,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
      ======================================== */
   
   db: {
+    // Wait for database to be ready
+    waitReady: () => dbReadyPromise,
+    
     // Get all records from a table
     getAll: (table) => ipcRenderer.invoke('db:getAll', table),
     

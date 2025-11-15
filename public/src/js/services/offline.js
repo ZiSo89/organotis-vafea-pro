@@ -5,6 +5,30 @@
 
 window.OfflineService = {
   
+  _dbReady: false,
+  
+  // Initialize and wait for database
+  async init() {
+    if (!this.isElectron()) {
+      return false;
+    }
+    
+    if (this._dbReady) {
+      return true;
+    }
+    
+    try {
+      console.log('⏳ Waiting for database to be ready...');
+      await window.electronAPI.db.waitReady();
+      this._dbReady = true;
+      console.log('✅ Database is ready!');
+      return true;
+    } catch (error) {
+      console.error('❌ Error waiting for database:', error);
+      return false;
+    }
+  },
+  
   // Check if running in Electron
   isElectron() {
     return (
@@ -22,6 +46,9 @@ window.OfflineService = {
     if (!this.isElectron()) {
       return { success: false, message: 'Offline mode only available in Electron app or Electron API not loaded.' };
     }
+    
+    await this.init();
+    
     try {
       if (!window.electronAPI.db || typeof window.electronAPI.db.getAll !== 'function') {
         throw new Error('Electron API db.getAll is not available');
@@ -55,6 +82,9 @@ window.OfflineService = {
     if (!this.isElectron()) {
       return { success: false, message: 'Offline mode only available in Electron app or Electron API not loaded.' };
     }
+    
+    await this.init();
+    
     try {
       if (!window.electronAPI.db || typeof window.electronAPI.db.insert !== 'function') {
         throw new Error('Electron API db.insert is not available');
@@ -71,6 +101,9 @@ window.OfflineService = {
     if (!this.isElectron()) {
       return { success: false, message: 'Offline mode only available in Electron app or Electron API not loaded.' };
     }
+    
+    await this.init();
+    
     try {
       if (!window.electronAPI.db || typeof window.electronAPI.db.update !== 'function') {
         throw new Error('Electron API db.update is not available');
