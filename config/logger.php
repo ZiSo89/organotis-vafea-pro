@@ -100,32 +100,107 @@ function logQuery($query, $params = []) {
 }
 
 /**
- * Log API request
+ * Log API request with performance tracking
  */
 function logApiRequest($endpoint, $method, $data = []) {
     if (!defined('DEBUG_MODE') || !DEBUG_MODE) {
         return;
     }
     
+    // Store request start time in global for performance tracking
+    $GLOBALS['_request_start_time'] = microtime(true);
+    $GLOBALS['_request_endpoint'] = $endpoint;
+    $GLOBALS['_request_method'] = $method;
+    
+    // Sanitize sensitive data before logging
+    $sanitizedData = sanitizeLogData($data);
+    
     logMessage("API Request: {$method} {$endpoint}", 'INFO', [
-        'data' => $data,
+        'data' => $sanitizedData,
         'ip' => $_SERVER['REMOTE_ADDR'] ?? 'Unknown',
-        'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown'
+        'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown',
+        'referer' => $_SERVER['HTTP_REFERER'] ?? 'Direct',
+        'timestamp' => date('Y-m-d H:i:s')
     ]);
 }
 
 /**
- * Log API response
+ * Log API response with performance metrics
  */
 function logApiResponse($endpoint, $statusCode, $response = null) {
     if (!defined('DEBUG_MODE') || !DEBUG_MODE) {
         return;
     }
     
+    // Calculate request duration
+    $duration = 0;
+    if (isset($GLOBALS['_request_start_time'])) {
+        $duration = round((microtime(true) - $GLOBALS['_request_start_time']) * 1000, 2); // ms
+    }
+    
     $level = $statusCode >= 400 ? 'ERROR' : 'INFO';
-    logMessage("API Response: {$endpoint} - Status: {$statusCode}", $level, [
-        'response' => $response
+    
+    // Sanitize response data
+    $sanitizedResponse = is_array($response) ? sanitizeLogData($response) : $response;
+    
+    logMessage("API Response: {$endpoint} - Status: {$statusCode} - Duration: {$duration}ms", $level, [
+        'response' => $sanitizedResponse,
+        'status_code' => $statusCode,
+        'duration_ms' => $duration,
+        'timestamp' => date('Y-m-d H:i:s')
     ]);
+}
+
+/**
+ * Sanitize sensitive data from logs
+ */
+function sanitizeLogData($data) {
+    if (!is_array($data)) {
+        return $data;
+    }
+    
+    $sensitiveKeys = ['password', 'token', 'api_key', 'secret', 'authorization'];
+    $sanitized = [];
+    
+    foreach ($data as $key => $value) {
+        $keyLower = strtolower($key);
+        $isSensitive = false;
+        
+        foreach ($sensitiveKeys as $sensitiveKey) {
+            if (strpos($keyLower, $sensitiveKey) !== false) {
+                $isSensitive = true;
+                break;
+            }
+        }
+        
+        if ($isSensitive) {
+            $sanitized[$key] = '***REDACTED***';
+        } elseif (is_array($value)) {
+            $sanitized[$key] = sanitizeLogData($value);
+        } else {
+            $sanitized[$key] = $value;
+        }
+    }
+    
+    return $sanitized;
+}
+
+/**
+ * Log slow queries (queries taking more than threshold)
+ */
+function logSlowQuery($query, $duration, $params = [], $threshold = 100) {
+    if (!defined('DEBUG_MODE') || !DEBUG_MODE) {
+        return;
+    }
+    
+    if ($duration > $threshold) {
+        logMessage("SLOW QUERY DETECTED: {$duration}ms", 'WARNING', [
+            'query' => $query,
+            'params' => $params,
+            'duration_ms' => $duration,
+            'threshold_ms' => $threshold
+        ]);
+    }
 }
 
 ?>

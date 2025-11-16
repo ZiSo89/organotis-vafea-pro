@@ -135,6 +135,11 @@ try {
             
             $data = convertToSnakeCase($input);
             
+            // Auto-set date to NOW if not provided
+            if (!isset($data['date']) || empty($data['date'])) {
+                $data['date'] = date('Y-m-d');
+            }
+            
             // Auto-update is_paid based on status
             if (isset($data['status']) && $data['status'] === 'Εξοφλήθηκε') {
                 $data['is_paid'] = 1;
@@ -204,6 +209,18 @@ try {
             if (!$input) sendError('Δεν υπάρχουν δεδομένα');
             
             $data = convertToSnakeCase($input);
+            
+            // When editing, preserve existing date if not provided
+            if (!isset($data['date']) || empty($data['date'])) {
+                $existingStmt = $db->prepare("SELECT date FROM jobs WHERE id = ?");
+                $existingStmt->execute([$_GET['id']]);
+                $existing = $existingStmt->fetch();
+                if ($existing && $existing['date']) {
+                    $data['date'] = $existing['date'];
+                } else {
+                    $data['date'] = date('Y-m-d');
+                }
+            }
             
             // Auto-update is_paid based on status
             if (isset($data['status']) && $data['status'] === 'Εξοφλήθηκε') {

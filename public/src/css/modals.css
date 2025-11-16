@@ -108,6 +108,21 @@
   gap: var(--spacing-sm);
 }
 
+/* Form Actions - Button Container */
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  margin-top: var(--spacing-lg);
+  flex-wrap: wrap;
+}
+
+.form-actions button,
+.form-actions .btn {
+  min-width: 120px;
+}
+
 /* Modal Sizes */
 .modal-sm {
   max-width: 400px;
