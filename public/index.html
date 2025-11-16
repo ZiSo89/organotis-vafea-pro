@@ -154,6 +154,7 @@
   <link rel="stylesheet" href="src/css/animations.css">
   <link rel="stylesheet" href="src/css/responsive.css">
   <link rel="stylesheet" href="src/css/print.css">
+  <link rel="stylesheet" href="src/css/help.css">
   
   <!-- Disable Google Save Address Popup -->
   <style>
@@ -220,6 +221,10 @@
         <i class="fas fa-cog"></i>
         <span data-translate="settings">Ρυθμίσεις</span>
       </a>
+      <a href="#help" class="nav-item" data-section="help" data-tooltip="Βοήθεια" onclick="HelpSystem.openHelpModal(); return false;">
+        <i class="fas fa-question-circle"></i>
+        <span>Βοήθεια</span>
+      </a>
     </nav>
   </aside>
 
@@ -261,6 +266,7 @@
   <script src="src/js/autocomplete.js?v=20251111b"></script>
   <script src="src/js/keyboard.js?v=20251111b"></script>
   <script src="src/js/theme.js?v=20251111b"></script>
+  <script src="src/js/help.js"></script>
   <script src="src/js/sidebar.js?v=20251111c"></script>
   <script src="src/js/router.js?v=20251111b"></script>
   <script src="src/js/search.js?v=20251111b"></script>
