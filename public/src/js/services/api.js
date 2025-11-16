@@ -105,18 +105,35 @@ class APIService {
             result = await window.OfflineService.getById(table, id);
         } else if (action === 'create' && data) {
             result = await window.OfflineService.insert(table, data);
+            console.log('[API] Insert result:', result);
             // After insert, return the newly created record
-            if (result.success && result.data && result.data.id) {
-                const newRecord = await window.OfflineService.getById(table, result.data.id);
-                return newRecord.data;
+            if (result.success && result.data) {
+                // Check if we have the full record in result.data.record
+                if (result.data.record) {
+                    console.log('[API] Returning record from insert:', result.data.record);
+                    return result.data.record;
+                }
+                // Otherwise, fetch it by id
+                if (result.data.id) {
+                    console.log('[API] Fetching newly created record by id:', result.data.id);
+                    const newRecord = await window.OfflineService.getById(table, result.data.id);
+                    return newRecord.data;
+                }
             }
         } else if (action === 'update' && id && data) {
             result = await window.OfflineService.update(table, id, data);
+            console.log('[API] Update result:', result);
             // After update, return the updated record
-            if (result.success) {
-                const updatedRecord = await window.OfflineService.getById(table, id);
-                return updatedRecord.data;
+            if (result.success && result.data) {
+                // Check if we have the full record in result.data.record
+                if (result.data.record) {
+                    console.log('[API] Returning record from update:', result.data.record);
+                    return result.data.record;
+                }
             }
+            // Fallback: fetch the updated record
+            const updatedRecord = await window.OfflineService.getById(table, id);
+            return updatedRecord.data;
         } else if (action === 'delete' && id) {
             result = await window.OfflineService.delete(table, id);
             return result.success ? true : false;

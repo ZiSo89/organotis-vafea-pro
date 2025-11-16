@@ -1,9 +1,11 @@
 /* ========================================
    Geocoding Utility
    Free geocoding using Nominatim/Photon APIs
+   NOTE: Coordinates are stored in database, not localStorage
    ======================================== */
 
 window.Geocoding = {
+  // Session cache only (not persisted)
   cache: {},
   
   /**
@@ -28,8 +30,8 @@ window.Geocoding = {
       const coords = await this.geocodeWithPhoton(fullAddress);
       
       if (coords) {
+        // Cache for this session only
         this.cache[cacheKey] = coords;
-        this.saveCache();
         return coords;
       }
       
@@ -37,8 +39,8 @@ window.Geocoding = {
       const coords2 = await this.geocodeWithNominatim(fullAddress);
       
       if (coords2) {
+        // Cache for this session only
         this.cache[cacheKey] = coords2;
-        this.saveCache();
         return coords2;
       }
       
@@ -126,43 +128,7 @@ window.Geocoding = {
       console.warn('⚠️ Nominatim geocoding failed:', error);
       return null;
     }
-  },
-  
-  /**
-   * Load cache from localStorage
-   */
-  loadCache() {
-    try {
-      const cached = localStorage.getItem('geocode_cache');
-      if (cached) {
-        this.cache = JSON.parse(cached);
-        console.log('📦 Loaded', Object.keys(this.cache).length, 'cached coordinates');
-      }
-    } catch (error) {
-      console.error('❌ Error loading geocode cache:', error);
-    }
-  },
-  
-  /**
-   * Save cache to localStorage
-   */
-  saveCache() {
-    try {
-      localStorage.setItem('geocode_cache', JSON.stringify(this.cache));
-    } catch (error) {
-      console.error('❌ Error saving geocode cache:', error);
-    }
-  },
-  
-  /**
-   * Initialize - load cache
-   */
-  init() {
-    this.loadCache();
   }
 };
 
-// Initialize on startup
-if (typeof window !== 'undefined' && window.Geocoding) {
-  window.Geocoding.init();
-}
+// No initialization needed - session cache only

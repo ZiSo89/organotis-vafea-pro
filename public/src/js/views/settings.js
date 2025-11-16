@@ -1103,16 +1103,29 @@ window.SettingsView = {
 
     try {
       // Show current server URL
+      const serverUrl = this.getServerUrl();
       if (currentServerUrl) {
-        currentServerUrl.textContent = this.getServerUrl();
+        currentServerUrl.textContent = serverUrl;
       }
       
-      // Check online status
-      const isOnline = await OfflineService.checkOnline();
+      // Check online status - check the actual server, not just internet
+      const isOnline = await OfflineService.checkOnline(serverUrl);
       if (onlineStatus) {
         const color = isOnline ? 'var(--color-success)' : 'var(--color-error)';
         const text = isOnline ? 'Online' : 'Offline';
         onlineStatus.innerHTML = `<i class="fas fa-circle" style="color: ${color};"></i> ${text}`;
+      }
+
+      // Enable/disable sync buttons based on online status
+      const downloadBtn = document.getElementById('downloadBtn');
+      const uploadBtn = document.getElementById('uploadBtn');
+      if (downloadBtn) {
+        downloadBtn.disabled = !isOnline;
+        downloadBtn.title = isOnline ? 'Λήψη δεδομένων από τον server' : 'Ο server δεν είναι διαθέσιμος';
+      }
+      if (uploadBtn) {
+        uploadBtn.disabled = !isOnline;
+        uploadBtn.title = isOnline ? 'Αποστολή δεδομένων στον server' : 'Ο server δεν είναι διαθέσιμος';
       }
 
       // Get sync status
@@ -1141,8 +1154,8 @@ window.SettingsView = {
   },
 
   getServerUrl() {
-    // Get server URL from localStorage, default to localhost for development
-    return localStorage.getItem('syncServerUrl') || 'http://localhost:8000';
+    // Get server URL from localStorage, default to XAMPP localhost (port 80)
+    return localStorage.getItem('syncServerUrl') || 'http://localhost/nikolpaintmaster.e-gata.gr';
   },
 
   setServerUrl(url) {
@@ -1152,28 +1165,90 @@ window.SettingsView = {
   async syncDownload() {
     const serverUrl = this.getServerUrl();
     
+    // Confirm before downloading (this will clear local data)
+    if (!confirm(`⚠️ Η λήψη θα αντικαταστήσει ΟΛΑ τα τοπικά δεδομένα με αυτά από τον server.\n\nΕίστε σίγουροι ότι θέλετε να συνεχίσετε;`)) {
+      return;
+    }
+    
     try {
       Toast.info(`Λήψη από ${serverUrl}...`);
+      
+      // Set up one-time listener for data refresh if in Electron
+      let refreshUnsubscribe;
+      if (window.electronAPI && window.electronAPI.sync.onDataRefresh) {
+        refreshUnsubscribe = window.electronAPI.sync.onDataRefresh(async (data) => {
+          console.log('[Settings] Data refresh event received:', data);
+          
+          // Reload state data
+          try {
+            if (typeof State !== 'undefined' && State.loadAll) {
+              await State.loadAll();
+              console.log('[Settings] State reloaded successfully after data refresh');
+              Toast.success('🔄 Δεδομένα ανανεώθηκαν!');
+              
+              // Reload settings cache
+              if (typeof SettingsService !== 'undefined' && SettingsService.loadAll) {
+                SettingsService.loaded = false; // Force reload
+                await SettingsService.loadAll();
+                console.log('[Settings] Settings cache reloaded');
+              }
+              
+              // Refresh current view
+              const currentSection = State.currentSection || 'dashboard';
+              if (typeof Router !== 'undefined' && Router.navigate) {
+                Router.navigate(currentSection);
+              } else if (currentSection === 'settings') {
+                // If we're on settings page, manually reload the data
+                await this.loadCompanyData();
+                await this.loadPricingData();
+              }
+            }
+          } catch (error) {
+            console.error('[Settings] Error reloading state:', error);
+          }
+          
+          // Unsubscribe after handling
+          if (refreshUnsubscribe) {
+            refreshUnsubscribe();
+          }
+        });
+      }
+      
       const result = await OfflineService.downloadFromServer(serverUrl);
       
       if (result.success) {
         Toast.success(`✅ Ληφθηκαν ${result.totalRecords} εγγραφές`);
         await this.updateSyncStatus();
         
-        // Reload state data
-        console.log('[Settings] Reloading state data after sync...');
-        if (typeof State !== 'undefined' && State.loadAll) {
-          await State.loadAll();
-          console.log('[Settings] State reloaded successfully');
+        // If no event listener (not Electron or old version), reload manually
+        if (!refreshUnsubscribe) {
+          console.log('[Settings] Manual reload (no event listener)');
+          try {
+            if (typeof State !== 'undefined' && State.loadAll) {
+              await State.loadAll();
+              console.log('[Settings] State reloaded successfully');
+              Toast.success('🔄 Δεδομένα ανανεώθηκαν!');
+            }
+          } catch (error) {
+            console.error('[Settings] Error reloading state:', error);
+          }
+          
+          // Refresh current view
+          setTimeout(() => {
+            const currentSection = State.currentSection || 'dashboard';
+            if (typeof Router !== 'undefined' && Router.navigate) {
+              Router.navigate(currentSection);
+            } else {
+              window.location.reload();
+            }
+          }, 500);
         }
-        
-        // Force refresh current view
-        Toast.info('🔄 Ανανέωση δεδομένων...');
-        setTimeout(() => {
-          window.location.reload();
-        }, 1000);
       } else {
         Toast.error(`❌ Αποτυχία: ${result.errors.join(', ')}`);
+        // Clean up listener on error
+        if (refreshUnsubscribe) {
+          refreshUnsubscribe();
+        }
       }
     } catch (error) {
       console.error('Download error:', error);
@@ -1196,13 +1271,39 @@ window.SettingsView = {
     
     try {
       Toast.info(`Αποστολή στον ${serverUrl}...`);
+      
+      // Set up one-time listener for upload complete if in Electron
+      let uploadUnsubscribe;
+      if (window.electronAPI && window.electronAPI.sync.onDataUploaded) {
+        uploadUnsubscribe = window.electronAPI.sync.onDataUploaded(async (data) => {
+          console.log('[Settings] Data uploaded event received:', data);
+          
+          // Update sync status
+          await this.updateSyncStatus();
+          Toast.success('✅ Συγχρονισμός ολοκληρώθηκε!');
+          
+          // Unsubscribe after handling
+          if (uploadUnsubscribe) {
+            uploadUnsubscribe();
+          }
+        });
+      }
+      
       const result = await OfflineService.uploadToServer(serverUrl);
       
       if (result.success) {
         Toast.success(`✅ Στάλθηκαν ${result.totalRecords} αλλαγές`);
-        await this.updateSyncStatus();
+        
+        // If no event listener (not Electron or old version), update manually
+        if (!uploadUnsubscribe) {
+          await this.updateSyncStatus();
+        }
       } else {
         Toast.error(`❌ Αποτυχία: ${result.errors.join(', ')}`);
+        // Clean up listener on error
+        if (uploadUnsubscribe) {
+          uploadUnsubscribe();
+        }
       }
     } catch (error) {
       console.error('Upload error:', error);

@@ -268,6 +268,9 @@ const State = {
         item.createdAt = new Date().toISOString();
       }
 
+      // Check if running in Electron
+      const isElectron = typeof window.electronAPI !== 'undefined';
+      
       // Map collection names to API methods
       const apiCollection = collection === 'inventory' ? 'materials' : collection;
       const apiMethodMap = {
@@ -285,8 +288,28 @@ const State = {
         throw new Error(`Unknown collection: ${collection}`);
       }
 
-      // Call API
-      const createdItem = await API[method](item);
+      // Call appropriate service
+      const service = isElectron ? window.OfflineService : API;
+      console.log('[State] Creating item via', isElectron ? 'OfflineService' : 'API');
+      const result = await service[method](item);
+      console.log('[State] Create result:', result);
+      
+      // Extract the created item
+      let createdItem;
+      if (isElectron) {
+        // In Electron, result might be the record directly or wrapped in {data: {record: ...}}
+        if (result && result.data && result.data.record) {
+          createdItem = result.data.record;
+        } else if (result && result.data) {
+          createdItem = result.data;
+        } else {
+          createdItem = result;
+        }
+      } else {
+        createdItem = result;
+      }
+      
+      console.log('[State] Created item:', createdItem);
       
       // Update local state
       this.data[collection].push(createdItem);
@@ -333,6 +356,9 @@ const State = {
    */
   async update(collection, id, updatedItem) {
     try {
+      // Check if running in Electron
+      const isElectron = typeof window.electronAPI !== 'undefined';
+      
       // Map collection names to API methods
       const apiCollection = collection === 'inventory' ? 'materials' : collection;
       const apiMethodMap = {
@@ -350,8 +376,28 @@ const State = {
         throw new Error(`Unknown collection: ${collection}`);
       }
 
-      // Call API
-      const updated = await API[method](id, updatedItem);
+      // Call appropriate service
+      const service = isElectron ? window.OfflineService : API;
+      console.log('[State] Updating item via', isElectron ? 'OfflineService' : 'API');
+      const result = await service[method](id, updatedItem);
+      console.log('[State] Update result:', result);
+      
+      // Extract the updated item
+      let updated;
+      if (isElectron) {
+        // In Electron, result might be the record directly or wrapped in {data: {record: ...}}
+        if (result && result.data && result.data.record) {
+          updated = result.data.record;
+        } else if (result && result.data) {
+          updated = result.data;
+        } else {
+          updated = result;
+        }
+      } else {
+        updated = result;
+      }
+      
+      console.log('[State] Updated item:', updated);
       
       // Update local state
       const index = this.data[collection].findIndex(item => Number(item.id) === Number(id));
@@ -376,6 +422,11 @@ const State = {
    */
   async delete(collection, id) {
     try {
+      console.log(`[State] Deleting ${collection} id:`, id);
+      
+      // Check if running in Electron
+      const isElectron = typeof window.electronAPI !== 'undefined';
+      
       // Map collection names to API methods
       const apiCollection = collection === 'inventory' ? 'materials' : collection;
       const apiMethodMap = {
@@ -393,15 +444,21 @@ const State = {
         throw new Error(`Unknown collection: ${collection}`);
       }
 
-      // Call API
-      await API[method](id);
+      // Call appropriate service
+      const service = isElectron ? window.OfflineService : API;
+      await service[method](id);
       
-      // Update local state
+      console.log(`[State] Delete successful, updating local state`);
+      
+      // Update local state - remove the item from array
       const index = this.data[collection].findIndex(item => Number(item.id) === Number(id));
       if (index !== -1) {
+        console.log(`[State] Removing item at index ${index} from ${collection}`);
         this.data[collection].splice(index, 1);
         this.saveToHistory(`Διαγραφή ${collection}`, this.data);
         this.refreshDashboardIfNeeded();
+      } else {
+        console.warn(`[State] Item with id ${id} not found in ${collection}`);
       }
       
       return true;
@@ -489,6 +546,35 @@ const State = {
       if (container) {
         window.DashboardView.render(container);
       }
+    }
+  },
+
+  /**
+   * Reload all data from SQLite/API
+   * Useful after sync operations
+   */
+  async loadAll() {
+    try {
+      console.log('🔄 [State] Reloading all data...');
+      
+      // Check if running in Electron
+      const isElectron = typeof window.electronAPI !== 'undefined';
+      
+      if (isElectron) {
+        // Reload from SQLite in Electron
+        this.data = await this.loadFromSQLite();
+      } else {
+        // Reload from API in web version
+        this.data = await this.loadFromAPI();
+      }
+      
+      console.log('✅ [State] Data reloaded successfully');
+      console.log('📊 [State] New data:', this.data);
+      
+      return this.data;
+    } catch (error) {
+      console.error('❌ [State] Failed to reload data:', error);
+      throw error;
     }
   }
 };

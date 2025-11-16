@@ -25,6 +25,7 @@ window.MapView = {
   geocodeQueueSet: new Set(),
   geocodeQueueRunning: false,
   geocodeIntervalMs: 1100,
+  isElectron: typeof window !== 'undefined' && window.electronAPI !== undefined,
 
   render(container) {
     const isMobile = Utils.isMobile();
@@ -150,10 +151,10 @@ window.MapView = {
       </div>
     `;
 
-    // Geocode status UI (below controls)
+    // Geocode status UI (below map)
     const statusEl = document.createElement('div');
     statusEl.id = 'geocodeStatus';
-    statusEl.style = 'margin-top:0.5rem; font-size:0.9rem; color:var(--color-text-muted);';
+    statusEl.style = 'margin-top:1rem; padding:0.75rem; font-size:0.9rem; color:var(--color-text-muted); background: #f8f9fa; border-radius: 4px; text-align: center;';
     statusEl.innerText = '';
     container.appendChild(statusEl);
 
@@ -189,14 +190,14 @@ window.MapView = {
       }
     }
 
-    // Load geocode cache from localStorage
-    const cached = localStorage.getItem('geocode_cache');
-    if (cached) {
-      this.geocodeCache = JSON.parse(cached);
-    }
-
+    // Note: geocodeCache is now only used for this session, not persisted
+    // Coordinates are stored in the database via State.update()
+    
     // Reset initialization flag when rendering
     this.isInitializing = false;
+    
+    // Show initial status
+    this.updateGeocodeStatus();
 
     // Wait for Google Maps to be ready, then initialize
     this.waitForGoogleMaps();
@@ -521,6 +522,7 @@ window.MapView = {
       }
     }
 
+    // Don't show markers without valid coordinates
     if (!location || location === 'ZERO_RESULTS') {
       return;
     }
@@ -676,6 +678,8 @@ window.MapView = {
 
   // Convert Greek to Greeklish for better geocoding results
   greeklishify(text) {
+    if (!text) return '';
+    
     const greekToLatin = {
       'α': 'a', 'ά': 'a', 'Α': 'A', 'Ά': 'A',
       'β': 'v', 'Β': 'V',
@@ -703,32 +707,124 @@ window.MapView = {
       'ω': 'o', 'ώ': 'o', 'Ω': 'O', 'Ώ': 'O'
     };
     
-    return text.split('').map(char => greekToLatin[char] || char).join('');
+    let result = '';
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      const nextChar = text[i + 1];
+      
+      // Handle double consonants (μπ, ντ, γκ, τσ, τζ)
+      if (char === 'μ' && nextChar === 'π') {
+        result += 'b';
+        i++;
+      } else if (char === 'Μ' && nextChar === 'π') {
+        result += 'B';
+        i++;
+      } else if (char === 'ν' && nextChar === 'τ') {
+        result += 'd';
+        i++;
+      } else if (char === 'Ν' && nextChar === 'τ') {
+        result += 'D';
+        i++;
+      } else if (char === 'γ' && nextChar === 'κ') {
+        result += 'g';
+        i++;
+      } else if (char === 'Γ' && nextChar === 'κ') {
+        result += 'G';
+        i++;
+      } else if (char === 'τ' && nextChar === 'σ') {
+        result += 'ts';
+        i++;
+      } else if (char === 'Τ' && nextChar === 'σ') {
+        result += 'Ts';
+        i++;
+      } else if (char === 'τ' && nextChar === 'ζ') {
+        result += 'tz';
+        i++;
+      } else if (char === 'Τ' && nextChar === 'ζ') {
+        result += 'Tz';
+        i++;
+      } else if (char === 'ο' && nextChar === 'υ') {
+        result += 'ou';
+        i++;
+      } else if (char === 'Ο' && nextChar === 'υ') {
+        result += 'Ou';
+        i++;
+      } else if (char === 'ε' && nextChar === 'υ') {
+        result += 'ef';
+        i++;
+      } else if (char === 'Ε' && nextChar === 'υ') {
+        result += 'Ef';
+        i++;
+      } else if (char === 'α' && nextChar === 'υ') {
+        result += 'af';
+        i++;
+      } else if (char === 'Α' && nextChar === 'υ') {
+        result += 'Af';
+        i++;
+      } else {
+        result += greekToLatin[char] || char;
+      }
+    }
+    
+    return result;
+  },
+  
+  // Test the greeklishify function
+  testGreeklish() {
+    const testCases = [
+      'Αλεξανδρούπολη',
+      'Λεωφόρος Δημοκρατίας',
+      'Μπότσαρη',
+      'Κύπρου',
+      'Γκούνη',
+      'Ευριπίδου',
+      'Μαυροκορδάτου',
+      'Ντάφνη',
+      'Τσακάλωφ',
+      'Αγίου Νικολάου'
+    ];
+    
+    console.log('🧪 Testing Greeklish conversion:');
+    testCases.forEach(test => {
+      console.log(`  "${test}" → "${this.greeklishify(test)}"`);
+    });
   },
 
   async geocodeAddress(address) {
+    // Disable geocoding in Electron - use only stored coordinates
+    if (this.isElectron) {
+      console.log(`⚠️ Geocoding disabled in Electron mode for: ${address}`);
+      return 'ZERO_RESULTS';
+    }
+    
     try {
+      const greeklishAddr = this.greeklishify(address);
+      
       // Try multiple search patterns for better results
       const searchPatterns = [
         address, // Original address (Greek)
-        address.replace(/\s+/g, ' ').trim(), // Normalized spaces
-        this.greeklishify(address), // Greeklish version
+        greeklishAddr, // Full Greeklish version
+        address.replace(/\s+/g, ' ').trim(), // Normalized spaces (Greek)
+        greeklishAddr.replace(/\s+/g, ' ').trim(), // Normalized spaces (Greeklish)
         // Try without street number if first attempts fail
         address.replace(/\d+/g, '').replace(/\s+/g, ' ').trim(),
-        this.greeklishify(address.replace(/\d+/g, '').replace(/\s+/g, ' ').trim())
+        greeklishAddr.replace(/\d+/g, '').replace(/\s+/g, ' ').trim()
       ];
       
-      for (let i = 0; i < searchPatterns.length; i++) {
-        const searchAddress = searchPatterns[i];
+      // Remove duplicates
+      const uniquePatterns = [...new Set(searchPatterns)];
+      
+      for (let i = 0; i < uniquePatterns.length; i++) {
+        const searchAddress = uniquePatterns[i];
         if (!searchAddress || searchAddress.length < 5) continue; // Skip invalid patterns
         
         // Use backend proxy to avoid CORS issues with Nominatim
         const url = `/api/geocode.php?address=${encodeURIComponent(searchAddress)}`;
         
         if (i === 0) {
-          console.log(`📡 Fetching geocode for: ${address}`);
+          console.log(`📡 Geocoding: ${address}`);
         } else {
-          console.log(`🔄 Retry ${i}: ${searchAddress}`);
+          console.log(`🔄 Attempt ${i + 1}/${uniquePatterns.length}: ${searchAddress}`);
         }
         
         const response = await fetch(url);
@@ -742,7 +838,7 @@ window.MapView = {
         
         if (result.success && result.data && result.data.length > 0) {
           const location = result.data[0];
-          console.log(`✅ Geocoded: ${address} -> ${location.display_name}`);
+          console.log(`✅ Found: ${location.display_name}`);
           return {
             lat: parseFloat(location.lat),
             lng: parseFloat(location.lon)
@@ -750,7 +846,7 @@ window.MapView = {
         }
       }
       
-      console.warn(`❌ No geocode results for: ${address}`);
+      console.warn(`❌ No results after ${uniquePatterns.length} attempts: ${address}`);
       return 'ZERO_RESULTS';
     } catch (error) {
       console.error(`❌ Geocode error for ${address}:`, error);
@@ -778,14 +874,17 @@ window.MapView = {
       const item = this.geocodeQueue.shift();
         try {
         const location = await this.geocodeAddress(item.address);
-        // Save to cache
+        
+        // Save to session cache (for this page load only)
         this.geocodeCache[item.address] = location;
-        localStorage.setItem('geocode_cache', JSON.stringify(this.geocodeCache));
 
         if (location && location !== 'ZERO_RESULTS') {
-          // Persist coordinates to server/state so future loads don't geocode again
+          // Persist coordinates to database via State.update()
           try {
-            await State.update('clients', item.clientId, { coordinates: { lat: location.lat, lng: location.lng } });
+            console.log(`💾 Saving coordinates to database for client ${item.clientId}:`, location);
+            const result = await State.update('clients', item.clientId, { coordinates: { lat: location.lat, lng: location.lng } });
+            console.log(`✅ Coordinates saved to database:`, result);
+            
             // If update succeeded, read updated client and add marker
             const updatedClient = State.read('clients', item.clientId);
             if (updatedClient) {
@@ -793,7 +892,7 @@ window.MapView = {
               await this.addMarker(updatedClient, item.type, item.color, item.job);
             }
           } catch (err) {
-            console.warn('Failed to persist geocoded coordinates for', item.clientId, err);
+            console.error('❌ Failed to persist geocoded coordinates for', item.clientId, err);
           }
         }
       } catch (err) {
@@ -816,6 +915,12 @@ window.MapView = {
   updateGeocodeStatus() {
     const el = document.getElementById('geocodeStatus');
     if (!el) return;
+    
+    if (this.isElectron) {
+      el.innerText = '📍 Offline mode: Χρήση αποθηκευμένων συντεταγμένων';
+      return;
+    }
+    
     const queued = this.geocodeQueue.length;
     const running = this.geocodeQueueRunning ? 'running' : 'idle';
     el.innerText = `Geocode queue: ${queued} pending — status: ${running}`;

@@ -171,12 +171,15 @@ window.ClientsView = {
         
         if (viewBtn) {
           const clientId = viewBtn.dataset.clientId;
+          console.log('[Clients] View button clicked, clientId:', clientId);
           this.viewClient(clientId);
         } else if (editBtn) {
           const clientId = editBtn.dataset.clientId;
+          console.log('[Clients] Edit button clicked, clientId:', clientId);
           this.editClient(clientId);
         } else if (deleteBtn) {
           const clientId = deleteBtn.dataset.clientId;
+          console.log('[Clients] Delete button clicked, clientId:', clientId, 'button:', deleteBtn);
           this.deleteClient(clientId);
         }
       };
@@ -425,7 +428,14 @@ window.ClientsView = {
   },
 
   async deleteClient(id) {
-    console.log('[Clients] Delete request for client:', id);
+    console.log('[Clients] Delete request for client:', id, 'type:', typeof id);
+    
+    if (!id || id === 'undefined' || id === undefined) {
+      console.error('[Clients] Invalid client ID:', id);
+      Toast.error('Σφάλμα: Μη έγκυρο ID πελάτη');
+      return;
+    }
+    
     Modal.confirm({
       title: 'Διαγραφή Πελάτη',
       message: 'Είστε σίγουροι ότι θέλετε να διαγράψετε αυτόν τον πελάτη;',
@@ -461,6 +471,12 @@ window.ClientsView = {
   },
 
   renderTable(clients) {
+    console.log('[Clients] renderTable called with clients:', clients);
+    console.log('[Clients] renderTable - clients count:', clients?.length);
+    if (clients && clients.length > 0) {
+      console.log('[Clients] renderTable - first client:', clients[0]);
+    }
+    
     if (clients.length === 0) {
       return Utils.renderEmptyState(
         'fa-users',
