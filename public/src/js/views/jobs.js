@@ -1172,14 +1172,14 @@ window.JobsView = {
     document.getElementById('jobClient').value = job.clientId;
     document.getElementById('jobType').value = job.type || '';
     document.getElementById('jobStatus').value = job.status || '';
-    document.getElementById('jobRooms').value = job.rooms || '';
-    document.getElementById('jobArea').value = job.area || '';
+    document.getElementById('jobRooms').value = job.rooms ? Math.round(job.rooms) : '';
+    document.getElementById('jobArea').value = job.area ? Math.round(job.area) : '';
     document.getElementById('jobSubstrate').value = job.substrate || '';
     document.getElementById('jobNextVisit').value = Utils.dateToGreek(job.nextVisit);
-    document.getElementById('jobMaterialsCost').value = job.materialsCost || 0;
-    document.getElementById('jobKilometers').value = job.kilometers || 0;
-    document.getElementById('jobBillingHours').value = job.billingHours || 0;
-    document.getElementById('jobBillingRate').value = job.billingRate || 50;
+    document.getElementById('jobMaterialsCost').value = job.materialsCost ? Math.round(job.materialsCost) : 0;
+    document.getElementById('jobKilometers').value = job.kilometers ? Math.round(job.kilometers) : 0;
+    document.getElementById('jobBillingHours').value = job.billingHours ? Math.round(job.billingHours) : 0;
+    document.getElementById('jobBillingRate').value = job.billingRate ? Math.round(job.billingRate) : 50;
     document.getElementById('jobNotes').value = job.notes || '';
 
     // Load assigned workers and paints - Parse JSON if stored as string
