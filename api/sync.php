@@ -132,11 +132,18 @@ try {
                 $fields = [];
                 $values = [];
                 foreach ($change as $key => $value) {
-                    $fields[] = "$key = ?";
+                    // Whitelist and sanitize field names to prevent SQL injection
+                    $safeKey = preg_replace('/[^a-z0-9_]/i', '', $key);
+                    if ($safeKey !== $key) {
+                        logMessage("⚠️ Skipping invalid field name: $key", 'WARNING');
+                        continue;
+                    }
+                    $fields[] = "$safeKey = ?";
                     $values[] = $value;
                 }
                 $values[] = $id;
                 
+                // Table name is validated from whitelist above, safe to use
                 $sql = "UPDATE $table SET " . implode(', ', $fields) . " WHERE id = ?";
                 logMessage("🔄 Executing UPDATE for $table", 'DEBUG', [
                     'id' => $id,
@@ -150,10 +157,24 @@ try {
                 logMessage("✅ Updated record $id in $table", 'INFO');
             } else {
                 // Insert new record
-                $fields = array_keys($change);
-                $placeholders = array_fill(0, count($fields), '?');
-                $values = array_values($change);
+                $rawFields = array_keys($change);
+                $fields = [];
+                $values = [];
                 
+                // Whitelist and sanitize field names to prevent SQL injection
+                foreach ($rawFields as $field) {
+                    $safeField = preg_replace('/[^a-z0-9_]/i', '', $field);
+                    if ($safeField !== $field) {
+                        logMessage("⚠️ Skipping invalid field name: $field", 'WARNING');
+                        continue;
+                    }
+                    $fields[] = $safeField;
+                    $values[] = $change[$field];
+                }
+                
+                $placeholders = array_fill(0, count($fields), '?');
+                
+                // Table name is validated from whitelist above, safe to use
                 $sql = "INSERT INTO $table (" . implode(', ', $fields) . ") 
                         VALUES (" . implode(', ', $placeholders) . ")";
                 logMessage("➕ Executing INSERT for $table", 'DEBUG', [

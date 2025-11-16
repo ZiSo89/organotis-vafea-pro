@@ -51,7 +51,8 @@ CREATE TABLE `workers` (
   `total_earnings` decimal(10,2) DEFAULT 0.00,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  PRIMARY KEY (`id`)
+  PRIMARY KEY (`id`),
+  KEY `idx_workers_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- MATERIALS TABLE
@@ -65,7 +66,8 @@ CREATE TABLE `materials` (
   `category` varchar(100) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  PRIMARY KEY (`id`)
+  PRIMARY KEY (`id`),
+  KEY `idx_materials_category` (`category`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- JOBS TABLE
@@ -102,6 +104,12 @@ CREATE TABLE `jobs` (
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`),
   KEY `client_id` (`client_id`),
+  KEY `idx_jobs_status` (`status`),
+  KEY `idx_jobs_date` (`date`),
+  KEY `idx_jobs_next_visit` (`next_visit`),
+  KEY `idx_jobs_created_at` (`created_at`),
+  KEY `idx_jobs_status_date` (`status`, `date`),
+  KEY `idx_jobs_client_status` (`client_id`, `status`),
   CONSTRAINT `jobs_ibfk_1` FOREIGN KEY (`client_id`) REFERENCES `clients` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -151,6 +159,7 @@ CREATE TABLE `timesheets` (
   PRIMARY KEY (`id`),
   KEY `worker_id` (`worker_id`),
   KEY `job_id` (`job_id`),
+  KEY `idx_timesheets_date` (`date`),
   CONSTRAINT `timesheets_ibfk_1` FOREIGN KEY (`worker_id`) REFERENCES `workers` (`id`) ON DELETE CASCADE,
   CONSTRAINT `timesheets_ibfk_2` FOREIGN KEY (`job_id`) REFERENCES `jobs` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -176,6 +185,8 @@ CREATE TABLE `calendar_events` (
   PRIMARY KEY (`id`),
   KEY `client_id` (`client_id`),
   KEY `job_id` (`job_id`),
+  KEY `idx_calendar_events_start_date` (`start_date`),
+  KEY `idx_calendar_events_status` (`status`),
   CONSTRAINT `calendar_events_ibfk_1` FOREIGN KEY (`client_id`) REFERENCES `clients` (`id`) ON DELETE SET NULL,
   CONSTRAINT `calendar_events_ibfk_2` FOREIGN KEY (`job_id`) REFERENCES `jobs` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -199,6 +210,8 @@ CREATE TABLE `offers` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `offer_number` (`offer_number`),
   KEY `client_id` (`client_id`),
+  KEY `idx_offers_date` (`date`),
+  KEY `idx_offers_status` (`status`),
   CONSTRAINT `offers_ibfk_1` FOREIGN KEY (`client_id`) REFERENCES `clients` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -223,6 +236,8 @@ CREATE TABLE `invoices` (
   UNIQUE KEY `invoice_number` (`invoice_number`),
   KEY `job_id` (`job_id`),
   KEY `client_id` (`client_id`),
+  KEY `idx_invoices_date` (`date`),
+  KEY `idx_invoices_status` (`status`),
   CONSTRAINT `invoices_ibfk_1` FOREIGN KEY (`job_id`) REFERENCES `jobs` (`id`) ON DELETE SET NULL,
   CONSTRAINT `invoices_ibfk_2` FOREIGN KEY (`client_id`) REFERENCES `clients` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -2,7 +2,15 @@
 <html lang="el">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+  <meta name="description" content="Οργανωτής Βαφέα Pro - Διαχείριση εργασιών, πελατών και αποθήκης για επαγγελματίες βαφείς">
+  <meta name="keywords" content="βαφείς, διαχείριση εργασιών, CRM, ημερολόγιο, αποθήκη">
+  <meta name="author" content="Οργανωτής Βαφέα Pro">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta http-equiv="Cache-Control" content="public, max-age=31536000, immutable">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta http-equiv="X-Content-Type-Options" content="nosniff">
+  <meta http-equiv="Permissions-Policy" content="geolocation=(self), camera=(), microphone=()">
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self'; 
     script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://cdn.sheetjs.com https://nominatim.openstreetmap.org https://unpkg.com; 
@@ -13,6 +21,17 @@
     frame-src 'self' https://www.google.com;
   ">
   <title>Οργανωτής Βαφέα Pro</title>
+  
+  <!-- Performance: Preconnect to external domains -->
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+  <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+  <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+  
+  <!-- Preload critical CSS -->
+  <link rel="preload" href="src/css/variables.css" as="style">
+  <link rel="preload" href="src/css/base.css" as="style">
   
   <!-- Favicon & App Icons -->
   <link rel="icon" type="image/x-icon" href="/public/assets/icons/favicon.ico">
@@ -28,16 +47,18 @@
   <meta name="apple-mobile-web-app-title" content="Οργανωτής Βαφέα">
 
   <!-- Font Awesome Icons -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></noscript>
   
-  <!-- Flatpickr Date Picker (για ημερομηνίες) -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-  <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/gr.js"></script>
+  <!-- Flatpickr Date Picker (για ημερομηνίες) - Async load -->
+  <link rel="preload" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css"></noscript>
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/gr.js" defer></script>
   
   <!-- FullCalendar -->
-  <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
-  <script src='https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.10/locales/el.global.min.js'></script>
+  <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js' defer></script>
+  <script src='https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.10/locales/el.global.min.js' defer></script>
   
   <!-- Google Maps -->
   <script>
@@ -127,34 +148,46 @@
     };
   </script>
   
-  <!-- Chart.js για γραφήματα -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+  <!-- Chart.js για γραφήματα - Deferred for performance -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js" defer></script>
   
-  <!-- jsPDF για PDF export -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <!-- jsPDF για PDF export - Deferred for performance -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
   
-  <!-- SheetJS για Excel export -->
-  <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+  <!-- SheetJS για Excel export - Deferred for performance -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js" defer></script>
   
-  <!-- ExcelJS για Excel export με styling -->
-  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+  <!-- ExcelJS για Excel export με styling - Deferred for performance -->
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js" defer></script>
   
-  <!-- Styles -->
+  <!-- Styles - Critical CSS loaded synchronously, rest async -->
   <link rel="stylesheet" href="src/css/variables.css">
   <link rel="stylesheet" href="src/css/base.css?v=20251111a">
   <link rel="stylesheet" href="src/css/sidebar.css">
   <link rel="stylesheet" href="src/css/components.css">
-  <link rel="stylesheet" href="src/css/dashboard.css">
-  <link rel="stylesheet" href="src/css/tables.css">
-  <link rel="stylesheet" href="src/css/modals.css">
-  <link rel="stylesheet" href="src/css/calendar.css?v=20251111R">
-  <link rel="stylesheet" href="src/css/calendar-mobile.css">
-  <link rel="stylesheet" href="src/css/animations.css">
-  <link rel="stylesheet" href="src/css/responsive.css">
-  <link rel="stylesheet" href="src/css/print.css">
-  <link rel="stylesheet" href="src/css/help.css">
+  <!-- Non-critical CSS loaded asynchronously -->
+  <link rel="preload" href="src/css/dashboard.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <link rel="preload" href="src/css/tables.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <link rel="preload" href="src/css/modals.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <link rel="preload" href="src/css/calendar.css?v=20251111R" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <link rel="preload" href="src/css/calendar-mobile.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <link rel="preload" href="src/css/animations.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <link rel="preload" href="src/css/responsive.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <link rel="preload" href="src/css/print.css" as="style" onload="this.onload=null;this.rel='stylesheet'" media="print">
+  <link rel="preload" href="src/css/help.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript>
+    <link rel="stylesheet" href="src/css/dashboard.css">
+    <link rel="stylesheet" href="src/css/tables.css">
+    <link rel="stylesheet" href="src/css/modals.css">
+    <link rel="stylesheet" href="src/css/calendar.css?v=20251111R">
+    <link rel="stylesheet" href="src/css/calendar-mobile.css">
+    <link rel="stylesheet" href="src/css/animations.css">
+    <link rel="stylesheet" href="src/css/responsive.css">
+    <link rel="stylesheet" href="src/css/print.css" media="print">
+    <link rel="stylesheet" href="src/css/help.css">
+  </noscript>
   
   <!-- Disable Google Save Address Popup -->
   <style>
@@ -184,108 +217,126 @@
       </button>
     </div>
 
-    <nav class="sidebar-nav">
-      <a href="#dashboard" class="nav-item active" data-section="dashboard" data-tooltip="Αρχική">
-        <i class="fas fa-home"></i>
+    <nav class="sidebar-nav" role="navigation" aria-label="Κύρια πλοήγηση">
+      <a href="#dashboard" class="nav-item active" data-section="dashboard" data-tooltip="Αρχική" aria-current="page">
+        <i class="fas fa-home" aria-hidden="true"></i>
         <span data-translate="dashboard">Αρχική</span>
       </a>
       <a href="#jobs" class="nav-item" data-section="jobs" data-tooltip="Εργασίες">
-        <i class="fas fa-briefcase"></i>
+        <i class="fas fa-briefcase" aria-hidden="true"></i>
         <span data-translate="jobs">Εργασίες</span>
       </a>
       <a href="#clients" class="nav-item" data-section="clients" data-tooltip="Πελάτες">
-        <i class="fas fa-users"></i>
+        <i class="fas fa-users" aria-hidden="true"></i>
         <span data-translate="clients">Πελάτες</span>
       </a>
       <a href="#workers" class="nav-item" data-section="workers" data-tooltip="Προσωπικό">
-        <i class="fas fa-hard-hat"></i>
+        <i class="fas fa-hard-hat" aria-hidden="true"></i>
         <span>Προσωπικό</span>
       </a>
       <a href="#inventory" class="nav-item" data-section="inventory" data-tooltip="Αποθήκη">
-        <i class="fas fa-boxes"></i>
+        <i class="fas fa-boxes" aria-hidden="true"></i>
         <span data-translate="inventory">Αποθήκη</span>
       </a>
       <a href="#calendar" class="nav-item" data-section="calendar" data-tooltip="Ημερολόγιο">
-        <i class="fas fa-calendar-alt"></i>
+        <i class="fas fa-calendar-alt" aria-hidden="true"></i>
         <span data-translate="calendar">Ημερολόγιο</span>
       </a>
       <a href="#map" class="nav-item" data-section="map" data-tooltip="Χάρτης">
-        <i class="fas fa-map-marked-alt"></i>
+        <i class="fas fa-map-marked-alt" aria-hidden="true"></i>
         <span>Χάρτης</span>
       </a>
       <a href="#statistics" class="nav-item" data-section="statistics" data-tooltip="Στατιστικά">
-        <i class="fas fa-chart-bar"></i>
+        <i class="fas fa-chart-bar" aria-hidden="true"></i>
         <span>Στατιστικά</span>
       </a>
       <a href="#settings" class="nav-item" data-section="settings" data-tooltip="Ρυθμίσεις">
-        <i class="fas fa-cog"></i>
+        <i class="fas fa-cog" aria-hidden="true"></i>
         <span data-translate="settings">Ρυθμίσεις</span>
       </a>
-      <a href="#help" class="nav-item" data-section="help" data-tooltip="Βοήθεια" onclick="HelpSystem.openHelpModal(); return false;">
-        <i class="fas fa-question-circle"></i>
+      <a href="#help" class="nav-item" data-section="help" data-tooltip="Βοήθεια">
+        <i class="fas fa-question-circle" aria-hidden="true"></i>
         <span>Βοήθεια</span>
       </a>
     </nav>
   </aside>
 
   <!-- Main Content -->
-  <main id="mainContent" class="main-content">
+  <main id="mainContent" class="main-content" role="main">
     
     <!-- Header -->
-    <header class="header">
-      <button id="mobileMenuBtn" class="mobile-menu-btn" aria-label="Menu">
-        <i class="fas fa-bars"></i>
+    <header class="header" role="banner">
+      <button id="mobileMenuBtn" class="mobile-menu-btn" aria-label="Άνοιγμα μενού πλοήγησης" aria-expanded="false">
+        <i class="fas fa-bars" aria-hidden="true"></i>
       </button>
-      <img src="assets/icons/logo.png" alt="Οργανωτής Βαφέα" class="header-logo">
+      <img src="assets/icons/logo.png" alt="Οργανωτής Βαφέα Pro λογότυπο" class="header-logo" width="150" height="40" loading="eager">
     </header>
 
     <!-- Content Area -->
-    <div id="contentArea" class="content-area">
+    <div id="contentArea" class="content-area" role="region" aria-label="Κύριο περιεχόμενο">
       <!-- Το περιεχόμενο θα φορτώνεται δυναμικά εδώ -->
     </div>
   </main>
 
   <!-- Toast Container -->
-  <div id="toastContainer" class="toast-container"></div>
+  <div id="toastContainer" class="toast-container" role="status" aria-live="polite" aria-atomic="true"></div>
 
   <!-- Modal Container -->
-  <div id="modalContainer" class="modal-container"></div>
+  <div id="modalContainer" class="modal-container" role="dialog" aria-modal="true"></div>
 
-  <!-- Scripts -->
-  <script src="src/js/services/api.js?v=20251111c"></script>
-  <script src="src/js/services/settings-service.js?v=20251112a"></script>
-  <script src="src/js/services/offline.js?v=20251115d"></script>
-  <script src="src/js/config.js?v=20251111c"></script>
-  <script src="src/js/i18n.js?v=20251111c"></script>
-  <script src="src/js/geocoding.js?v=20251115a"></script>
-  <script src="src/js/state.js?v=20251111c"></script>
-  <script src="src/js/utils.js?v=20251111b"></script>
-  <script src="src/js/validation.js?v=20251111b"></script>
-  <script src="src/js/toast.js?v=20251111b"></script>
-  <script src="src/js/modal.js?v=20251111b"></script>
-  <script src="src/js/autocomplete.js?v=20251111b"></script>
-  <script src="src/js/keyboard.js?v=20251111b"></script>
-  <script src="src/js/theme.js?v=20251111b"></script>
-  <script src="src/js/help.js"></script>
-  <script src="src/js/sidebar.js?v=20251111c"></script>
-  <script src="src/js/router.js?v=20251111b"></script>
-  <script src="src/js/search.js?v=20251111b"></script>
-  <script src="src/js/table.js?v=20251111b"></script>
-  <script src="src/js/pagination.js?v=20251111b"></script>
-  <script src="src/js/models/timesheet.js?v=20251111b"></script>
-  <script src="src/js/views/dashboard.js?v=20251111e"></script>
-  <script src="src/js/views/clients.js?v=20251111b"></script>
-  <script src="src/js/views/workers.js?v=20251111b"></script>
-  <script src="src/js/views/inventory.js?v=20251111b"></script>
-  <script src="src/js/views/jobs.js?v=20251111b"></script>
-  <script src="src/js/views/calendar.js?v=20251111S"></script>
-  <script src="src/js/views/map.js?v=20251111b"></script>
-  <script src="src/js/views/offers.js?v=20251111b"></script>
-  <script src="src/js/views/invoices.js?v=20251111b"></script>
-  <script src="src/js/views/statistics.js?v=20251111b"></script>
-  <script src="src/js/views/templates.js?v=20251111b"></script>
-  <script src="src/js/views/settings.js?v=20251111d"></script>
-  <script src="src/js/app.js?v=20251111b"></script>
+  <!-- Scripts - All deferred for better performance -->
+  <!-- Performance & Base Classes -->
+  <script src="src/js/performance.js?v=20251116a" defer></script>
+  
+  <!-- Core Services -->
+  <script src="src/js/services/api.js?v=20251111c" defer></script>
+  <script src="src/js/services/settings-service.js?v=20251112a" defer></script>
+  <script src="src/js/services/offline.js?v=20251115d" defer></script>
+  
+  <!-- Configuration & Utilities -->
+  <script src="src/js/config.js?v=20251111c" defer></script>
+  <script src="src/js/i18n.js?v=20251111c" defer></script>
+  <script src="src/js/geocoding.js?v=20251115a" defer></script>
+  <script src="src/js/state.js?v=20251111c" defer></script>
+  <script src="src/js/utils.js?v=20251111b" defer></script>
+  <script src="src/js/validation.js?v=20251111b" defer></script>
+  
+  <!-- UI Components -->
+  <script src="src/js/toast.js?v=20251111b" defer></script>
+  <script src="src/js/modal.js?v=20251111b" defer></script>
+  <script src="src/js/autocomplete.js?v=20251111b" defer></script>
+  <script src="src/js/keyboard.js?v=20251111b" defer></script>
+  <script src="src/js/theme.js?v=20251111b" defer></script>
+  <script src="src/js/help.js" defer></script>
+  <script src="src/js/sidebar.js?v=20251111c" defer></script>
+  <script src="src/js/router.js?v=20251111b" defer></script>
+  <script src="src/js/search.js?v=20251111b" defer></script>
+  <script src="src/js/table.js?v=20251111b" defer></script>
+  <script src="src/js/pagination.js?v=20251111b" defer></script>
+  
+  <!-- Models -->
+  <script src="src/js/models/timesheet.js?v=20251111b" defer></script>
+  
+  <!-- Base View Class (load before views) -->
+  <script src="src/js/views/base-view.js?v=20251116a" defer></script>
+  
+  <!-- Views -->
+  <script src="src/js/views/dashboard.js?v=20251111e" defer></script>
+  <script src="src/js/views/clients.js?v=20251111b" defer></script>
+  <script src="src/js/views/workers.js?v=20251111b" defer></script>
+  <script src="src/js/views/inventory.js?v=20251111b" defer></script>
+  <script src="src/js/views/jobs.js?v=20251111b" defer></script>
+  <script src="src/js/views/calendar.js?v=20251111S" defer></script>
+  <script src="src/js/views/map.js?v=20251111b" defer></script>
+  <script src="src/js/views/offers.js?v=20251111b" defer></script>
+  <script src="src/js/views/invoices.js?v=20251111b" defer></script>
+  <script src="src/js/views/statistics.js?v=20251111b" defer></script>
+  <script src="src/js/views/templates.js?v=20251111b" defer></script>
+  <script src="src/js/views/settings.js?v=20251111d" defer></script>
+  <script src="src/js/views/help.js" defer></script>
+  
+  <!-- App Initialization -->
+  <script src="src/js/app.js?v=20251111b" defer></script>
 
 </body>
 </html>

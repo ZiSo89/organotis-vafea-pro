@@ -54,7 +54,9 @@ const Utils = {
 
   // Convert DD/MM/YYYY to YYYY-MM-DD for storage
   greekToDate(greekDate) {
-    if (!greekDate || greekDate.trim() === '') return null;
+    if (!greekDate) return null;
+    if (typeof greekDate !== 'string') return null;
+    if (greekDate.trim() === '') return null;
     const parts = greekDate.split('/');
     if (parts.length !== 3) return null;
     const [day, month, year] = parts;

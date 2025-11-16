@@ -37,7 +37,8 @@ const Router = {
       invoices: window.InvoicesView,
       statistics: window.StatisticsView,
       templates: window.TemplatesView,
-      settings: window.SettingsView
+      settings: window.SettingsView,
+      help: window.HelpView
     };
   },
 

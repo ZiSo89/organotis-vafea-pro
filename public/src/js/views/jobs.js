@@ -41,6 +41,7 @@ window.JobsView = {
       <!-- Form -->
       <div id="jobForm" class="card" style="display: none;">
         <h2 id="formTitle">Νέα Εργασία</h2>
+        
         <form id="jobFormElement">
           
           <!-- Tab Navigation -->
@@ -51,15 +52,11 @@ window.JobsView = {
             </button>
             <button type="button" class="tab-btn" data-tab="details">
               <i class="fas fa-paint-roller"></i>
-              <span>Λεπτομέρειες</span>
-            </button>
-            <button type="button" class="tab-btn" data-tab="workers">
-              <i class="fas fa-users"></i>
-              <span>Εργάτες</span>
+              <span>Εργασία & Χρώματα</span>
             </button>
             <button type="button" class="tab-btn" data-tab="costs">
               <i class="fas fa-euro-sign"></i>
-              <span>Κοστολόγηση</span>
+              <span>Κόστος & Εργάτες</span>
             </button>
             <button type="button" class="tab-btn" data-tab="notes">
               <i class="fas fa-sticky-note"></i>
@@ -70,20 +67,7 @@ window.JobsView = {
           <!-- Tab: Βασικά Στοιχεία -->
           <div class="tab-content active" id="tab-basic">
             <div class="form-grid">
-              <!-- Row 1: Date & Status -->
-              <div class="form-group">
-                <label>Ημερομηνία <span class="required">*</span></label>
-                <input type="text" id="jobDate" placeholder="ΗΗ/ΜΜ/ΕΕΕΕ" inputmode="numeric" autocomplete="off" required>
-              </div>
-
-              <div class="form-group">
-                <label>Κατάσταση <span class="required">*</span></label>
-                <select id="jobStatus" required>
-                  ${CONFIG.STATUS_OPTIONS.map(status => `<option value="${status}">${status}</option>`).join('')}
-                </select>
-              </div>
-
-              <!-- Row 2: Client -->
+              <!-- Row 1: Client -->
               <div class="form-group span-2">
                 <label>Πελάτης <span class="required">*</span></label>
                 <select id="jobClient" required>
@@ -92,44 +76,43 @@ window.JobsView = {
                 </select>
               </div>
 
-              <!-- Client Info (auto-filled, readonly) -->
-              <div class="form-group">
-                <label>Τηλέφωνο</label>
-                <input type="tel" id="jobPhone" readonly>
-              </div>
-
-              <div class="form-group">
-                <label>Email</label>
-                <input type="email" id="jobEmail" readonly>
-              </div>
-
-              <div class="form-group">
+              <!-- Client Address (auto-filled, readonly) -->
+              <div class="form-group span-2">
                 <label>Διεύθυνση</label>
-                <input type="text" id="jobAddress" readonly>
+                <input type="text" id="jobAddress" readonly style="background-color: var(--bg-secondary);">
               </div>
 
-              <div class="form-group">
-                <label>Πόλη</label>
-                <input type="text" id="jobCity" readonly>
+              <!-- Row 2: Status -->
+              <div class="form-group span-2">
+                <label>Κατάσταση <span class="required">*</span></label>
+                <select id="jobStatus" required>
+                  ${CONFIG.STATUS_OPTIONS.map(status => `<option value="${status}">${status}</option>`).join('')}
+                </select>
               </div>
 
-              <div class="form-group">
-                <label>ΤΚ</label>
-                <input type="text" id="jobPostal" readonly>
-              </div>
-
-              <div class="form-group">
+              <!-- Row 3: Next Visit -->
+              <div class="form-group span-2">
                 <label>Επόμενη Επίσκεψη</label>
                 <input type="text" id="jobNextVisit" placeholder="ΗΗ/ΜΜ/ΕΕΕΕ" inputmode="numeric" autocomplete="off">
+                <small style="color: var(--text-muted); margin-top: 0.25rem; display: block;">
+                  <i class="fas fa-info-circle"></i> Πότε θα επισκεφτείτε τον πελάτη;
+                </small>
               </div>
+            </div>
+            
+            <!-- Navigation Buttons -->
+            <div class="form-actions" style="margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--border-color); gap: 12px;">
+              <button type="button" class="btn btn-primary" id="nextToDetailsBtn">
+                Επόμενο: Εργασία & Χρώματα <i class="fas fa-arrow-right"></i>
+              </button>
             </div>
           </div>
 
-          <!-- Tab: Λεπτομέρειες Εργασίας -->
+          <!-- Tab: Εργασία & Χρώματα -->
           <div class="tab-content" id="tab-details">
             <div class="form-grid">
-              <div class="form-group">
-                <label>Τύπος Εργασίας <span class="required">*</span></label>
+              <div class="form-group span-2">
+                <label>Τύπος Εργασίας</label>
                 <select id="jobType">
                   <option value="">Επιλέξτε τύπο...</option>
                   ${CONFIG.JOB_TYPES.map(type => `<option value="${type}">${type}</option>`).join('')}
@@ -138,17 +121,12 @@ window.JobsView = {
 
               <div class="form-group">
                 <label>Αριθμός Δωματίων</label>
-                <input type="number" id="jobRooms" min="1">
+                <input type="number" id="jobRooms" min="1" placeholder="π.χ. 3">
               </div>
 
               <div class="form-group">
                 <label>Τετραγωνικά (m²)</label>
-                <input type="number" id="jobArea">
-              </div>
-
-              <div class="form-group">
-                <label>Υπόστρωμα</label>
-                <input type="text" id="jobSubstrate" placeholder="π.χ. Γυψοσανίδα, Σοβάς">
+                <input type="number" id="jobArea" placeholder="π.χ. 80">
               </div>
 
               <!-- Χρώματα -->
@@ -162,12 +140,24 @@ window.JobsView = {
                 </div>
               </div>
             </div>
+            
+            <!-- Navigation Buttons -->
+            <div class="form-actions" style="margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--border-color); gap: 12px;">
+              <button type="button" class="btn btn-ghost" id="backToBasicBtn">
+                <i class="fas fa-arrow-left"></i> Πίσω: Βασικά
+              </button>
+              <button type="button" class="btn btn-primary" id="nextToCostsBtn">
+                Επόμενο: Κόστος & Εργάτες <i class="fas fa-arrow-right"></i>
+              </button>
+            </div>
           </div>
 
-          <!-- Tab: Εργάτες -->
-          <div class="tab-content" id="tab-workers">
+          <!-- Tab: Κόστος & Εργάτες -->
+          <div class="tab-content" id="tab-costs">
             <div class="form-grid">
-              <div class="form-group span-2">
+              <!-- Εργάτες Section -->
+              <div class="form-group span-2" style="margin-bottom: 20px;">
+                <h4 style="margin-bottom: 10px;"><i class="fas fa-users"></i> Εργάτες</h4>
                 <button type="button" class="btn btn-secondary" id="addWorkerToJobBtn">
                   <i class="fas fa-user-plus"></i> Προσθήκη Εργάτη
                 </button>
@@ -175,12 +165,14 @@ window.JobsView = {
                   <!-- Workers table will appear here -->
                 </div>
               </div>
-            </div>
-          </div>
 
-          <!-- Tab: Κοστολόγηση -->
-          <div class="tab-content" id="tab-costs">
-            <div class="form-grid">
+              <!-- Divider -->
+              <div class="form-group span-2" style="border-top: 2px solid var(--border-color); margin: 20px 0;"></div>
+
+              <!-- Κοστολόγηση Section -->
+              <div class="form-group span-2">
+                <h4 style="margin-bottom: 10px;"><i class="fas fa-euro-sign"></i> Κοστολόγηση</h4>
+              </div>
               <div class="form-group">
                 <label title="Το κόστος των υλικών που χρησιμοποιήθηκαν">
                   Κόστος Υλικών (€) <i class="fas fa-info-circle" style="font-size: 0.8em; color: var(--text-muted);"></i>
@@ -216,6 +208,7 @@ window.JobsView = {
 
               <!-- Financial Summary -->
               <div class="form-group span-2" style="margin-top: 20px;">
+                <h4 style="margin-bottom: 10px;"><i class="fas fa-calculator"></i> Σύνοψη</h4>
                 <div class="financial-summary">
                   <!-- Expenses Card -->
                   <div class="financial-card expenses">
@@ -255,7 +248,7 @@ window.JobsView = {
                         <strong id="billingAmountDisplay">0.00 €</strong>
                       </div>
                       <div class="financial-row">
-                        <span>ΦΠΑ (24%)</span>
+                        <span id="vatLabelDisplay">ΦΠΑ (24%)</span>
                         <strong id="vatCostDisplay">0.00 €</strong>
                       </div>
                       <div class="financial-row total">
@@ -280,6 +273,16 @@ window.JobsView = {
                 </div>
               </div>
             </div>
+            
+            <!-- Navigation Buttons -->
+            <div class="form-actions" style="margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--border-color); gap: 12px;">
+              <button type="button" class="btn btn-ghost" id="backToDetailsBtn">
+                <i class="fas fa-arrow-left"></i> Πίσω: Εργασία & Χρώματα
+              </button>
+              <button type="button" class="btn btn-primary" id="nextToNotesBtn">
+                Επόμενο: Σημειώσεις <i class="fas fa-arrow-right"></i>
+              </button>
+            </div>
           </div>
 
           <!-- Tab: Σημειώσεις -->
@@ -290,10 +293,17 @@ window.JobsView = {
                 <textarea id="jobNotes" rows="8"></textarea>
               </div>
             </div>
+            
+            <!-- Navigation Buttons -->
+            <div class="form-actions" style="margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--border-color); gap: 12px;">
+              <button type="button" class="btn btn-ghost" id="backToCostsBtn">
+                <i class="fas fa-arrow-left"></i> Πίσω: Κόστος & Εργάτες
+              </button>
+            </div>
           </div>
 
           <!-- Actions -->
-          <div class="form-actions">
+          <div class="form-actions" style="gap: 12px;">
             <button type="submit" class="btn btn-primary">
               <i class="fas fa-save"></i> Αποθήκευση
             </button>
@@ -421,9 +431,22 @@ window.JobsView = {
       if (this.clientSelectHandler) {
         clientSelect.removeEventListener('change', this.clientSelectHandler);
       }
-      this.clientSelectHandler = () => this.autoFillClientData();
+      this.clientSelectHandler = () => {
+        this.autoFillClientData();
+        this.updateProgressBar();
+      };
       clientSelect.addEventListener('change', this.clientSelectHandler);
     }
+
+    // Add event listeners for progress bar updates on required fields
+    const jobStatus = document.getElementById('jobStatus');
+    
+    if (jobStatus) {
+      jobStatus.addEventListener('change', () => this.updateProgressBar());
+    }
+
+    // Navigation buttons
+    this.setupNavigationButtons();
 
     // Add Worker button
     const addWorkerBtn = document.getElementById('addWorkerToJobBtn');
@@ -597,7 +620,6 @@ window.JobsView = {
     this.currentEdit = null;
     const formTitle = document.getElementById('formTitle');
     const jobForm = document.getElementById('jobForm');
-    const jobDate = document.getElementById('jobDate');
     const jobStatus = document.getElementById('jobStatus');
     
     if (!jobForm) {
@@ -614,17 +636,11 @@ window.JobsView = {
     document.querySelector('.tab-btn[data-tab="basic"]').classList.add('active');
     document.getElementById('tab-basic').classList.add('active');
     
-    // Reset form and set defaults - use Greek date format
+    // Reset form and set defaults
     document.getElementById('jobFormElement').reset();
-    const today = new Date();
-    const dd = String(today.getDate()).padStart(2, '0');
-    const mm = String(today.getMonth() + 1).padStart(2, '0');
-    const yyyy = today.getFullYear();
-    jobDate.value = `${dd}/${mm}/${yyyy}`;
     jobStatus.value = 'Υποψήφιος';
     
-    // Re-initialize date pickers after setting values
-    Utils.initDatePicker('#jobDate');
+    // Initialize date picker for next visit
     Utils.initDatePicker('#jobNextVisit');
     
     // Load default billing rate from settings (use cached value)
@@ -640,6 +656,7 @@ window.JobsView = {
     this.renderAssignedPaints();
     
     this.calculateCost();
+    this.updateProgressBar();
     jobForm.scrollIntoView({ behavior: 'smooth' });
   },
 
@@ -648,18 +665,15 @@ window.JobsView = {
     const client = State.data.clients.find(c => Number(c.id) === Number(clientId));
 
     if (client) {
-      document.getElementById('jobPhone').value = client.phone || '';
-      document.getElementById('jobEmail').value = client.email || '';
-      document.getElementById('jobAddress').value = client.address || '';
-      document.getElementById('jobCity').value = client.city || '';
-      document.getElementById('jobPostal').value = client.postalCode || client.postal || '';
+      // Only auto-fill address (full address with city and postal)
+      const fullAddress = `${client.address || ''}, ${client.city || ''} ${client.postalCode || client.postal || ''}`.trim();
+      document.getElementById('jobAddress').value = fullAddress;
     } else {
-      document.getElementById('jobPhone').value = '';
-      document.getElementById('jobEmail').value = '';
       document.getElementById('jobAddress').value = '';
-      document.getElementById('jobCity').value = '';
-      document.getElementById('jobPostal').value = '';
     }
+    
+    // Update progress bar
+    this.updateProgressBar();
   },
 
   calculateCost() {
@@ -693,6 +707,7 @@ window.JobsView = {
     const travelDisplay = document.getElementById('travelCostDisplay');
     const totalExpensesDisplay = document.getElementById('totalExpensesDisplay');
     const billingAmountDisplay = document.getElementById('billingAmountDisplay');
+    const vatLabelDisplay = document.getElementById('vatLabelDisplay');
     const vatDisplay = document.getElementById('vatCostDisplay');
     const totalDisplay = document.getElementById('totalCostDisplay');
     const profitDisplay = document.getElementById('profitDisplay');
@@ -702,6 +717,7 @@ window.JobsView = {
     if (travelDisplay) travelDisplay.textContent = Utils.formatCurrency(travelCost);
     if (totalExpensesDisplay) totalExpensesDisplay.textContent = Utils.formatCurrency(totalExpenses);
     if (billingAmountDisplay) billingAmountDisplay.textContent = Utils.formatCurrency(billingAmount);
+    if (vatLabelDisplay) vatLabelDisplay.textContent = `ΦΠΑ (${vatPercent}%)`;
     if (vatDisplay) vatDisplay.textContent = Utils.formatCurrency(vatAmount);
     if (totalDisplay) totalDisplay.textContent = Utils.formatCurrency(totalCharge);
     
@@ -732,11 +748,9 @@ window.JobsView = {
     
     // Manual validation check for required fields
     const jobClient = document.getElementById('jobClient').value;
-    const jobType = document.getElementById('jobType').value;
-    const jobDate = document.getElementById('jobDate').value;
     const jobStatus = document.getElementById('jobStatus').value;
     
-    console.log('[Jobs] Job data:', { jobClient, jobType, jobDate, jobStatus });
+    console.log('[Jobs] Job data:', { jobClient, jobStatus });
     
     if (!jobClient) {
       console.warn('[Jobs] Missing client');
@@ -752,16 +766,16 @@ window.JobsView = {
       return;
     }
     
-    if (!jobType) {
-      console.warn('[Jobs] Missing job type');
-      Toast.error('Παρακαλώ επιλέξτε τύπο εργασίας');
-      // Switch to details tab
+    if (!jobStatus) {
+      console.warn('[Jobs] Missing status');
+      Toast.error('Παρακαλώ επιλέξτε κατάσταση');
+      // Switch to basic tab
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
       document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-      document.querySelector('.tab-btn[data-tab="details"]').classList.add('active');
-      document.getElementById('tab-details').classList.add('active');
+      document.querySelector('.tab-btn[data-tab="basic"]').classList.add('active');
+      document.getElementById('tab-basic').classList.add('active');
       if (!Utils.isMobile()) {
-        document.getElementById('jobType').focus();
+        document.getElementById('jobStatus').focus();
       }
       return;
     }
@@ -776,14 +790,13 @@ window.JobsView = {
     const billingRate = parseFloat(document.getElementById('jobBillingRate').value) || 50;
 
     const jobData = {
-      date: Utils.greekToDate(jobDate),
+      // date will be auto-set by backend to current date
       clientId: Number(jobClient), // Convert to number
-      type: jobType,
+      type: document.getElementById('jobType').value || null,
       status: jobStatus,
       rooms: parseInt(document.getElementById('jobRooms').value) || null,
       area: parseFloat(document.getElementById('jobArea').value) || null,
-      substrate: document.getElementById('jobSubstrate').value,
-      nextVisit: Utils.greekToDate(document.getElementById('jobNextVisit').value),
+      nextVisit: Utils.greekToDate(jobNextVisit),
       materialsCost: parseFloat(document.getElementById('jobMaterialsCost').value) || 0,
       kilometers: parseFloat(document.getElementById('jobKilometers').value) || 0,
       billingHours: billingHours,
@@ -1168,13 +1181,11 @@ window.JobsView = {
     document.getElementById('tab-basic').classList.add('active');
 
     // Fill form - convert dates from YYYY-MM-DD to DD/MM/YYYY
-    document.getElementById('jobDate').value = Utils.dateToGreek(job.date);
     document.getElementById('jobClient').value = job.clientId;
     document.getElementById('jobType').value = job.type || '';
     document.getElementById('jobStatus').value = job.status || '';
     document.getElementById('jobRooms').value = job.rooms ? Math.round(job.rooms) : '';
     document.getElementById('jobArea').value = job.area ? Math.round(job.area) : '';
-    document.getElementById('jobSubstrate').value = job.substrate || '';
     document.getElementById('jobNextVisit').value = Utils.dateToGreek(job.nextVisit);
     document.getElementById('jobMaterialsCost').value = job.materialsCost ? Math.round(job.materialsCost) : 0;
     document.getElementById('jobKilometers').value = job.kilometers ? Math.round(job.kilometers) : 0;
@@ -1216,6 +1227,7 @@ window.JobsView = {
 
     this.autoFillClientData();
     this.calculateCost();
+    this.updateProgressBar();
     document.getElementById('jobForm').scrollIntoView({ behavior: 'smooth' });
   },
 
@@ -1376,6 +1388,99 @@ window.JobsView = {
         Modal.close();
       });
     }, 100);
+  },
+
+  // Setup Navigation Buttons
+  setupNavigationButtons() {
+    // Tab 1 -> Tab 2
+    const nextToDetails = document.getElementById('nextToDetailsBtn');
+    if (nextToDetails) {
+      nextToDetails.addEventListener('click', () => this.switchTab('details'));
+    }
+
+    // Tab 2 -> Tab 1
+    const backToBasic = document.getElementById('backToBasicBtn');
+    if (backToBasic) {
+      backToBasic.addEventListener('click', () => this.switchTab('basic'));
+    }
+
+    // Tab 2 -> Tab 3
+    const nextToCosts = document.getElementById('nextToCostsBtn');
+    if (nextToCosts) {
+      nextToCosts.addEventListener('click', () => this.switchTab('costs'));
+    }
+
+    // Tab 3 -> Tab 2
+    const backToDetails = document.getElementById('backToDetailsBtn');
+    if (backToDetails) {
+      backToDetails.addEventListener('click', () => this.switchTab('details'));
+    }
+
+    // Tab 3 -> Tab 4
+    const nextToNotes = document.getElementById('nextToNotesBtn');
+    if (nextToNotes) {
+      nextToNotes.addEventListener('click', () => this.switchTab('notes'));
+    }
+
+    // Tab 4 -> Tab 3
+    const backToCosts = document.getElementById('backToCostsBtn');
+    if (backToCosts) {
+      backToCosts.addEventListener('click', () => this.switchTab('costs'));
+    }
+  },
+
+  // Switch Tab Helper
+  switchTab(tabName) {
+    // Remove active from all
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    
+    // Add active to target
+    const targetBtn = document.querySelector(`.tab-btn[data-tab="${tabName}"]`);
+    const targetContent = document.getElementById(`tab-${tabName}`);
+    
+    if (targetBtn) targetBtn.classList.add('active');
+    if (targetContent) targetContent.classList.add('active');
+    
+    // Scroll to top of form smoothly
+    const jobForm = document.getElementById('jobForm');
+    if (jobForm) {
+      jobForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  },
+
+  // Progress Bar Update Method (HIDDEN - keeping for future use)
+  updateProgressBar() {
+    const progressFill = document.getElementById('progressFill');
+    const progressText = document.getElementById('progressText');
+    
+    if (!progressFill || !progressText) return;
+    
+    // Count completed required fields
+    let completed = 0;
+    const total = 2;
+    
+    // 1. Client
+    const client = document.getElementById('jobClient')?.value;
+    if (client) completed++;
+    
+    // 2. Status
+    const status = document.getElementById('jobStatus')?.value;
+    if (status) completed++;
+    
+    // Update UI
+    const percentage = (completed / total) * 100;
+    progressFill.style.width = `${percentage}%`;
+    progressText.textContent = `${completed}/${total} πεδία`;
+    
+    // Change color based on completion
+    if (completed === total) {
+      progressFill.style.background = 'var(--success)';
+      progressText.style.color = 'var(--success)';
+    } else {
+      progressFill.style.background = 'linear-gradient(90deg, var(--accent-primary), var(--success))';
+      progressText.style.color = 'var(--accent-primary)';
+    }
   },
 
   addWorkerToJob(workerId, hours) {
