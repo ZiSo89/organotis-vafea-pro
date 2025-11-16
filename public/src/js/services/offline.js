@@ -152,7 +152,7 @@ window.OfflineService = {
      Sync Operations
      ======================================== */
 
-  async checkOnline() {
+  async checkOnline(serverUrl = null) {
     if (!this.isElectron()) {
       return navigator.onLine;
     }
@@ -160,7 +160,7 @@ window.OfflineService = {
       if (!window.electronAPI.sync || typeof window.electronAPI.sync.checkOnline !== 'function') {
         throw new Error('Electron API sync.checkOnline is not available');
       }
-      return await window.electronAPI.sync.checkOnline();
+      return await window.electronAPI.sync.checkOnline(serverUrl);
     } catch (error) {
       console.error('Error checking online status:', error);
       return false;
@@ -392,5 +392,34 @@ window.OfflineService = {
 
   async deleteTemplate(id) {
     return await this.delete('templates', id);
+  },
+
+  // Settings
+  async getSettings() {
+    return await this.getAll('settings');
+  },
+
+  async getSetting(key) {
+    // Get all settings and find by key
+    const result = await this.getAll('settings');
+    if (result.success && result.data) {
+      return {
+        success: true,
+        data: result.data.find(s => s.settingKey === key)
+      };
+    }
+    return result;
+  },
+
+  async saveSetting(key, value) {
+    // Get all settings to find if it exists
+    const allSettings = await this.getAll('settings');
+    if (allSettings.success && allSettings.data) {
+      const existing = allSettings.data.find(s => s.settingKey === key);
+      if (existing) {
+        return await this.update('settings', existing.id, { settingKey: key, settingValue: value });
+      }
+    }
+    return await this.insert('settings', { settingKey: key, settingValue: value });
   }
 };

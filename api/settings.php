@@ -21,7 +21,22 @@ $method = $_SERVER['REQUEST_METHOD'];
 try {
     switch ($method) {
         case 'GET':
-            if (isset($_GET['key'])) {
+            // Check for action parameter (for sync compatibility)
+            if (isset($_GET['action']) && $_GET['action'] === 'list') {
+                // Return array of settings objects (for sync)
+                $stmt = $db->query("SELECT * FROM settings ORDER BY setting_key ASC");
+                $settings = $stmt->fetchAll();
+                
+                $result = [];
+                foreach ($settings as $setting) {
+                    $converted = convertKeysForSettings($setting);
+                    // Don't parse JSON for sync - keep it as string for SQLite storage
+                    // The Electron client will handle parsing
+                    $result[] = $converted;
+                }
+                
+                sendSuccess($result);
+            } elseif (isset($_GET['key'])) {
                 // Get specific setting by key
                 $stmt = $db->prepare("SELECT * FROM settings WHERE setting_key = ?");
                 $stmt->execute([$_GET['key']]);
@@ -38,7 +53,7 @@ try {
                     sendError('Η ρύθμιση δεν βρέθηκε', 404);
                 }
             } else {
-                // Get all settings
+                // Get all settings as associative array (for web app)
                 $stmt = $db->query("SELECT * FROM settings ORDER BY setting_key ASC");
                 $settings = $stmt->fetchAll();
                 

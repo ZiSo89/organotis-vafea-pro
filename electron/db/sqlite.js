@@ -58,30 +58,34 @@ class SQLiteDB {
     
     for (const key in row) {
       if (row.hasOwnProperty(key)) {
-        // Skip internal sync fields
+        // Skip internal sync fields but keep them
         if (key.startsWith('_sync_')) {
           converted[key] = row[key];
-        } else {
-          const camelKey = this.snakeToCamel(key);
-          let value = row[key];
-          
-          // Parse JSON fields
-          if (jsonFields.includes(camelKey) && typeof value === 'string' && value) {
-            try {
-              value = JSON.parse(value);
-            } catch (e) {
-              console.error(`Failed to parse JSON field ${camelKey}:`, value, e);
-              // Default based on field type
-              if (camelKey === 'coordinates') {
-                value = null;
-              } else {
-                value = []; // Default to empty array for array fields
-              }
+          continue;
+        }
+        
+        const camelKey = this.snakeToCamel(key);
+        let value = row[key];
+        
+        // Parse JSON fields
+        if (jsonFields.includes(camelKey) && typeof value === 'string' && value) {
+          try {
+            value = JSON.parse(value);
+            if (camelKey === 'coordinates') {
+              console.log(`📍 Parsed coordinates from DB:`, value);
+            }
+          } catch (e) {
+            console.error(`Failed to parse JSON field ${camelKey}:`, value, e);
+            // Default based on field type
+            if (camelKey === 'coordinates') {
+              value = null;
+            } else {
+              value = []; // Default to empty array for array fields
             }
           }
-          
-          converted[camelKey] = value;
         }
+        
+        converted[camelKey] = value;
       }
     }
     return converted;
@@ -89,7 +93,10 @@ class SQLiteDB {
 
   // Convert array of rows
   convertRowsToCamelCase(rows) {
-    if (!Array.isArray(rows)) return rows;
+    if (!Array.isArray(rows)) {
+      console.warn('[SQLite] convertRowsToCamelCase - input is not an array:', rows);
+      return [];
+    }
     return rows.map(row => this.convertRowToCamelCase(row));
   }
 
@@ -113,7 +120,13 @@ class SQLiteDB {
         
         // Convert objects/arrays to JSON strings for SQLite
         if (jsonFields.includes(key) && value && typeof value === 'object') {
+          if (key === 'coordinates') {
+            console.log(`📍 Converting coordinates to JSON string:`, value);
+          }
           value = JSON.stringify(value);
+          if (key === 'coordinates') {
+            console.log(`📍 Result:`, value);
+          }
         }
         
         converted[snakeKey] = value;
@@ -311,6 +324,7 @@ class SQLiteDB {
         description TEXT,
         status TEXT,
         color TEXT,
+        reminder_sent INTEGER DEFAULT 0,
         created_at TEXT DEFAULT (datetime('now', 'localtime')),
         updated_at TEXT DEFAULT (datetime('now', 'localtime')),
         _sync_status TEXT DEFAULT 'synced',
@@ -403,9 +417,11 @@ class SQLiteDB {
 
   // Get all records from table
   getAll(table) {
-    const stmt = this.db.prepare(`SELECT * FROM ${table} ORDER BY id DESC`);
+    // Don't return deleted records
+    const stmt = this.db.prepare(`SELECT * FROM ${table} WHERE _sync_status != 'deleted' ORDER BY id DESC`);
     const rows = stmt.all();
-    console.log(`[SQLite] getAll(${table}) - rows type:`, typeof rows, 'isArray:', Array.isArray(rows), 'length:', rows?.length);
+    console.log(`[SQLite] getAll(${table}) - total rows in DB (including deleted):`, this.db.prepare(`SELECT COUNT(*) as count FROM ${table}`).get().count);
+    console.log(`[SQLite] getAll(${table}) - non-deleted rows count:`, rows?.length);
     
     // Ensure we always return an array
     if (!Array.isArray(rows)) {
@@ -413,8 +429,12 @@ class SQLiteDB {
       return [];
     }
     
-    const converted = this.convertRowsToCamelCase(rows);
-    console.log(`[SQLite] getAll(${table}) - converted type:`, typeof converted, 'isArray:', Array.isArray(converted), 'length:', converted?.length);
+    // Convert each row
+    const converted = rows.map(row => this.convertRowToCamelCase(row));
+    console.log(`[SQLite] getAll(${table}) - converted count:`, converted?.length);
+    if (converted.length > 0) {
+      console.log(`[SQLite] getAll(${table}) - first item:`, converted[0]);
+    }
     return converted;
   }
 
@@ -443,9 +463,14 @@ class SQLiteDB {
     const stmt = this.db.prepare(sql);
     const result = stmt.run(...Object.values(snakeData));
     
+    // Get the inserted record and return it
+    const insertedId = result.lastInsertRowid;
+    const insertedRecord = this.getById(table, insertedId);
+    
     return {
-      id: result.lastInsertRowid,
-      changes: result.changes
+      id: insertedId,
+      changes: result.changes,
+      record: insertedRecord
     };
   }
 
@@ -470,8 +495,12 @@ class SQLiteDB {
     const stmt = this.db.prepare(sql);
     const result = stmt.run(...Object.values(snakeData), id);
     
+    // Get the updated record and return it
+    const updatedRecord = this.getById(table, id);
+    
     return {
-      changes: result.changes
+      changes: result.changes,
+      record: updatedRecord
     };
   }
 
@@ -548,30 +577,85 @@ class SQLiteDB {
      Backup & Restore Operations
      ======================================== */
 
-  // Export all data to JSON
+  // Export all data to JSON (Universal format - works with both Electron and PHP/MySQL)
   exportToJSON() {
     try {
-      const tables = ['clients', 'workers', 'materials', 'jobs', 'offers', 'calendar_events', 'invoices'];
+      const tables = ['clients', 'workers', 'materials', 'jobs', 'offers', 'calendar_events', 'invoices', 'job_workers', 'job_materials', 'timesheets'];
       const backup = {
         version: '1.0',
-        timestamp: new Date().toISOString(),
-        data: {}
+        exported_at: new Date().toISOString().slice(0, 19).replace('T', ' '),
+        database: 'painter_app',
+        source: 'electron', // Identifier for source system
+        tables: {}
       };
 
       for (const table of tables) {
-        const rows = this.getAll(table);
-        backup.data[table] = rows;
+        // Get all non-deleted rows from table
+        const stmt = this.db.prepare(`SELECT * FROM ${table} WHERE _sync_status != 'deleted' ORDER BY id ASC`);
+        const rows = stmt.all();
+        
+        // Convert to universal format (snake_case with proper JSON encoding)
+        const data = rows.map(row => {
+          const item = {};
+          for (const key in row) {
+            if (row.hasOwnProperty(key)) {
+              // Skip internal sync fields for export
+              if (key.startsWith('_sync_')) continue;
+              
+              let value = row[key];
+              
+              // JSON fields: ensure they are valid JSON strings
+              const jsonFields = ['assigned_workers', 'paints', 'items', 'materials', 'tasks', 'coordinates'];
+              if (jsonFields.includes(key) && value) {
+                // Debug coordinates export
+                if (key === 'coordinates') {
+                  console.log(`📍 Exporting coordinates from ${table}:`, typeof value, value);
+                }
+                
+                // If it's already a string, ensure it's valid JSON
+                if (typeof value === 'string') {
+                  try {
+                    // Validate by parsing and re-stringifying
+                    const parsed = JSON.parse(value);
+                    value = JSON.stringify(parsed);
+                  } catch (e) {
+                    console.warn(`Invalid JSON in ${table}.${key}:`, value);
+                    value = null;
+                  }
+                } else if (typeof value === 'object' && value !== null) {
+                  // Object should be stringified
+                  value = JSON.stringify(value);
+                }
+              }
+              
+              item[key] = value;
+            }
+          }
+          return item;
+        });
+        
+        backup.tables[table] = {
+          count: data.length,
+          data: data
+        };
       }
 
-      // Include settings (convert to web app format for compatibility)
+      // Include settings
       const settingsStmt = this.db.prepare('SELECT * FROM settings');
       const settingsRows = settingsStmt.all();
-      backup.data.settings = settingsRows.map(row => ({
-        key: row.setting_key,
-        value: row.setting_value
-      }));
+      backup.tables.settings = {
+        count: settingsRows.length,
+        data: settingsRows.map(row => ({
+          id: row.id,
+          setting_key: row.setting_key,
+          setting_value: row.setting_value,
+          description: row.description,
+          created_at: row.created_at,
+          updated_at: row.updated_at
+        }))
+      };
 
-      console.log('✅ Export completed:', Object.keys(backup.data).map(t => `${t}: ${backup.data[t].length}`));
+      console.log('✅ Export completed:', Object.keys(backup.tables).map(t => `${t}: ${backup.tables[t].count}`).join(', '));
       return backup;
     } catch (error) {
       console.error('❌ Export error:', error);
@@ -579,61 +663,73 @@ class SQLiteDB {
     }
   }
 
-  // Import data from JSON backup
+  // Import data from JSON backup (Universal format - accepts both Electron and PHP exports)
   importFromJSON(backupData) {
     try {
       console.log('📥 Starting import...');
+      console.log('📦 Backup source:', backupData.source || 'unknown');
+      console.log('📦 Backup version:', backupData.version || 'unknown');
       
-      // Validate backup structure and normalize format
+      // Validate backup structure
       if (!backupData) {
         throw new Error('Invalid backup format');
       }
 
-      // Support two formats:
-      // 1. Electron format: { data: { clients: [...], workers: [...] } }
-      // 2. PHP format: { tables: { clients: { data: [...] }, workers: { data: [...] } } }
+      // Normalize to universal format
       let data;
       
-      if (backupData.data) {
-        // Electron format
-        data = backupData.data;
-      } else if (backupData.tables) {
-        // PHP format - extract data from each table object
+      if (backupData.tables) {
+        // Universal/PHP format: { tables: { clients: { data: [...] } } }
         data = {};
         for (const [tableName, tableObj] of Object.entries(backupData.tables)) {
-          data[tableName] = tableObj.data || [];
+          data[tableName] = tableObj.data || tableObj || [];
         }
+      } else if (backupData.data) {
+        // Legacy Electron format: { data: { clients: [...] } }
+        data = backupData.data;
       } else {
         throw new Error('Invalid backup format: missing data or tables');
       }
       
+      console.log('📋 Tables to import:', Object.keys(data).join(', '));
+      
+      // Check if clients have coordinates in the backup
+      if (data.clients && Array.isArray(data.clients)) {
+        const clientsWithCoords = data.clients.filter(c => c.coordinates);
+        console.log(`📍 Backup contains ${clientsWithCoords.length}/${data.clients.length} clients with coordinates`);
+        if (clientsWithCoords.length > 0) {
+          console.log(`📍 Sample coordinate from backup:`, {
+            name: clientsWithCoords[0].name,
+            coordinates: clientsWithCoords[0].coordinates,
+            type: typeof clientsWithCoords[0].coordinates
+          });
+        }
+      }
+      
       // Start transaction
       const transaction = this.db.transaction(() => {
-        // Clear existing data
-        const tables = ['calendar_events', 'invoices', 'offers', 'jobs', 'materials', 'workers', 'clients'];
+        // Clear existing data (in reverse dependency order)
+        const tables = ['calendar_events', 'invoices', 'offers', 'job_materials', 'job_workers', 'timesheets', 'jobs', 'materials', 'workers', 'clients'];
         
         for (const table of tables) {
           console.log(`🗑️ Clearing ${table}...`);
           this.db.prepare(`DELETE FROM ${table}`).run();
-          // Reset auto-increment
           this.db.prepare(`DELETE FROM sqlite_sequence WHERE name = ?`).run(table);
         }
 
         // Import data for each table
         for (const [tableName, records] of Object.entries(data)) {
+          // Handle settings separately
           if (tableName === 'settings') {
-            // Handle settings separately
             console.log(`⚙️ Importing settings: ${records.length} records`);
             for (const setting of records) {
-              // Support both web app format (key/value) and electron format (setting_key/setting_value)
               const key = setting.setting_key || setting.key;
               const value = setting.setting_value || setting.value;
               
-              const stmt = this.db.prepare(`
+              this.db.prepare(`
                 INSERT OR REPLACE INTO settings (setting_key, setting_value, updated_at)
                 VALUES (?, ?, datetime('now', 'localtime'))
-              `);
-              stmt.run(key, value);
+              `).run(key, value);
             }
             continue;
           }
@@ -645,50 +741,105 @@ class SQLiteDB {
 
           console.log(`📦 Importing ${tableName}: ${records.length} records`);
           
-          // Get valid columns for this table from database schema
+          // Get valid columns from schema
           const tableInfo = this.db.prepare(`PRAGMA table_info(${tableName})`).all();
           const validColumns = tableInfo.map(col => col.name);
           
-          // Get column names from first record, filtering to only valid columns
-          const firstRecord = records[0];
-          const allColumns = Object.keys(firstRecord)
-            .filter(key => !key.startsWith('_sync_')); // Exclude sync fields
+          let successCount = 0;
+          let errorCount = 0;
           
-          // Convert to snake_case and check if column exists in table
-          const columns = allColumns.filter(col => {
-            const snakeCol = this.camelToSnake(col);
-            return validColumns.includes(snakeCol);
-          });
-          
-          if (columns.length === 0) {
-            console.log(`⏭️ No valid columns for ${tableName}, skipping`);
-            continue;
+          // Process each record
+          for (const record of records) {
+            try {
+              // Get columns to import (already in snake_case from export)
+              const columnsToCopy = Object.keys(record).filter(key => {
+                if (key === 'id') return false; // Skip auto-increment
+                if (key.startsWith('_sync_')) return false; // Skip sync fields
+                return validColumns.includes(key);
+              });
+              
+              // Debug: log first client with coordinates
+              if (tableName === 'clients' && record.coordinates && successCount === 0) {
+                console.log(`📍 First client with coordinates:`, {
+                  name: record.name,
+                  coordinates: record.coordinates,
+                  type: typeof record.coordinates
+                });
+              }
+              
+              if (columnsToCopy.length === 0) continue;
+              
+              // Prepare INSERT statement
+              const placeholders = columnsToCopy.map(() => '?').join(', ');
+              const sql = `INSERT INTO ${tableName} (${columnsToCopy.join(', ')}) VALUES (${placeholders})`;
+              const stmt = this.db.prepare(sql);
+
+              // Process values
+              const values = columnsToCopy.map(col => {
+                let value = record[col];
+                
+                // Handle JSON fields
+                const jsonFields = ['assigned_workers', 'paints', 'items', 'materials', 'tasks', 'coordinates'];
+                if (jsonFields.includes(col) && value) {
+                  // Debug coordinates
+                  if (col === 'coordinates') {
+                    console.log(`📍 Processing coordinates for ${tableName}:`, typeof value, value);
+                  }
+                  
+                  // If it's a string, validate it's proper JSON
+                  if (typeof value === 'string') {
+                    try {
+                      // Parse and re-stringify to ensure valid JSON
+                      const parsed = JSON.parse(value);
+                      value = JSON.stringify(parsed);
+                    } catch (e) {
+                      console.warn(`⚠️ Invalid JSON in ${col}, setting to null:`, value.substring(0, 50));
+                      value = null;
+                    }
+                  } else if (typeof value === 'object' && value !== null) {
+                    // Convert object to JSON string
+                    value = JSON.stringify(value);
+                    if (col === 'coordinates') {
+                      console.log(`📍 Converted coordinates to JSON:`, value);
+                    }
+                  }
+                }
+                
+                // Handle booleans
+                if (typeof value === 'boolean') {
+                  value = value ? 1 : 0;
+                } else if (value === 'true' || value === 'false') {
+                  value = value === 'true' ? 1 : 0;
+                }
+                
+                return value;
+              });
+              
+              stmt.run(...values);
+              successCount++;
+            } catch (err) {
+              errorCount++;
+              console.error(`❌ Error inserting into ${tableName}:`, err.message);
+              if (errorCount <= 3) { // Only log first 3 errors to avoid spam
+                console.error(`Record:`, record);
+              }
+            }
           }
           
-          // Prepare insert statement
-          const placeholders = columns.map(() => '?').join(', ');
-          const columnNames = columns.map(col => this.camelToSnake(col)).join(', ');
-          const sql = `INSERT INTO ${tableName} (${columnNames}) VALUES (${placeholders})`;
-          const stmt = this.db.prepare(sql);
-
-          // Insert each record
-          for (const record of records) {
-            const values = columns.map(col => {
-              let value = record[col];
-              // Convert objects/arrays to JSON strings
-              if (['assignedWorkers', 'paints', 'items', 'materials', 'tasks', 'coordinates'].includes(col)) {
-                if (value && typeof value === 'object') {
-                  value = JSON.stringify(value);
-                }
-              }
-              return value;
-            });
+          console.log(`✅ ${tableName}: ${successCount} imported, ${errorCount} errors`);
+          
+          // Check coordinates import for clients table
+          if (tableName === 'clients') {
+            const coordsCheck = this.db.prepare(`
+              SELECT COUNT(*) as total,
+                     SUM(CASE WHEN coordinates IS NOT NULL AND coordinates != '' THEN 1 ELSE 0 END) as with_coords
+              FROM clients
+            `).get();
+            console.log(`📍 Clients with coordinates: ${coordsCheck.with_coords}/${coordsCheck.total}`);
             
-            try {
-              stmt.run(...values);
-            } catch (err) {
-              console.error(`Error inserting into ${tableName}:`, err.message, record);
-            }
+            // Show a sample
+            const sample = this.db.prepare(`SELECT id, name, coordinates FROM clients WHERE coordinates IS NOT NULL LIMIT 3`).all();
+            console.log(`📍 Sample clients with coordinates:`, sample);
           }
         }
       });

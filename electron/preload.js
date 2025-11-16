@@ -17,6 +17,34 @@ ipcRenderer.on('db:ready', () => {
   dbReadyResolve(true);
 });
 
+// Listen for data refresh events
+let dataRefreshCallbacks = [];
+let dataUploadedCallbacks = [];
+
+ipcRenderer.on('data-refreshed', (event, data) => {
+  console.log('📢 Data refreshed event received:', data);
+  // Notify all registered callbacks
+  dataRefreshCallbacks.forEach(callback => {
+    try {
+      callback(data);
+    } catch (error) {
+      console.error('Error in data refresh callback:', error);
+    }
+  });
+});
+
+ipcRenderer.on('data-uploaded', (event, data) => {
+  console.log('📢 Data uploaded event received:', data);
+  // Notify all registered callbacks
+  dataUploadedCallbacks.forEach(callback => {
+    try {
+      callback(data);
+    } catch (error) {
+      console.error('Error in data uploaded callback:', error);
+    }
+  });
+});
+
 // Expose safe APIs to renderer process
 contextBridge.exposeInMainWorld('electronAPI', {
   
@@ -59,7 +87,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   sync: {
     // Check if server is online
-    checkOnline: () => ipcRenderer.invoke('sync:checkOnline'),
+    checkOnline: (serverUrl) => ipcRenderer.invoke('sync:checkOnline', serverUrl),
     
     // Download data from server
     download: (serverUrl) => ipcRenderer.invoke('sync:download', serverUrl),
@@ -71,7 +99,31 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getStatus: () => ipcRenderer.invoke('sync:getStatus'),
     
     // Get pending changes count
-    getPendingCount: () => ipcRenderer.invoke('sync:getPendingCount')
+    getPendingCount: () => ipcRenderer.invoke('sync:getPendingCount'),
+    
+    // Register callback for data refresh events
+    onDataRefresh: (callback) => {
+      dataRefreshCallbacks.push(callback);
+      // Return unsubscribe function
+      return () => {
+        const index = dataRefreshCallbacks.indexOf(callback);
+        if (index > -1) {
+          dataRefreshCallbacks.splice(index, 1);
+        }
+      };
+    },
+    
+    // Register callback for data uploaded events
+    onDataUploaded: (callback) => {
+      dataUploadedCallbacks.push(callback);
+      // Return unsubscribe function
+      return () => {
+        const index = dataUploadedCallbacks.indexOf(callback);
+        if (index > -1) {
+          dataUploadedCallbacks.splice(index, 1);
+        }
+      };
+    }
   },
   
   /* ========================================

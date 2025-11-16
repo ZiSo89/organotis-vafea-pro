@@ -228,12 +228,12 @@ ipcMain.handle('db:query', async (event, sql, params) => {
    ======================================== */
 
 // Check online status
-ipcMain.handle('sync:checkOnline', async () => {
+ipcMain.handle('sync:checkOnline', async (event, serverUrl) => {
   try {
     if (!syncManager) {
       return false;
     }
-    return await syncManager.checkOnline();
+    return await syncManager.checkOnline(serverUrl);
   } catch (error) {
     console.error('Error checking online status:', error);
     return false;
@@ -243,12 +243,36 @@ ipcMain.handle('sync:checkOnline', async () => {
 // Download data from server
 ipcMain.handle('sync:download', async (event, serverUrl) => {
   try {
+    log('📥 [IPC] Download request received');
+    log('📍 [IPC] Server URL: ' + serverUrl);
+    
     if (!syncManager) {
+      log('❌ [IPC] Sync manager not initialized');
       throw new Error('Sync manager not initialized');
     }
+    
+    log('🚀 [IPC] Starting download process...');
     const result = await syncManager.downloadFromServer(serverUrl);
+    
+    log('✅ [IPC] Download completed');
+    log('📊 [IPC] Download result: ' + JSON.stringify(result, null, 2));
+    
+    // Notify renderer that data has been refreshed (after a small delay to ensure DB commits)
+    setTimeout(() => {
+      if (mainWindow && mainWindow.webContents) {
+        log('📢 [IPC] Sending data-refreshed event to renderer');
+        mainWindow.webContents.send('data-refreshed', { 
+          source: 'download',
+          totalRecords: result.totalRecords,
+          tables: result.tables
+        });
+      }
+    }, 100);
+    
     return result;
   } catch (error) {
+    log('❌ [IPC] Download error: ' + error.message);
+    log('❌ [IPC] Error stack: ' + error.stack);
     console.error('Error downloading from server:', error);
     throw error;
   }
@@ -257,12 +281,38 @@ ipcMain.handle('sync:download', async (event, serverUrl) => {
 // Upload data to server
 ipcMain.handle('sync:upload', async (event, serverUrl) => {
   try {
+    log('📤 [IPC] Upload request received');
+    log('📍 [IPC] Server URL: ' + serverUrl);
+    
     if (!syncManager) {
+      log('❌ [IPC] Sync manager not initialized');
       throw new Error('Sync manager not initialized');
     }
+    
+    log('🚀 [IPC] Starting upload process...');
     const result = await syncManager.uploadToServer(serverUrl);
+    
+    log('✅ [IPC] Upload completed');
+    log('📊 [IPC] Upload result: ' + JSON.stringify(result, null, 2));
+    
+    // Notify renderer that data has been uploaded (no need to reload data)
+    if (result.success) {
+      setTimeout(() => {
+        if (mainWindow && mainWindow.webContents) {
+          log('📢 [IPC] Sending data-uploaded event to renderer');
+          mainWindow.webContents.send('data-uploaded', { 
+            source: 'upload',
+            totalRecords: result.totalRecords,
+            tables: result.tables
+          });
+        }
+      }, 100);
+    }
+    
     return result;
   } catch (error) {
+    log('❌ [IPC] Upload error: ' + error.message);
+    log('❌ [IPC] Error stack: ' + error.stack);
     console.error('Error uploading to server:', error);
     throw error;
   }

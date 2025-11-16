@@ -26,12 +26,18 @@ window.SettingsService = {
           const settingsObj = {};
           (result.data || []).forEach(row => {
             let value = row.settingValue;
+            console.log('[SettingsService] Raw setting:', row.settingKey, '=', value, 'type:', typeof value);
+            
             // Parse JSON strings back to objects
-            if (typeof value === 'string' && (value.startsWith('{') || value.startsWith('['))) {
+            if (typeof value === 'string') {
+              // Try to parse as JSON
               try {
-                value = JSON.parse(value);
+                const parsed = JSON.parse(value);
+                console.log('[SettingsService] Parsed', row.settingKey, 'to:', parsed);
+                value = parsed;
               } catch (e) {
-                console.warn('[SettingsService] Failed to parse setting value:', row.settingKey, value);
+                // Not JSON, keep as string
+                console.log('[SettingsService] Keeping', row.settingKey, 'as string');
               }
             }
             settingsObj[row.settingKey] = value;
@@ -103,25 +109,30 @@ window.SettingsService = {
     console.log('[SettingsService] Setting:', key, '=', value);
     if (this.isElectron()) {
       try {
-        // SQLite: insert or update setting using setting_key
-        const sql = `
-          INSERT INTO settings (setting_key, setting_value, updated_at, _sync_status, _sync_timestamp) 
-          VALUES (?, ?, datetime('now', 'localtime'), 'pending', ?)
-          ON CONFLICT(setting_key) DO UPDATE SET 
-            setting_value = excluded.setting_value,
-            updated_at = datetime('now', 'localtime'),
-            _sync_status = 'pending',
-            _sync_timestamp = excluded._sync_timestamp
-        `;
-        const result = await window.electronAPI.db.query(sql, [key, JSON.stringify(value), Date.now()]);
-        if (result) {
-          this.cache[key] = value;
-          console.log('[SettingsService] Setting saved successfully (Electron)');
-          return true;
+        // Get all settings to find if it exists
+        const allSettingsResult = await window.electronAPI.db.getAll('settings');
+        const allSettings = allSettingsResult.success ? allSettingsResult.data : [];
+        const existing = allSettings.find(s => s.settingKey === key);
+        
+        if (existing) {
+          // Update existing setting
+          const result = await window.electronAPI.db.update('settings', existing.id, {
+            settingKey: key,
+            settingValue: typeof value === 'object' ? JSON.stringify(value) : value
+          });
+          console.log('[SettingsService] Update result:', result);
         } else {
-          console.error('[SettingsService] Failed to save setting (Electron)');
-          return false;
+          // Insert new setting
+          const result = await window.electronAPI.db.insert('settings', {
+            settingKey: key,
+            settingValue: typeof value === 'object' ? JSON.stringify(value) : value
+          });
+          console.log('[SettingsService] Insert result:', result);
         }
+        
+        this.cache[key] = value;
+        console.log('[SettingsService] Setting saved successfully (Electron)');
+        return true;
       } catch (error) {
         console.error('[SettingsService] Error saving setting (Electron):', error);
         return false;

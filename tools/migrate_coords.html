@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Migrate Coordinates to Database</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .card {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-top: 0;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        #output {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .success { color: #4CAF50; }
+        .error { color: #f44336; }
+        .info { color: #2196F3; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>📍 Migrate Coordinates to Database</h1>
+        <p>Αυτό το εργαλείο θα μεταφέρει τα cached coordinates από το localStorage στη MySQL βάση.</p>
+        
+        <div>
+            <button onclick="checkCache()">1. Έλεγχος Cache</button>
+            <button onclick="migrateCoordinates()" id="migrateBtn" disabled>2. Μεταφορά στη Βάση</button>
+            <button onclick="exportBackup()" id="exportBtn" disabled>3. Export Backup</button>
+        </div>
+        
+        <div id="output"></div>
+    </div>
+
+    <script>
+        let geocodeCache = null;
+        
+        function log(message, type = 'info') {
+            const output = document.getElementById('output');
+            const span = document.createElement('div');
+            span.className = type;
+            span.textContent = message;
+            output.appendChild(span);
+            output.scrollTop = output.scrollHeight;
+        }
+        
+        function checkCache() {
+            const output = document.getElementById('output');
+            output.innerHTML = '';
+            
+            log('🔍 Έλεγχος localStorage...', 'info');
+            
+            const cached = localStorage.getItem('geocode_cache');
+            if (!cached) {
+                log('❌ Δεν βρέθηκε geocode cache!', 'error');
+                return;
+            }
+            
+            try {
+                geocodeCache = JSON.parse(cached);
+                const count = Object.keys(geocodeCache).length;
+                const validCount = Object.values(geocodeCache).filter(v => v !== 'ZERO_RESULTS').length;
+                
+                log(`✅ Βρέθηκαν ${count} entries στο cache`, 'success');
+                log(`✅ Από αυτά ${validCount} έχουν έγκυρες συντεταγμένες`, 'success');
+                
+                // Show sample
+                const sample = Object.entries(geocodeCache).filter(([k, v]) => v !== 'ZERO_RESULTS').slice(0, 3);
+                log('\n📍 Δείγμα coordinates:', 'info');
+                sample.forEach(([addr, coords]) => {
+                    log(`   ${addr.substring(0, 50)}... → ${JSON.stringify(coords)}`, 'info');
+                });
+                
+                document.getElementById('migrateBtn').disabled = false;
+                
+            } catch (e) {
+                log('❌ Σφάλμα parsing: ' + e.message, 'error');
+            }
+        }
+        
+        async function migrateCoordinates() {
+            if (!geocodeCache) {
+                log('❌ Τρέξτε πρώτα τον έλεγχο cache!', 'error');
+                return;
+            }
+            
+            log('\n🚀 Μεταφορά coordinates στη βάση...', 'info');
+            
+            try {
+                // Use relative path from current location
+                const url = './migrate_coordinates.php';
+                log(`📡 Calling: ${url}`, 'info');
+                
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(geocodeCache)
+                });
+                
+                log(`📥 Response status: ${response.status}`, 'info');
+                
+                const contentType = response.headers.get('content-type');
+                log(`📄 Content-Type: ${contentType}`, 'info');
+                
+                const text = await response.text();
+                
+                // Check if response is HTML (error page)
+                if (text.startsWith('<!DOCTYPE') || text.startsWith('<html')) {
+                    log('❌ Server returned HTML error page:', 'error');
+                    log(text.substring(0, 500), 'error');
+                    return;
+                }
+                
+                const result = JSON.parse(text);
+                
+                if (result.success) {
+                    log(`\n✅ Επιτυχής μεταφορά!`, 'success');
+                    log(`   Ενημερώθηκαν: ${result.updated}/${result.total_clients} πελάτες`, 'success');
+                    log(`   Παραλείφθηκαν: ${result.skipped}`, 'info');
+                    log(`   Cache entries: ${result.cache_entries}`, 'info');
+                    
+                    // Show debugging info if no updates
+                    if (result.updated === 0 && result.sample_clients) {
+                        log('\n🔍 Debug - Sample clients from DB:', 'info');
+                        result.sample_clients.forEach(c => {
+                            const addr = `${c.address}, ${c.city}, ${c.postal_code || ''} Greece`;
+                            log(`   "${c.name}" -> "${addr}"`, 'info');
+                        });
+                        
+                        log('\n🔍 Debug - Sample cache keys:', 'info');
+                        result.sample_cache_keys?.forEach(key => {
+                            log(`   "${key}"`, 'info');
+                        });
+                        
+                        if (result.mismatches && result.mismatches.length > 0) {
+                            log('\n⚠️ Address mismatches:', 'error');
+                            result.mismatches.forEach(m => {
+                                log(`   ${m.client}: "${m.expected_address}"`, 'error');
+                            });
+                        }
+                    }
+                    
+                    if (result.sample && result.sample.length > 0) {
+                        log('\n📍 Δείγμα αποθηκευμένων:', 'info');
+                        result.sample.forEach(s => {
+                            log(`   ${s.name}: ${JSON.stringify(s.coords)}`, 'success');
+                        });
+                    }
+                    
+                    if (result.updated > 0) {
+                        document.getElementById('exportBtn').disabled = false;
+                    }
+                } else {
+                    log(`❌ Σφάλμα: ${result.error}`, 'error');
+                    if (result.trace) {
+                        log(`Stack trace: ${result.trace}`, 'error');
+                    }
+                }
+                
+            } catch (e) {
+                log(`❌ Σφάλμα: ${e.message}`, 'error');
+                log(`Stack: ${e.stack}`, 'error');
+            }
+        }
+        
+        function exportBackup() {
+            log('\n📦 Κατέβασμα backup...', 'info');
+            // Use relative path from current location
+            window.location.href = '../api/backup.php?action=export';
+            log('✅ Το backup ξεκίνησε!', 'success');
+            log('\n💡 Τώρα μπορείς να κάνεις import αυτό το backup στο Electron!', 'info');
+        }
+    </script>
+</body>
+</html>

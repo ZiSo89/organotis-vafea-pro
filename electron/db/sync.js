@@ -18,7 +18,8 @@ class SyncManager {
       'invoices',
       'templates',
       'offers',
-      'calendar_events'
+      'calendar_events',
+      'settings'
     ];
   }
 
@@ -28,19 +29,26 @@ class SyncManager {
 
   async checkOnline(serverUrl = null) {
     return new Promise((resolve) => {
-      // Try to reach server or google.com
+      // If server URL provided, check the actual server
+      // Otherwise check internet connectivity
       const url = serverUrl || 'https://www.google.com';
       const protocol = url.startsWith('https') ? https : http;
       
+      console.log(`🔍 Checking connectivity to: ${url}`);
+      
       const req = protocol.get(url, (res) => {
-        resolve(res.statusCode === 200);
+        console.log(`✅ Server responded with status: ${res.statusCode}`);
+        // Accept any 2xx or 3xx response as "online"
+        resolve(res.statusCode >= 200 && res.statusCode < 400);
       });
       
-      req.on('error', () => {
+      req.on('error', (error) => {
+        console.log(`❌ Connection error: ${error.message}`);
         resolve(false);
       });
       
-      req.setTimeout(5000, () => {
+      req.setTimeout(3000, () => {
+        console.log(`⏱️ Connection timeout`);
         req.destroy();
         resolve(false);
       });
@@ -63,40 +71,156 @@ class SyncManager {
     };
 
     try {
-      // Download data for each table
+      // First, download all data from server
+      console.log('📦 Fetching all data from server...');
+      const allData = {};
+      
       for (const table of this.tables) {
         try {
-          console.log(`📥 Downloading ${table}...`);
-          const data = await this.fetchTableData(serverUrl, table);
-          const count = await this.importTableData(table, data);
+          console.log(`📥 Fetching ${table}...`);
+          allData[table] = await this.fetchTableData(serverUrl, table);
+          console.log(`✅ Fetched ${allData[table] ? allData[table].length : 0} records from ${table}`);
           
-          results.tables[table] = {
-            success: true,
-            records: count
-          };
-          results.totalRecords += count;
-          
-          console.log(`✅ Downloaded ${count} records from ${table}`);
+          // Log first record as sample (if exists)
+          if (allData[table] && allData[table].length > 0) {
+            console.log(`   Sample: ${JSON.stringify(allData[table][0]).substring(0, 150)}...`);
+          }
         } catch (error) {
-          console.error(`❌ Error downloading ${table}:`, error);
+          console.error(`❌ Error fetching ${table}:`, error);
           results.tables[table] = {
             success: false,
             error: error.message
           };
           results.errors.push(`${table}: ${error.message}`);
+          throw error; // Stop if we can't fetch data
         }
       }
-
+      
+      console.log('📊 Fetch summary:');
+      for (const table of this.tables) {
+        console.log(`   ${table}: ${allData[table] ? allData[table].length : 0} records`);
+      }
+      
+      // Now clear and import all data in a transaction
+      console.log('🔄 Clearing old data and importing new data...');
+      const db = this.db.db;
+      
+      const importAll = db.transaction(() => {
+        // Temporarily disable foreign key constraints for deletion
+        console.log('🔓 Disabling foreign key constraints...');
+        db.pragma('foreign_keys = OFF');
+        
+        // Delete all tables
+        console.log('🗑️  Deleting old data from all tables...');
+        for (const table of this.tables) {
+          console.log(`🗑️  Clearing ${table}...`);
+          const deleteResult = db.prepare(`DELETE FROM ${table}`).run();
+          console.log(`   Deleted ${deleteResult.changes} rows from ${table}`);
+          
+          // Reset auto-increment counter
+          try {
+            db.prepare(`DELETE FROM sqlite_sequence WHERE name = ?`).run(table);
+          } catch (e) {
+            // Ignore if no sequence exists
+          }
+        }
+        
+        // Verify deletion
+        console.log('🔍 Verifying deletion...');
+        for (const table of this.tables) {
+          const count = db.prepare(`SELECT COUNT(*) as count FROM ${table}`).get();
+          console.log(`   ${table}: ${count.count} rows remaining`);
+          if (count.count > 0) {
+            throw new Error(`Failed to delete all data from ${table}. ${count.count} rows remaining.`);
+          }
+        }
+        
+        // Re-enable foreign key constraints for insertion
+        console.log('🔒 Re-enabling foreign key constraints...');
+        db.pragma('foreign_keys = ON');        // Import in normal order (parents first, then children)
+        for (const table of this.tables) {
+          if (!allData[table]) {
+            console.log(`⏭️  Skipping ${table} - no data fetched`);
+            continue;
+          }
+          
+          try {
+            const data = allData[table];
+            if (data && data.length > 0) {
+              console.log(`📥 Importing ${data.length} records into ${table}...`);
+              
+              let importedCount = 0;
+              for (const record of data) {
+                try {
+                  // Convert camelCase keys to snake_case for SQLite
+                  const converted = this.convertKeysToSnakeCase(record, table);
+                  
+                  // Remove sync metadata fields if they exist
+                  delete converted._sync_status;
+                  delete converted._sync_timestamp;
+                  
+                  const keys = Object.keys(converted);
+                  const values = Object.values(converted);
+                  
+                  // Validate values
+                  values.forEach((val, idx) => {
+                    if (val !== null && typeof val === 'object') {
+                      throw new TypeError(`Column ${keys[idx]} has invalid value type: ${typeof val}`);
+                    }
+                  });
+                  
+                  const placeholders = keys.map(() => '?').join(', ');
+                  const sql = `INSERT INTO ${table} (${keys.join(', ')}, _sync_status, _sync_timestamp)
+                               VALUES (${placeholders}, 'synced', ${Date.now()})`;
+                  
+                  db.prepare(sql).run(...values);
+                  importedCount++;
+                } catch (error) {
+                  console.error(`❌ Error importing record #${importedCount + 1} into ${table}:`, error.message);
+                  console.error(`   Record:`, JSON.stringify(record).substring(0, 200));
+                  throw error; // Rollback transaction on error
+                }
+              }
+              
+              results.tables[table] = {
+                success: true,
+                records: importedCount
+              };
+              results.totalRecords += importedCount;
+              console.log(`✅ Imported ${importedCount} records into ${table}`);
+            } else {
+              results.tables[table] = {
+                success: true,
+                records: 0
+              };
+              console.log(`⏭️  No data to import for ${table}`);
+            }
+          } catch (error) {
+            console.error(`❌ Error processing ${table}:`, error);
+            throw error; // Rollback transaction
+          }
+        }
+      });
+      
+      // Execute transaction
+      importAll();
+      
+      // Ensure all changes are written to disk
+      console.log('💾 Committing changes to disk...');
+      db.pragma('wal_checkpoint(FULL)');
+      
       // Mark last sync time
       this.db.setSyncMetadata('last_download', new Date().toISOString());
       
       results.success = results.errors.length === 0;
       console.log(`📥 Download complete. Total records: ${results.totalRecords}`);
+      console.log(`📊 Download summary:`, JSON.stringify(results, null, 2));
       
       return results;
     } catch (error) {
       console.error('❌ Download failed:', error);
       results.errors.push(error.message);
+      results.success = false;
       return results;
     }
   }
@@ -107,6 +231,7 @@ class SyncManager {
 
   async uploadToServer(serverUrl) {
     console.log('📤 Starting upload to server...');
+    console.log('📍 Server URL:', serverUrl);
     
     const results = {
       success: false,
@@ -119,9 +244,12 @@ class SyncManager {
       // Upload pending changes for each table
       for (const table of this.tables) {
         try {
+          console.log(`📤 Checking pending changes for ${table}...`);
           const pendingChanges = this.db.getPendingChanges(table);
+          console.log(`📦 Found ${pendingChanges.length} pending changes in ${table}`);
           
           if (pendingChanges.length === 0) {
+            console.log(`⏭️  Skipping ${table} (no changes)`);
             results.tables[table] = {
               success: true,
               records: 0
@@ -129,7 +257,12 @@ class SyncManager {
             continue;
           }
 
+          // Log sample of pending changes
+          console.log(`📄 Sample pending change for ${table}:`, JSON.stringify(pendingChanges[0]).substring(0, 200));
+          
+          console.log(`🌐 Uploading ${pendingChanges.length} changes to server for ${table}...`);
           const count = await this.uploadTableData(serverUrl, table, pendingChanges);
+          console.log(`✅ Server accepted ${count} changes for ${table}`);
           
           // Mark as synced
           const ids = pendingChanges
@@ -137,6 +270,7 @@ class SyncManager {
             .map(row => row.id);
           
           if (ids.length > 0) {
+            console.log(`🔄 Marking ${ids.length} records as synced in ${table}`);
             this.db.markAsSynced(table, ids);
           }
           
@@ -146,6 +280,7 @@ class SyncManager {
             .map(row => row.id);
           
           if (deletedIds.length > 0) {
+            console.log(`🗑️  Deleting ${deletedIds.length} records from local ${table}`);
             const placeholders = deletedIds.map(() => '?').join(',');
             this.db.query(
               `DELETE FROM ${table} WHERE id IN (${placeholders})`,
@@ -162,6 +297,7 @@ class SyncManager {
           console.log(`✅ Uploaded ${count} changes from ${table}`);
         } catch (error) {
           console.error(`❌ Error uploading ${table}:`, error);
+          console.error(`❌ Error stack:`, error.stack);
           results.tables[table] = {
             success: false,
             error: error.message
@@ -175,10 +311,12 @@ class SyncManager {
       
       results.success = results.errors.length === 0;
       console.log(`📤 Upload complete. Total records: ${results.totalRecords}`);
+      console.log(`📊 Upload results:`, JSON.stringify(results, null, 2));
       
       return results;
     } catch (error) {
       console.error('❌ Upload failed:', error);
+      console.error('❌ Upload error stack:', error.stack);
       results.errors.push(error.message);
       return results;
     }
@@ -278,49 +416,72 @@ class SyncManager {
   // Import data into SQLite table
   async importTableData(table, data) {
     if (!data || data.length === 0) {
+      console.log(`⏭️  No data to import for ${table}`);
       return 0;
     }
 
+    console.log(`📦 Importing ${data.length} records into ${table}...`);
     const db = this.db.db;
     
-    // Begin transaction for better performance
-    const insertMany = db.transaction((records) => {
-      for (const record of records) {
-        // Convert camelCase keys to snake_case for SQLite, filtering invalid columns
-        const converted = this.convertKeysToSnakeCase(record, table);
-        
-        // Remove sync metadata fields if they exist
-        delete converted._sync_status;
-        delete converted._sync_timestamp;
-        
-        const keys = Object.keys(converted);
-        const values = Object.values(converted);
-        
-        // Debug: Check for non-bindable values
-        values.forEach((val, idx) => {
-          if (val !== null && typeof val === 'object') {
-            console.error(`❌ Invalid value type for ${keys[idx]}:`, typeof val, val);
-            throw new TypeError(`Column ${keys[idx]} has invalid value type: ${typeof val}`);
+    try {
+      // Begin transaction for better performance
+      const insertMany = db.transaction((records) => {
+        let successCount = 0;
+        for (const record of records) {
+          try {
+            // Convert camelCase keys to snake_case for SQLite, filtering invalid columns
+            const converted = this.convertKeysToSnakeCase(record, table);
+            
+            // Remove sync metadata fields if they exist
+            delete converted._sync_status;
+            delete converted._sync_timestamp;
+            
+            const keys = Object.keys(converted);
+            const values = Object.values(converted);
+            
+            // Debug: Check for non-bindable values
+            values.forEach((val, idx) => {
+              if (val !== null && typeof val === 'object') {
+                console.error(`❌ Invalid value type for ${keys[idx]}:`, typeof val, val);
+                throw new TypeError(`Column ${keys[idx]} has invalid value type: ${typeof val}`);
+              }
+            });
+            
+            const placeholders = keys.map(() => '?').join(', ');
+            
+            const sql = `INSERT OR REPLACE INTO ${table} (${keys.join(', ')}, _sync_status, _sync_timestamp)
+                         VALUES (${placeholders}, 'synced', ${Date.now()})`;
+            
+            db.prepare(sql).run(...values);
+            successCount++;
+          } catch (error) {
+            console.error(`❌ Error importing record into ${table}:`, error.message, record);
+            // Continue with other records even if one fails
           }
-        });
-        
-        const placeholders = keys.map(() => '?').join(', ');
-        
-        const sql = `INSERT OR REPLACE INTO ${table} (${keys.join(', ')}, _sync_status, _sync_timestamp)
-                     VALUES (${placeholders}, 'synced', ${Date.now()})`;
-        
-        db.prepare(sql).run(...values);
-      }
-    });
+        }
+        return successCount;
+      });
 
-    insertMany(data);
-    return data.length;
+      const imported = insertMany(data);
+      console.log(`✅ Imported ${imported}/${data.length} records into ${table}`);
+      
+      // Ensure changes are committed to disk
+      db.pragma('wal_checkpoint(FULL)');
+      
+      return imported;
+    } catch (error) {
+      console.error(`❌ Transaction error importing ${table}:`, error);
+      throw error;
+    }
   }
 
   // Upload table data to server
   async uploadTableData(serverUrl, table, changes) {
     return new Promise((resolve, reject) => {
       const url = `${serverUrl}/api/sync.php`;
+      console.log(`🌐 Upload URL: ${url}`);
+      console.log(`📦 Uploading ${changes.length} changes for table: ${table}`);
+      
       const protocol = url.startsWith('https') ? https : http;
       
       const postData = JSON.stringify({
@@ -333,15 +494,25 @@ class SyncManager {
         })
       });
       
+      console.log(`📤 Payload size: ${Buffer.byteLength(postData)} bytes`);
+      console.log(`📄 First 300 chars of payload:`, postData.substring(0, 300));
+      
       const options = {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(postData)
-        }
+          'Content-Length': Buffer.byteLength(postData),
+          'X-Sync-API-Key': 'electron-sync-key-2025'
+        },
+        rejectUnauthorized: false
       };
       
+      console.log(`🔑 Request headers:`, options.headers);
+      
       const req = protocol.request(url, options, (res) => {
+        console.log(`📡 Response status: ${res.statusCode}`);
+        console.log(`📡 Response headers:`, res.headers);
+        
         let data = '';
         
         res.on('data', (chunk) => {
@@ -349,25 +520,46 @@ class SyncManager {
         });
         
         res.on('end', () => {
+          console.log(`📥 Response received (${data.length} bytes)`);
+          console.log(`📄 Response data:`, data.substring(0, 500));
+          
           try {
             const json = JSON.parse(data);
+            console.log(`✅ Parsed JSON response:`, json);
+            
             if (json.success) {
+              console.log(`✅ Upload successful for ${table}: ${changes.length} records`);
               resolve(changes.length);
             } else {
+              console.error(`❌ Server returned error for ${table}:`, json.message);
+              console.error(`📄 Full response:`, data);
               reject(new Error(json.message || 'Failed to upload data'));
             }
           } catch (error) {
-            reject(new Error('Invalid JSON response'));
+            console.error(`❌ Failed to parse JSON response for ${table}:`, error.message);
+            console.error(`📄 Raw response:`, data);
+            reject(new Error('Invalid JSON response: ' + error.message));
           }
         });
       });
       
       req.on('error', (error) => {
+        console.error(`❌ Request error for ${table}:`, error);
+        console.error(`❌ Error code:`, error.code);
+        console.error(`❌ Error stack:`, error.stack);
         reject(error);
       });
       
+      req.on('timeout', () => {
+        console.error(`⏱️  Request timeout for ${table}`);
+        req.destroy();
+        reject(new Error('Request timeout'));
+      });
+      
+      console.log(`📤 Sending request...`);
       req.write(postData);
       req.end();
+      console.log(`📤 Request sent for ${table}`);
     });
   }
 
