@@ -4,7 +4,6 @@
 
 window.CalendarView = {
   calendar: null,
-  isSwipeInProgress: false, // Track swipe gestures to prevent accidental modal opens
   
   /* ========================================
      Ελληνικές Αργίες 2025-2026
@@ -96,22 +95,13 @@ window.CalendarView = {
   async initCalendar() {
     const calendarEl = document.getElementById('calendar');
     
-    // Detect mobile device
-    const isMobile = window.innerWidth <= 768;
-    
-    console.log('📱 Calendar Init:', {
-      isMobile,
-      windowWidth: window.innerWidth,
-      calendarEl: !!calendarEl
-    });
-    
     this.calendar = new FullCalendar.Calendar(calendarEl, {
       locale: 'el',
-      initialView: isMobile ? 'timeGridDay' : 'dayGridMonth',
+      initialView: 'dayGridMonth',
       headerToolbar: {
         left: 'prev,next today',
         center: 'title',
-        right: isMobile ? 'dayGridMonth,timeGridDay' : 'dayGridMonth,timeGridWeek,timeGridDay'
+        right: 'dayGridMonth,timeGridWeek,timeGridDay'
       },
       buttonText: {
         today: 'Σήμερα',
@@ -120,30 +110,25 @@ window.CalendarView = {
         day: 'Ημέρα'
       },
       height: 'auto',
-      firstDay: 1, // Δευτέρα
-      weekNumbers: !isMobile, // Κρύψε week numbers σε mobile
+      firstDay: 1,
+      weekNumbers: true,
       weekText: 'Εβδ.',
-      editable: false, // Απενεργοποίηση drag & drop για να μην τρεμοπαίζει ο cursor
-      selectable: true, // Κλικ σε κελί για νέα επίσκεψη
-      selectMirror: true, // Visual feedback κατά την επιλογή
-      selectOverlap: false, // Δεν επιτρέπεται select πάνω από υπάρχοντα events
-      dayMaxEvents: isMobile ? 3 : true, // Περιορισμός events σε mobile
-      moreLinkClick: 'popover', // Click on "more" shows popover
-      eventMaxStack: isMobile ? 3 : 2, // Max events visible before showing "more"
+      editable: true,
+      selectable: true,
+      selectMirror: true,
+      selectOverlap: true,
+      dayMaxEvents: true,
+      moreLinkClick: 'popover',
+      eventMaxStack: 2,
       
-      // Event display settings for better visibility
-      eventDisplay: 'block', // Makes events fill the entire cell width
-      displayEventTime: true, // Show time on events (will be hidden in month view via CSS)
-      eventTimeFormat: { // Format for time display
+      // Event display settings
+      eventDisplay: 'block',
+      displayEventTime: true,
+      eventTimeFormat: {
         hour: '2-digit',
         minute: '2-digit',
         meridiem: false
       },
-      
-      // Touch-friendly settings
-      longPressDelay: 500,
-      eventLongPressDelay: 500,
-      selectLongPressDelay: 500,
       
       // Event sources
       events: async (info, successCallback, failureCallback) => {
@@ -158,17 +143,8 @@ window.CalendarView = {
       
       // Event click - Only on deliberate click
       eventClick: (info) => {
-        // Prevent opening modal if it was part of a swipe gesture
-        if (this.isSwipeInProgress) {
-          return;
-        }
-        
-        // Add small delay to distinguish from scroll
-        setTimeout(() => {
-          if (!this.isSwipeInProgress) {
-            this.showEventDetails(info.event);
-          }
-        }, 100);
+        console.log('📅 Event clicked:', info);
+        this.showEventDetails(info.event);
       },
       
       // Event mouse enter - show tooltip
@@ -180,149 +156,34 @@ window.CalendarView = {
         info.el.title = tooltip;
       },
       
-      // Date select - Δημιουργία νέας επίσκεψης
+      // Date click - create new event on click
+      dateClick: (info) => {
+        console.log('📅 Date clicked:', info.dateStr);
+        this.showAddVisitModal(info.dateStr, info.dateStr);
+      },
+      
+      // Select - create new event on date range selection
       select: (info) => {
-        // Πρόληψη accidental opens κατά το swipe
-        if (this.isSwipeInProgress) {
-          this.calendar.unselect(); // Clear selection
-          return;
-        }
-        
+        console.log('📅 Date range selected:', info.startStr, 'to', info.endStr);
         this.showAddVisitModal(info.startStr, info.endStr);
+        // Unselect after opening modal
+        this.calendar.unselect();
+      },
+      
+      // Event drop - update dates on drag & drop
+      eventDrop: (info) => {
+        console.log('📅 Event dropped:', info.event);
+        this.updateEventDates(info.event);
+      },
+      
+      // Event resize - update dates on resize
+      eventResize: (info) => {
+        console.log('📅 Event resized:', info.event);
+        this.updateEventDates(info.event);
       }
     });
     
     this.calendar.render();
-    
-    console.log('✅ Calendar rendered successfully');
-    
-    // Handle window resize for responsive behavior
-    this.handleResize();
-    window.addEventListener('resize', () => this.handleResize());
-    
-    // Add touch gestures for mobile
-    if (window.innerWidth <= 768) {
-      this.addTouchGestures();
-      this.addScrollHintRemoval();
-    }
-  },
-
-  /* ========================================
-     Add Scroll Hint Removal
-     ======================================== */
-  addScrollHintRemoval() {
-    const calendarMain = document.querySelector('.calendar-main');
-    if (!calendarMain) return;
-    
-    calendarMain.addEventListener('scroll', () => {
-      calendarMain.classList.add('scrolled');
-    }, { once: true, passive: true });
-  },
-
-  /* ========================================
-     Add Touch Gestures for Mobile
-     ======================================== */
-  addTouchGestures() {
-    const calendarEl = document.getElementById('calendar');
-    if (!calendarEl) return;
-    
-    let touchStartX = 0;
-    let touchStartY = 0;
-    let touchEndX = 0;
-    let touchEndY = 0;
-    let touchStartTime = 0;
-    const minSwipeDistance = 80; // Μεγαλύτερη απόσταση για να αποφύγουμε accidental swipes
-    
-    calendarEl.addEventListener('touchstart', (e) => {
-      touchStartX = e.changedTouches[0].screenX;
-      touchStartY = e.changedTouches[0].screenY;
-      touchStartTime = Date.now();
-      this.isSwipeInProgress = false;
-    }, { passive: true });
-    
-    calendarEl.addEventListener('touchmove', (e) => {
-      // Detect if user is swiping (not just tapping)
-      const currentX = e.changedTouches[0].screenX;
-      const deltaX = Math.abs(currentX - touchStartX);
-      
-      if (deltaX > 10) { // 10px threshold for swipe detection
-        this.isSwipeInProgress = true;
-      }
-    }, { passive: true });
-    
-    calendarEl.addEventListener('touchend', (e) => {
-      touchEndX = e.changedTouches[0].screenX;
-      touchEndY = e.changedTouches[0].screenY;
-      
-      const touchDuration = Date.now() - touchStartTime;
-      
-      // If it was a quick tap (< 200ms) and minimal movement, allow clicks
-      if (touchDuration < 200 && Math.abs(touchEndX - touchStartX) < 10) {
-        this.isSwipeInProgress = false;
-      } else {
-        this.handleSwipe(touchStartX, touchEndX, touchStartY, touchEndY, minSwipeDistance);
-      }
-      
-      // Reset flag after a short delay
-      setTimeout(() => {
-        this.isSwipeInProgress = false;
-      }, 300);
-    }, { passive: true });
-  },
-
-  /* ========================================
-     Handle Swipe Gestures
-     ======================================== */
-  handleSwipe(startX, endX, startY, endY, minDistance) {
-    if (!this.calendar) return;
-    
-    const swipeDistanceX = endX - startX;
-    const swipeDistanceY = Math.abs(endY - startY);
-    
-    // Αγνόησε αν είναι κάθετο scroll
-    if (swipeDistanceY > Math.abs(swipeDistanceX)) return;
-    
-    // Αγνόησε αν η απόσταση είναι πολύ μικρή
-    if (Math.abs(swipeDistanceX) < minDistance) return;
-    
-    // ΜΟΝΟ για day/week view - ΟΧΙ για month view
-    const currentView = this.calendar.view.type;
-    if (currentView === 'dayGridMonth') {
-      return; // Μην αλλάζεις μήνα με swipe!
-    }
-    
-    if (swipeDistanceX > 0) {
-      // Swipe right - previous
-      this.calendar.prev();
-    } else {
-      // Swipe left - next
-      this.calendar.next();
-    }
-  },
-
-  /* ========================================
-     Handle Responsive Resize
-     ======================================== */
-  handleResize() {
-    if (!this.calendar) return;
-    
-    const isMobile = window.innerWidth <= 768;
-    const currentView = this.calendar.view.type;
-    
-    console.log('📐 Calendar Resize:', {
-      isMobile,
-      windowWidth: window.innerWidth,
-      currentView
-    });
-    
-    // Switch to appropriate view for screen size
-    if (isMobile && currentView === 'timeGridWeek') {
-      console.log('🔄 Switching to timeGridDay for mobile');
-      this.calendar.changeView('timeGridDay');
-    }
-    
-    // Update calendar options based on screen size (editable always false)
-    this.calendar.setOption('weekNumbers', !isMobile);
   },
 
   /* ========================================
@@ -618,12 +479,6 @@ window.CalendarView = {
       
       // Use event delegation on the container (permanent listener)
       container.addEventListener('click', (e) => {
-        
-        // Prevent if swipe in progress
-        if (this.isSwipeInProgress) {
-          return;
-        }
-        
         // Find the clicked visit-item (even if clicked on child element)
         const visitItem = e.target.closest('.visit-item');
         if (!visitItem) return;
@@ -1100,11 +955,6 @@ window.CalendarView = {
       ]
     });
     
-    // Native HTML5 time inputs - no initialization needed!
-    // iOS and Android will automatically show wheel pickers
-    console.log('✅ Using native HTML5 time inputs (type="time")');
-    console.log('📱 Mobile devices will show native wheel pickers');
-    
     // Auto-fill when job is selected
     const jobSelect = document.getElementById('visitJob');
     const clientSelectGroup = document.getElementById('clientSelectGroup');
@@ -1412,10 +1262,6 @@ window.CalendarView = {
       ]
     });
     
-    // Native HTML5 time inputs - no initialization needed!
-    // iOS and Android will automatically show wheel pickers
-    console.log('✅ Using native HTML5 time inputs in edit modal (type="time")');
-    
     // Auto-fill when job is selected
     const jobSelect = document.getElementById('editVisitJob');
     const clientSelectGroup = document.getElementById('editClientSelectGroup');
@@ -1707,12 +1553,12 @@ window.CalendarView = {
         let updated = 0;
         let skipped = 0;
         
-        // For each job, create/update calendar event if it has next_visit or date
+        // For each job, create/update calendar event if it has next_visit
         for (const job of jobs) {
-          const visitDate = job.next_visit || job.date;
+          const visitDate = job.next_visit;
           
-          // Skip if no date or no title
-          if (!visitDate || !job.title) {
+          // Skip if no next_visit date
+          if (!visitDate) {
             skipped++;
             continue;
           }
@@ -1725,11 +1571,11 @@ window.CalendarView = {
           const eventData = {
             title: job.title || 'Εργασία',
             start_date: visitDate,
-            end_date: job.end_date || null,
+            end_date: null,
             job_id: job.id,
             client_id: job.client_id || null,
             address: job.address || '',
-            description: job.description || '',
+            description: job.notes || '',
             status: job.status || 'pending',
             all_day: 1
           };
@@ -1739,7 +1585,7 @@ window.CalendarView = {
             await window.electronAPI.db.update('calendar_events', existing[0].id, eventData);
             updated++;
           } else {
-            // Create new event
+            // Create new event only if job has next_visit
             await window.electronAPI.db.insert('calendar_events', eventData);
             created++;
           }

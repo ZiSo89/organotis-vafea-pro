@@ -13,7 +13,7 @@
   width: 100%;
   max-width: 100%;
   align-items: stretch;
-  flex-wrap: wrap;
+  flex-wrap: nowrap; /* Πάντα δίπλα-δίπλα στο desktop */
 }
 
 /* ========================================
@@ -25,10 +25,12 @@
   padding: 24px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   overflow-y: auto;
-  width: 420px;
-  min-width: 420px;
+  width: 380px;
+  min-width: 380px;
+  max-width: 380px; /* Σταθερό πλάτος */
+  flex-shrink: 0; /* Δεν συρρικνώνεται */
   box-sizing: border-box;
-  max-height: calc(100vh - 50px); /* 200px μεγαλύτερο από το προηγούμενο */
+  max-height: calc(100vh);
 }
 
 /* Custom scrollbar for upcoming visits panel */
@@ -130,11 +132,9 @@
 
 .visit-title {
   font-weight: 600;
-  font-size: 1rem;
+  font-size: 0.875rem; /* Μικρότερα γράμματα */
   color: var(--color-text);
   margin-bottom: 6px;
-  word-wrap: break-word;
-  overflow-wrap: break-word;
   line-height: 1.4;
 }
 
@@ -219,13 +219,43 @@
   border-radius: 12px;
   padding: 24px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  flex: 1;
+  flex: 1; /* Παίρνει όλο τον υπόλοιπο χώρο */
+  min-width: 0; /* Επιτρέπει να συρρικνωθεί αν χρειάζεται */
   box-sizing: border-box;
+  overflow: visible;
+  position: relative;
 }
 
 /* Calendar wrapper για να χωρέσει */
 #calendar {
   width: 100%;
+  min-width: 600px; /* Μειωμένο από 800px για να χωράει καλύτερα */
+}
+
+/* Scrollable area για το ημερολόγιο (όχι το toolbar) */
+.fc-view-harness {
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
+/* Custom scrollbar for calendar view */
+.fc-view-harness::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+
+.fc-view-harness::-webkit-scrollbar-track {
+  background: var(--color-background);
+  border-radius: 4px;
+}
+
+.fc-view-harness::-webkit-scrollbar-thumb {
+  background: var(--color-primary);
+  border-radius: 4px;
+}
+
+.fc-view-harness::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary-dark);
 }
 
 /* ========================================
@@ -243,8 +273,15 @@
 }
 
 .fc .fc-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--color-surface);
+  padding-top: 8px;
+  padding-bottom: 8px;
   margin-bottom: 24px;
   gap: 12px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .fc .fc-toolbar-title {
@@ -307,7 +344,7 @@
 
 /* Base event styling - minimal overrides */
 .fc .fc-event {
-  cursor: default !important; /* Βέλος (default cursor) */
+  cursor: pointer; /* Επιτρέπει click */
 }
 
 /* Hover effect ONLY for month view (daygrid) */
@@ -317,15 +354,9 @@
   transition: filter 0.2s ease, box-shadow 0.2s ease; /* Smooth transition */
 }
 
-/* Force default cursor on all event elements */
-.fc .fc-event,
-.fc .fc-event *,
-.fc .fc-event-main,
-.fc .fc-event-title,
-.fc .fc-event-time,
-.fc-timegrid-event,
-.fc-daygrid-event {
-  cursor: default !important; /* Βέλος παντού */
+/* Κενά κελιά (days) επιτρέπουν click για δημιουργία */
+.fc .fc-daygrid-day {
+  cursor: pointer;
 }
 
 /* Next Visit Events - Special color */
@@ -553,8 +584,7 @@
     padding: 8px;
     border-radius: 8px;
     width: 100%;
-    overflow-x: auto; /* Horizontal scroll for mobile */
-    overflow-y: visible;
+    overflow: visible;
   }
   
   /* Calendar με minimum width για horizontal scroll */
@@ -563,22 +593,28 @@
     width: 100%;
   }
   
+  /* Enable scrolling for calendar view in mobile */
+  .fc-view-harness {
+    overflow-x: auto;
+    overflow-y: visible;
+  }
+  
   /* Visible scrollbar hint */
-  .calendar-main::-webkit-scrollbar {
+  .fc-view-harness::-webkit-scrollbar {
     height: 8px;
   }
   
-  .calendar-main::-webkit-scrollbar-track {
+  .fc-view-harness::-webkit-scrollbar-track {
     background: var(--color-background);
     border-radius: 4px;
   }
   
-  .calendar-main::-webkit-scrollbar-thumb {
+  .fc-view-harness::-webkit-scrollbar-thumb {
     background: var(--color-primary);
     border-radius: 4px;
   }
   
-  .calendar-main::-webkit-scrollbar-thumb:hover {
+  .fc-view-harness::-webkit-scrollbar-thumb:hover {
     background: var(--color-primary-dark);
   }
   
