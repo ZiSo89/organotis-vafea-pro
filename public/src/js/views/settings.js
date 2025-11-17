@@ -103,14 +103,25 @@ window.SettingsView = {
       const file = e.target.files[0];
       if (!file) return;
       
-      if (!confirm('ΠΡΟΣΟΧΗ: Η εισαγωγή θα διαγράψει όλα τα υπάρχοντα δεδομένα! Συνέχεια;')) {
-        return;
-      }
-      
-      try {
-        // Read file content
-        const fileContent = await file.text();
-        const backupData = JSON.parse(fileContent);
+      // Show confirmation modal instead of alert
+      Modal.confirm({
+        title: 'ΠΡΟΣΟΧΗ',
+        message: 'Η εισαγωγή θα διαγράψει όλα τα υπάρχοντα δεδομένα!',
+        confirmText: 'Συνέχεια',
+        cancelText: 'Ακύρωση',
+        onConfirm: async () => {
+          await this.performImport(file);
+        }
+      });
+    };
+    input.click();
+  },
+
+  async performImport(file) {
+    try {
+      // Read file content
+      const fileContent = await file.text();
+      const backupData = JSON.parse(fileContent);
         
         // Check if running in Electron
         if (window.electronAPI) {
@@ -149,12 +160,10 @@ window.SettingsView = {
             Toast.error(errorMsg + debugInfo);
           }
         }
-      } catch (error) {
-        console.error('Import error:', error);
-        Toast.error('Σφάλμα κατά την εισαγωγή της βάσης: ' + error.message);
-      }
-    };
-    input.click();
+    } catch (error) {
+      console.error('❌ Import error:', error);
+      Toast.error('Σφάλμα κατά την ανάγνωση του αρχείου');
+    }
   },
 
   async exportExcel() {
