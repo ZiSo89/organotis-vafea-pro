@@ -150,8 +150,11 @@ echo "Δημιουργία SQL για εργασίες...\n";
 $jobTypes = [
     ['Εσωτερικοί χώροι', ['Βαφή Διαμερίσματος', 'Βαφή Γραφείου', 'Βαφή Καταστήματος', 'Βαφή Σπιτιού', 'Βαφή Παιδικού Δωματίου', 'Βαφή Σαλονιού', 'Βαφή Κουζίνας']],
     ['Εξωτερικοί χώροι', ['Εξωτερική Βαφή Μονοκατοικίας', 'Βαφή Πρόσοψης', 'Βαφή Περιτοιχίσματος', 'Εξωτερική Βαφή Πολυκατοικίας']],
-    ['Κέγκελα/Πέργκολα', ['Βαφή Κέγκελων', 'Βαφή Μπαλκονιών', 'Βαφή Πέργκολας', 'Βαφή Μεταλλικής Πόρτας']],
-    ['Ξύλινες επιφάνειες', ['Βαφή Ξύλινων Επίπλων', 'Λακάρισμα Ντουλαπών', 'Βαφή Παρκέ', 'Βαφή Ξύλινων Πορτών']]
+    ['Κάγκελα/Πέργκολα', ['Βαφή Κέγκελων', 'Βαφή Μπαλκονιών', 'Βαφή Πέργκολας', 'Βαφή Μεταλλικής Πόρτας']],
+    ['Επαγγελματικός', ['Βαφή Καταστήματος', 'Βαφή Γραφείου', 'Βαφή Αποθήκης', 'Βαφή Εργοστασίου']],
+    ['Κατοικία', ['Βαφή Σπιτιού', 'Βαφή Διαμερίσματος', 'Βαφή Μονοκατοικίας']],
+    ['Μικροεπισκευή', ['Διόρθωση Τοίχου', 'Βαφή Πόρτας', 'Βαφή Παραθύρων', 'Επιδιόρθωση Σοβά']],
+    ['Άλλο', ['Βαφή Ξύλινων Επίπλων', 'Λακάρισμα Ντουλαπών', 'Βαφή Παρκέ', 'Ειδική Εργασία']]
 ];
 
 $substrates = ['Γυψοσανίδα', 'Σοβάς', 'Τσιμέντο', 'Μέταλλο', 'Ξύλο'];
@@ -163,12 +166,12 @@ $paintColors = [
 ];
 
 $statuses = [
-    ['Ολοκληρώθηκε', 70],  // 70% πιθανότητα
+    ['Ολοκληρώθηκε', 45],  // 45% πιθανότητα
+    ['Εξοφλήθηκε', 25],    // 25% πιθανότητα
     ['Σε εξέλιξη', 10],
-    ['Προγραμματισμένη', 5],
+    ['Προγραμματισμένη', 10],
     ['Υποψήφιος', 5],
-    ['Ακυρώθηκε', 5],
-    ['Αναβλήθηκε', 5]
+    ['Ακυρώθηκε', 5]
 ];
 
 $workersList = [
@@ -251,7 +254,7 @@ while ($currentDate <= $endDate) {
         
         // Status και πληρωμή
         $status = getRandomStatus($statuses);
-        $isPaid = ($status == 'Ολοκληρώθηκε' && rand(1, 100) <= 85) ? 1 : 0; // 85% πληρωμένα
+        $isPaid = ($status == 'Εξοφλήθηκε') ? 1 : (($status == 'Ολοκληρώθηκε' && rand(1, 100) <= 60) ? 1 : 0);
         
         // Ημερομηνίες
         $dateStr = $jobDate->format('Y-m-d');
@@ -259,6 +262,31 @@ while ($currentDate <= $endDate) {
         $duration = ceil($billingHours / 8); // ημέρες
         $endDateObj = (clone $jobDate)->modify("+{$duration} days");
         $endDateStr = $endDateObj->format('Y-m-d');
+        
+        // Επόμενη επίσκεψη - μόνο για ολοκληρωμένες/εξοφλημένες εργασίες
+        $nextVisit = null;
+        if ($status == 'Ολοκληρώθηκε' || $status == 'Εξοφλήθηκε') {
+            // Για πρόσφατες εργασίες (2025), 60% πιθανότητα να έχουν επόμενη επίσκεψη
+            // Για παλαιότερες, 30% πιθανότητα
+            $probability = (strpos($dateStr, '2025-') === 0) ? 60 : 30;
+            
+            if (rand(1, 100) <= $probability) {
+                // Επόμενη επίσκεψη σε 1-4 μήνες από την ολοκλήρωση
+                $daysToAdd = rand(30, 120);
+                $nextVisitDate = (clone $endDateObj)->modify("+{$daysToAdd} days");
+                
+                // Αν η επόμενη επίσκεψη είναι πριν το Νοέμβριο 2025, προσθέτουμε περισσότερες μέρες
+                while ($nextVisitDate < new DateTime('2025-11-01')) {
+                    $daysToAdd += rand(30, 60);
+                    $nextVisitDate = (clone $endDateObj)->modify("+{$daysToAdd} days");
+                }
+                
+                // Περιορίζουμε μέχρι τέλος Ιανουαρίου 2026
+                if ($nextVisitDate <= new DateTime('2026-01-31')) {
+                    $nextVisit = $nextVisitDate->format('Y-m-d');
+                }
+            }
+        }
         
         // Εργάτες
         $numWorkers = rand(1, 3);
@@ -312,9 +340,10 @@ while ($currentDate <= $endDate) {
             'VIP πελάτης - προσοχή στη λεπτομέρεια',
             'Εργασία ολοκληρώθηκε με επιτυχία'
         ];
-        $notes = ($status == 'Ολοκληρώθηκε') ? $notesTemplates[array_rand($notesTemplates)] : 
+        $notes = ($status == 'Ολοκληρώθηκε' || $status == 'Εξοφλήθηκε') ? $notesTemplates[array_rand($notesTemplates)] : 
                  ($status == 'Σε εξέλιξη' ? 'Εργασία σε εξέλιξη - ' . rand(20, 80) . '% ολοκλήρωση' :
-                 ($status == 'Ακυρώθηκε' ? 'Ακυρώθηκε από τον πελάτη' : 'Προγραμματισμένη εργασία'));
+                 ($status == 'Ακυρώθηκε' ? 'Ακυρώθηκε από τον πελάτη' : 
+                 ($status == 'Προγραμματισμένη' ? 'Προγραμματισμένη εργασία' : 'Υποψήφια εργασία')));
         
         // Συντεταγμένες (τυχαίες γύρω από Αλεξανδρούπολη)
         $lat = 40.8476 + (rand(-100, 100) / 10000);
@@ -326,7 +355,7 @@ while ($currentDate <= $endDate) {
             $title,
             $type,
             $dateStr,
-            null, // next_visit
+            $nextVisit, // next_visit
             $description,
             $clients[$currentClientId - 1][3], // address από client
             'Αλεξανδρούπολη',
@@ -344,7 +373,7 @@ while ($currentDate <= $endDate) {
             json_encode($assignedWorkers, JSON_UNESCAPED_UNICODE),
             json_encode($paints, JSON_UNESCAPED_UNICODE),
             $startDateStr,
-            ($status == 'Ολοκληρώθηκε' || $status == 'Σε εξέλιξη') ? $endDateStr : 'NULL',
+            ($status == 'Ολοκληρώθηκε' || $status == 'Εξοφλήθηκε' || $status == 'Σε εξέλιξη') ? $endDateStr : 'NULL',
             $status,
             $totalCost,
             $isPaid,
@@ -373,7 +402,8 @@ foreach ($jobs as $job) {
         $job[18] ? "'" . addslashes($job[18]) . "'" : 'NULL',
         $job[19] ? "'" . addslashes($job[19]) . "'" : 'NULL',
         $job[20] ? "'" . addslashes($job[20]) . "'" : 'NULL',
-        $job[21], $job[22] ? "'" . $job[22] . "'" : 'NULL',
+        $job[21], 
+        $job[22] !== 'NULL' ? "'" . $job[22] . "'" : 'NULL',
         addslashes($job[23]), $job[24], $job[25],
         $job[26] ? "'" . addslashes($job[26]) . "'" : 'NULL'
     );
@@ -396,8 +426,9 @@ foreach ($jobs as $index => $job) {
         $startTime = sprintf('%02d:00:00', rand(8, 10));
         $endTime = sprintf('%02d:00:00', rand(15, 18));
         
-        $eventStatus = ($job[23] == 'Ολοκληρώθηκε') ? 'completed' : 
-                      (($job[23] == 'Σε εξέλιξη') ? 'in_progress' : 'confirmed');
+        $eventStatus = ($job[23] == 'Ολοκληρώθηκε' || $job[23] == 'Εξοφλήθηκε') ? 'Ολοκληρώθηκε' : 
+                      (($job[23] == 'Σε εξέλιξη') ? 'Σε Εξέλιξη' : 
+                      (($job[23] == 'Προγραμματισμένη') ? 'Επιβεβαιωμένη' : 'Σε Αναμονή'));
         
         $color = $eventColors[array_rand($eventColors)];
         
@@ -417,6 +448,56 @@ foreach ($jobs as $index => $job) {
             0 // reminder_sent
         ];
     }
+}
+
+// Προσθήκη επιπλέον events για Νοέμβριο 2025, Δεκέμβριο 2025 και Ιανουάριο 2026 (από next_visit)
+echo "  Προσθήκη events για επόμενες επισκέψεις (Νοέμβριος 2025 - Ιανουάριος 2026)...\n";
+foreach ($jobs as $index => $job) {
+    // Αν η εργασία έχει επόμενη επίσκεψη το Νοέμβριο, Δεκέμβριο 2025 ή Ιανουάριο 2026
+    if ($job[4] !== null && (strpos($job[4], '2025-11-') === 0 || strpos($job[4], '2025-12-') === 0 || strpos($job[4], '2026-01-') === 0)) {
+        $clientName = $clients[$job[0] - 1][0];
+        $title = 'Επόμ. Επίσκεψη: ' . $clientName . ' - ' . $job[1];
+        $startDate = $job[4] . ' 00:00:00';
+        $endDate = $job[4] . ' 00:00:00';
+        
+        $startTime = sprintf('%02d:00:00', rand(9, 11));
+        $endTime = sprintf('%02d:00:00', rand(12, 15));
+        
+        $color = '#f59e0b'; // Πορτοκαλί για επόμενες επισκέψεις
+        
+        $events[] = [
+            $title,
+            $startDate,
+            $endDate,
+            $startTime,
+            $endTime,
+            0, // all_day
+            $job[0], // client_id
+            $index + 1, // job_id
+            $job[6], // address
+            'Προγραμματισμένη επίσκεψη παρακολούθησης',
+            'Σε Αναμονή',
+            $color,
+            0 // reminder_sent
+        ];
+    }
+}
+
+// Προσθήκη γενικών events για Νοέμβριο-Δεκέμβριο 2025 και Ιανουάριο 2026
+$generalEvents = [
+    ['Σύσκεψη Ομάδας', '2025-11-20 09:00:00', '2025-11-20 11:00:00', '09:00:00', '11:00:00', 0, null, null, 'Γραφείο', 'Μηνιαία σύσκεψη ομάδας', 'Επιβεβαιωμένη', '#3b82f6', 0],
+    ['Παραγγελία Υλικών', '2025-11-25 10:00:00', '2025-11-25 12:00:00', '10:00:00', '12:00:00', 0, null, null, 'Κατάστημα Χρωμάτων', 'Προμήθεια υλικών για Δεκέμβριο', 'Επιβεβαιωμένη', '#8b5cf6', 0],
+    ['Έλεγχος Εξοπλισμού', '2025-11-28 14:00:00', '2025-11-28 16:00:00', '14:00:00', '16:00:00', 0, null, null, 'Αποθήκη', 'Συντήρηση εργαλείων', 'Σε Αναμονή', '#06b6d4', 0],
+    ['Σύσκεψη Ομάδας', '2025-12-10 09:00:00', '2025-12-10 11:00:00', '09:00:00', '11:00:00', 0, null, null, 'Γραφείο', 'Μηνιαία σύσκεψη ομάδας', 'Σε Αναμονή', '#3b82f6', 0],
+    ['Παραγγελία Υλικών', '2025-12-15 10:00:00', '2025-12-15 12:00:00', '10:00:00', '12:00:00', 0, null, null, 'Κατάστημα Χρωμάτων', 'Προμήθεια υλικών για Χριστούγεννα', 'Σε Αναμονή', '#8b5cf6', 0],
+    ['Κλείσιμο για Γιορτές', '2025-12-24 00:00:00', '2025-12-26 23:59:59', null, null, 1, null, null, '', 'Χριστουγεννιάτικες διακοπές', 'Επιβεβαιωμένη', '#ec4899', 0],
+    ['Κλείσιμο για Πρωτοχρονιά', '2025-12-31 00:00:00', '2026-01-01 23:59:59', null, null, 1, null, null, '', 'Πρωτοχρονιάτικες διακοπές', 'Επιβεβαιωμένη', '#ec4899', 0],
+    ['Απογραφή Αποθήκης', '2026-01-08 10:00:00', '2026-01-08 14:00:00', '10:00:00', '14:00:00', 0, null, null, 'Αποθήκη', 'Ετήσια απογραφή υλικών', 'Σε Αναμονή', '#14b8a6', 0],
+    ['Σύσκεψη Ομάδας', '2026-01-15 09:00:00', '2026-01-15 11:00:00', '09:00:00', '11:00:00', 0, null, null, 'Γραφείο', 'Μηνιαία σύσκεψη ομάδας - Στόχοι 2026', 'Σε Αναμονή', '#3b82f6', 0]
+];
+
+foreach ($generalEvents as $gEvent) {
+    $events[] = $gEvent;
 }
 
 $sqlOutput .= "-- CALENDAR EVENTS\n";
@@ -531,4 +612,238 @@ echo "  • Μέσος όρος ανά εργασία: €" . number_format($tot
 
 // Save SQL file with UTF-8 encoding
 file_put_contents($sqlFile, $sqlOutput, LOCK_EX);
+
+// ΔΗΜΙΟΥΡΓΙΑ JSON ΑΡΧΕΙΟΥ
+echo "\n📦 Δημιουργία JSON backup αρχείου...\n";
+
+// Φόρτωση συντεταγμένων από το παλιό backup
+$oldBackupFile = __DIR__ . '/backup_2025-11-16_162357.json';
+$coordinatesMap = [];
+if (file_exists($oldBackupFile)) {
+    $oldBackup = json_decode(file_get_contents($oldBackupFile), true);
+    if (isset($oldBackup['tables']['clients']['data'])) {
+        foreach ($oldBackup['tables']['clients']['data'] as $client) {
+            if (!empty($client['coordinates'])) {
+                $coordinatesMap[$client['id']] = $client['coordinates'];
+            }
+        }
+    }
+    echo "  ✓ Φορτώθηκαν " . count($coordinatesMap) . " συντεταγμένες πελατών\n";
+}
+
+// Δημιουργία JSON structure
+$jsonData = [
+    'version' => '1.0',
+    'exported_at' => date('Y-m-d H:i:s'),
+    'database' => 'painter_app',
+    'tables' => []
+];
+
+// CLIENTS με συντεταγμένες
+$jsonData['tables']['clients'] = [
+    'count' => count($clients),
+    'data' => []
+];
+foreach ($clients as $index => $client) {
+    $clientId = $index + 1;
+    $coords = isset($coordinatesMap[$clientId]) ? $coordinatesMap[$clientId] : null;
+    
+    $jsonData['tables']['clients']['data'][] = [
+        'id' => $clientId,
+        'name' => $client[0],
+        'phone' => $client[1],
+        'email' => $client[2],
+        'address' => $client[3],
+        'city' => $client[4],
+        'postal_code' => $client[5],
+        'afm' => $client[6],
+        'notes' => $client[7],
+        'created_at' => date('Y-m-d H:i:s'),
+        'updated_at' => date('Y-m-d H:i:s'),
+        'coordinates' => $coords
+    ];
+}
+
+// WORKERS
+$jsonData['tables']['workers'] = [
+    'count' => count($workers),
+    'data' => []
+];
+foreach ($workers as $index => $worker) {
+    $jsonData['tables']['workers']['data'][] = [
+        'id' => $index + 1,
+        'name' => $worker[0],
+        'phone' => $worker[1],
+        'specialty' => $worker[2],
+        'hourly_rate' => number_format($worker[3], 2, '.', ''),
+        'daily_rate' => number_format($worker[4], 2, '.', ''),
+        'status' => $worker[5],
+        'hire_date' => $worker[6],
+        'notes' => $worker[7],
+        'total_hours' => number_format($worker[8], 2, '.', ''),
+        'total_earnings' => number_format($worker[9], 2, '.', ''),
+        'created_at' => date('Y-m-d H:i:s'),
+        'updated_at' => date('Y-m-d H:i:s')
+    ];
+}
+
+// MATERIALS
+$jsonData['tables']['materials'] = [
+    'count' => count($materials),
+    'data' => []
+];
+foreach ($materials as $index => $material) {
+    $jsonData['tables']['materials']['data'][] = [
+        'id' => $index + 1,
+        'name' => $material[0],
+        'unit' => $material[1],
+        'unit_price' => number_format($material[2], 2, '.', ''),
+        'stock' => number_format($material[3], 2, '.', ''),
+        'min_stock' => number_format($material[4], 2, '.', ''),
+        'category' => $material[5],
+        'created_at' => date('Y-m-d H:i:s'),
+        'updated_at' => date('Y-m-d H:i:s')
+    ];
+}
+
+// JOBS
+$jsonData['tables']['jobs'] = [
+    'count' => count($jobs),
+    'data' => []
+];
+foreach ($jobs as $index => $job) {
+    $jsonData['tables']['jobs']['data'][] = [
+        'id' => $index + 1,
+        'client_id' => $job[0],
+        'title' => $job[1],
+        'type' => $job[2],
+        'date' => $job[3],
+        'next_visit' => $job[4],
+        'description' => $job[5],
+        'address' => $job[6],
+        'city' => $job[7],
+        'postal_code' => $job[8],
+        'rooms' => $job[9],
+        'area' => number_format($job[10], 2, '.', ''),
+        'substrate' => $job[11],
+        'materials_cost' => number_format($job[12], 2, '.', ''),
+        'kilometers' => number_format($job[13], 2, '.', ''),
+        'billing_hours' => number_format($job[14], 2, '.', ''),
+        'billing_rate' => number_format($job[15], 2, '.', ''),
+        'vat' => number_format($job[16], 2, '.', ''),
+        'cost_per_km' => number_format($job[17], 2, '.', ''),
+        'notes' => $job[18],
+        'assigned_workers' => $job[19],
+        'paints' => $job[20],
+        'start_date' => $job[21],
+        'end_date' => $job[22] !== 'NULL' ? $job[22] : null,
+        'status' => $job[23],
+        'total_cost' => number_format($job[24], 2, '.', ''),
+        'is_paid' => $job[25],
+        'coordinates' => $job[26],
+        'created_at' => date('Y-m-d H:i:s'),
+        'updated_at' => date('Y-m-d H:i:s')
+    ];
+}
+
+// CALENDAR EVENTS
+$jsonData['tables']['calendar_events'] = [
+    'count' => count($events),
+    'data' => []
+];
+foreach ($events as $index => $event) {
+    $jsonData['tables']['calendar_events']['data'][] = [
+        'id' => $index + 1,
+        'title' => $event[0],
+        'start_date' => $event[1],
+        'end_date' => $event[2],
+        'start_time' => $event[3],
+        'end_time' => $event[4],
+        'all_day' => $event[5],
+        'client_id' => $event[6],
+        'job_id' => $event[7],
+        'address' => $event[8],
+        'description' => $event[9],
+        'status' => $event[10],
+        'color' => $event[11],
+        'reminder_sent' => $event[12],
+        'created_at' => date('Y-m-d H:i:s'),
+        'updated_at' => date('Y-m-d H:i:s')
+    ];
+}
+
+// TEMPLATES
+$jsonData['tables']['templates'] = [
+    'count' => count($templates),
+    'data' => []
+];
+foreach ($templates as $index => $template) {
+    $jsonData['tables']['templates']['data'][] = [
+        'id' => $index + 1,
+        'name' => $template[0],
+        'category' => $template[1],
+        'description' => $template[2],
+        'estimated_duration' => number_format($template[3], 2, '.', ''),
+        'materials' => $template[4],
+        'tasks' => $template[5],
+        'created_at' => date('Y-m-d H:i:s'),
+        'updated_at' => date('Y-m-d H:i:s')
+    ];
+}
+
+// OFFERS
+$jsonData['tables']['offers'] = [
+    'count' => count($offers),
+    'data' => []
+];
+foreach ($offers as $index => $offer) {
+    $jsonData['tables']['offers']['data'][] = [
+        'id' => $index + 1,
+        'client_id' => $offer[0],
+        'offer_number' => $offer[1],
+        'date' => $offer[2],
+        'valid_until' => $offer[3],
+        'items' => $offer[4],
+        'subtotal' => number_format($offer[5], 2, '.', ''),
+        'tax' => number_format($offer[6], 2, '.', ''),
+        'discount' => number_format($offer[7], 2, '.', ''),
+        'total' => number_format($offer[8], 2, '.', ''),
+        'status' => $offer[9],
+        'notes' => $offer[10],
+        'created_at' => date('Y-m-d H:i:s'),
+        'updated_at' => date('Y-m-d H:i:s')
+    ];
+}
+
+// SETTINGS
+$jsonData['tables']['settings'] = [
+    'count' => count($settings),
+    'data' => []
+];
+foreach ($settings as $index => $setting) {
+    $jsonData['tables']['settings']['data'][] = [
+        'id' => $index + 1,
+        'setting_key' => $setting[0],
+        'setting_value' => $setting[1],
+        'description' => $setting[2],
+        'created_at' => date('Y-m-d H:i:s'),
+        'updated_at' => date('Y-m-d H:i:s')
+    ];
+}
+
+// Empty tables
+$jsonData['tables']['job_workers'] = ['count' => 0, 'data' => []];
+$jsonData['tables']['job_materials'] = ['count' => 0, 'data' => []];
+$jsonData['tables']['timesheets'] = ['count' => 0, 'data' => []];
+$jsonData['tables']['invoices'] = ['count' => 0, 'data' => []];
+
+// Save JSON file
+$jsonFile = __DIR__ . '/backup_' . date('Y-m-d') . '.json';
+$jsonContent = json_encode($jsonData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+file_put_contents($jsonFile, $jsonContent, LOCK_EX);
+
+echo "✅ Δημιουργήθηκε JSON: backup_" . date('Y-m-d') . ".json\n";
+echo "  • Clients με συντεταγμένες: " . count($jsonData['tables']['clients']['data']) . "\n";
+echo "  • Calendar Events: " . count($jsonData['tables']['calendar_events']['data']) . "\n";
 ?>
+

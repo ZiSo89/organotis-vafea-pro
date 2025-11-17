@@ -796,7 +796,7 @@ window.JobsView = {
       status: jobStatus,
       rooms: parseInt(document.getElementById('jobRooms').value) || null,
       area: parseFloat(document.getElementById('jobArea').value) || null,
-      nextVisit: Utils.greekToDate(jobNextVisit),
+      nextVisit: Utils.greekToDate(document.getElementById('jobNextVisit').value),
       materialsCost: parseFloat(document.getElementById('jobMaterialsCost').value) || 0,
       kilometers: parseFloat(document.getElementById('jobKilometers').value) || 0,
       billingHours: billingHours,
