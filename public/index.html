@@ -29,9 +29,9 @@
   <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
   <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
   
-  <!-- Preload critical CSS -->
-  <link rel="preload" href="src/css/variables.css" as="style">
-  <link rel="preload" href="src/css/base.css" as="style">
+  <!-- Critical CSS - Load immediately -->
+  <link rel="stylesheet" href="src/css/variables.css">
+  <link rel="stylesheet" href="src/css/base.css">
   
   <!-- Favicon & App Icons -->
   <link rel="icon" type="image/x-icon" href="/public/assets/icons/favicon.ico">
@@ -114,34 +114,35 @@
   
   <!-- Leaflet Maps (Fallback) - Loaded conditionally via JavaScript -->
   
-  <!-- Nominatim Geocoding (OpenStreetMap) - No API key needed -->
+  <!-- Nominatim Geocoding via Backend PHP Proxy (avoids CORS) -->
   <script>
-    // Nominatim Geocoding Helper
+    // Nominatim Geocoding Helper - Uses backend PHP proxy
     const Geocoding = {
       async getCoordinates(address, city = 'Αλεξανδρούπολη', country = 'Ελλάδα') {
         try {
           const query = `${address}, ${city}, ${country}`;
-          const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`;
+          // Use backend PHP proxy to avoid CORS issues
+          const url = `/api/geocode.php?address=${encodeURIComponent(query)}`;
           
-          const response = await fetch(url, {
-            headers: {
-              'User-Agent': 'Painter-Organizer-App/1.0'
-            }
-          });
+          const response = await fetch(url);
           
-          if (!response.ok) throw new Error('Geocoding failed');
+          if (!response.ok) {
+            console.warn('Geocoding API failed:', response.status);
+            return null;
+          }
           
-          const data = await response.json();
+          const result = await response.json();
           
-          if (data && data.length > 0) {
+          if (result.success && result.data && result.data.length > 0) {
             return {
-              lat: parseFloat(data[0].lat),
-              lng: parseFloat(data[0].lon)
+              lat: parseFloat(result.data[0].lat),
+              lng: parseFloat(result.data[0].lon)
             };
           }
           
           return null;
         } catch (error) {
+          console.error('Geocoding error:', error);
           return null;
         }
       }

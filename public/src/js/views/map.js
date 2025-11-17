@@ -544,10 +544,16 @@ window.MapView = {
           <p style="margin: 0 0 4px 0; font-size: 12px; color: #666;"><strong>📅 Επίσκεψη:</strong> ${Utils.formatDate(job.nextVisit)}</p>
           <p style="margin: 0 0 4px 0; font-size: 12px; color: #666;"><strong>📊 Κατάσταση:</strong> ${job.status}</p>
           <p style="margin: 0 0 10px 0; font-size: 11px; color: #888;">📍 ${address}</p>
-          <button onclick="window.open('${mapsUrl}', '_blank')" 
-                  style="width: 100%; padding: 8px 12px; background: #4285F4; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 500;">
-            <i class="fas fa-route"></i> Οδηγίες
-          </button>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button onclick="openJobFromMap('${job.id}')" 
+                    style="flex: 1; min-width: 90px; padding: 8px 12px; background: var(--color-primary); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 500;">
+              <i class="fas fa-briefcase"></i> Προβολή
+            </button>
+            <button onclick="window.open('${mapsUrl}', '_blank')" 
+                    style="flex: 1; min-width: 90px; padding: 8px 12px; background: #4285F4; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 500;">
+              <i class="fas fa-route"></i> Οδηγίες
+            </button>
+          </div>
         </div>
       ` : `
         <div style="padding: 12px; min-width: 200px; background: white; position: relative;">
@@ -555,10 +561,16 @@ window.MapView = {
           <p style="margin: 0 0 4px 0; font-size: 12px; color: #666;"><strong>📞</strong> ${client.phone ? `<a href="tel:${client.phone}" style="color: #4285F4; text-decoration: none;">${client.phone}</a>` : '-'}</p>
           <p style="margin: 0 0 4px 0; font-size: 12px; color: #666;"><strong>📧</strong> ${client.email ? `<a href="mailto:${client.email}" style="color: #4285F4; text-decoration: none;">${client.email}</a>` : '-'}</p>
           <p style="margin: 0 0 10px 0; font-size: 11px; color: #888;">📍 ${address}</p>
-          <button onclick="window.open('${mapsUrl}', '_blank')" 
-                  style="width: 100%; padding: 8px 12px; background: #4285F4; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 500;">
-            <i class="fas fa-route"></i> Οδηγίες
-          </button>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button onclick="openClientFromMap('${client.id}')" 
+                    style="flex: 1; min-width: 90px; padding: 8px 12px; background: var(--color-primary); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 500;">
+              <i class="fas fa-eye"></i> Προβολή
+            </button>
+            <button onclick="window.open('${mapsUrl}', '_blank')" 
+                    style="flex: 1; min-width: 90px; padding: 8px 12px; background: #4285F4; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 500;">
+              <i class="fas fa-route"></i> Οδηγίες
+            </button>
+          </div>
         </div>
       `;
       
@@ -620,6 +632,10 @@ window.MapView = {
           <p style="margin: 0 0 6px 0;"><strong>📊 Κατάσταση:</strong> ${job.status}</p>
           <p style="margin: 0 0 12px 0;"><strong>📍 Διεύθυνση:</strong><br>${address}</p>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button onclick="openJobFromMap('${job.id}')" 
+                    style="flex: 1; min-width: 100px; padding: 8px 12px; background: var(--color-primary); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;">
+              <i class="fas fa-briefcase"></i> Προβολή
+            </button>
             <button onclick="window.open('${mapsUrl}', '_blank')" 
                     style="flex: 1; min-width: 100px; padding: 8px 12px; background: #4285F4; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;">
               <i class="fas fa-route"></i> Οδηγίες
@@ -637,6 +653,10 @@ window.MapView = {
           <p style="margin: 0 0 6px 0;"><strong>📧 Email:</strong> ${client.email ? `<a href="mailto:${client.email}" style="color: #4285F4; text-decoration: none;">${client.email}</a>` : '-'}</p>
           <p style="margin: 0 0 12px 0;"><strong>📍 Διεύθυνση:</strong><br>${address}</p>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button onclick="openClientFromMap('${client.id}')" 
+                    style="flex: 1; min-width: 100px; padding: 8px 12px; background: var(--color-primary); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;">
+              <i class="fas fa-eye"></i> Προβολή
+            </button>
             <button onclick="window.open('${mapsUrl}', '_blank')" 
                     style="flex: 1; min-width: 100px; padding: 8px 12px; background: #4285F4; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;">
               <i class="fas fa-route"></i> Οδηγίες
@@ -791,12 +811,6 @@ window.MapView = {
   },
 
   async geocodeAddress(address) {
-    // Disable geocoding in Electron - use only stored coordinates
-    if (this.isElectron) {
-      console.log(`⚠️ Geocoding disabled in Electron mode for: ${address}`);
-      return 'ZERO_RESULTS';
-    }
-    
     try {
       const greeklishAddr = this.greeklishify(address);
       
@@ -818,11 +832,11 @@ window.MapView = {
         const searchAddress = uniquePatterns[i];
         if (!searchAddress || searchAddress.length < 5) continue; // Skip invalid patterns
         
-        // Use backend proxy to avoid CORS issues with Nominatim
+        // Use backend PHP proxy to avoid CORS issues
         const url = `/api/geocode.php?address=${encodeURIComponent(searchAddress)}`;
         
         if (i === 0) {
-          console.log(`📡 Geocoding: ${address}`);
+          console.log(`📡 Geocoding via backend: ${address}`);
         } else {
           console.log(`🔄 Attempt ${i + 1}/${uniquePatterns.length}: ${searchAddress}`);
         }
@@ -1034,5 +1048,13 @@ window.openClientFromMap = function(clientId) {
     window.ClientsView.viewClient(clientId);
   } else {
     console.error('❌ ClientsView.viewClient is not available');
+  }
+};
+
+window.openJobFromMap = function(jobId) {
+  if (window.JobsView && typeof window.JobsView.viewJob === 'function') {
+    window.JobsView.viewJob(jobId);
+  } else {
+    console.error('❌ JobsView.viewJob is not available');
   }
 };

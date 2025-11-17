@@ -10,7 +10,7 @@ window.Geocoding = {
   
   /**
    * Get coordinates for an address
-   * Uses Photon API (free, fast, supports Greek) with Nominatim fallback
+   * Uses backend PHP proxy to avoid CORS issues with OpenStreetMap Nominatim
    */
   async getCoordinates(address, city, postalCode = '') {
     // Build full address
@@ -23,25 +23,31 @@ window.Geocoding = {
       return this.cache[cacheKey];
     }
     
-    console.log('🔍 Geocoding:', fullAddress);
+    console.log('🔍 Geocoding via backend:', fullAddress);
     
     try {
-      // Try Photon API first (better for Greek addresses, no rate limit)
-      const coords = await this.geocodeWithPhoton(fullAddress);
+      // Use backend PHP proxy (avoids CORS issues)
+      const url = `/api/geocode.php?address=${encodeURIComponent(fullAddress)}`;
       
-      if (coords) {
-        // Cache for this session only
-        this.cache[cacheKey] = coords;
-        return coords;
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        console.warn('⚠️ Geocoding API failed:', response.status);
+        return null;
       }
       
-      // Fallback to Nominatim
-      const coords2 = await this.geocodeWithNominatim(fullAddress);
+      const result = await response.json();
       
-      if (coords2) {
+      if (result.success && result.data && result.data.length > 0) {
+        const coords = {
+          lat: parseFloat(result.data[0].lat),
+          lng: parseFloat(result.data[0].lon)
+        };
+        
         // Cache for this session only
-        this.cache[cacheKey] = coords2;
-        return coords2;
+        this.cache[cacheKey] = coords;
+        console.log('✅ Found coordinates:', coords);
+        return coords;
       }
       
       console.warn('⚠️ No coordinates found for:', fullAddress);

@@ -188,11 +188,11 @@ class ClientsViewNew extends BaseView {
           client.coordinates = coords;
           Toast.success('✅ Βρέθηκαν συντεταγμένες!');
         } else {
-          client.coordinates = Utils.generateRandomCoordinates();
-          Toast.warning('⚠️ Χρήση τυχαίων συντεταγμένων');
+          client.coordinates = null;
+          Toast.warning('⚠️ Δεν βρέθηκαν συντεταγμένες - μπορείς να τις ορίσεις στον Χάρτη');
         }
       } else {
-        client.coordinates = Utils.generateRandomCoordinates();
+        client.coordinates = null;
       }
     } else {
       const existing = this.getData('clients', this.editingClientId);

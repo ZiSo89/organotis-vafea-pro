@@ -419,7 +419,7 @@ window.DashboardView = {
         return visitDate >= today && visitDate <= nextWeek;
       })
       .sort((a, b) => new Date(a.nextVisit) - new Date(b.nextVisit))
-      .slice(0, 10); // Show up to 10 upcoming visits
+      .slice(0, 5); // Show up to 5 upcoming visits
 
     if (upcomingJobs.length === 0) {
       return '<p class="text-muted text-center">Δεν υπάρχουν προγραμματισμένες επισκέψεις τις επόμενες 7 ημέρες</p>';
@@ -946,17 +946,6 @@ window.DashboardView = {
     nextWeekDate.setDate(nextWeekDate.getDate() + 7);
     const nextWeek = nextWeekDate.toISOString().split('T')[0]; // YYYY-MM-DD
 
-    // Load geocode cache
-    let geocodeCache = {};
-    try {
-      const cached = localStorage.getItem('geocode_cache');
-      if (cached) {
-        geocodeCache = JSON.parse(cached);
-      }
-    } catch (e) {
-      console.error('Error loading geocode cache:', e);
-    }
-
     // Create a map of clientId -> job info
     const clientJobMap = new Map();
     
@@ -977,11 +966,10 @@ window.DashboardView = {
       const client = clients.find(c => c.id === clientId);
       if (!client || !client.address || !client.city) continue;
 
-      // Get coordinates from cache
-      const address = `${client.address}, ${client.city}, ${client.postal || ''} Greece`;
-      let coordinates = geocodeCache[address];
+      // Get coordinates from database
+      const coordinates = client.coordinates;
       
-      if (!coordinates || coordinates === 'ZERO_RESULTS') {
+      if (!coordinates || !coordinates.lat || !coordinates.lng) {
         continue;
       }
 
@@ -1111,17 +1099,6 @@ window.DashboardView = {
       nextWeekDate.setDate(nextWeekDate.getDate() + 7);
       const nextWeek = nextWeekDate.toISOString().split('T')[0];
 
-      // Load geocode cache
-      let geocodeCache = {};
-      try {
-        const cached = localStorage.getItem('geocode_cache');
-        if (cached) {
-          geocodeCache = JSON.parse(cached);
-        }
-      } catch (e) {
-        console.error('Error loading geocode cache:', e);
-      }
-
       // Create client-job map
       const clientJobMap = new Map();
       jobs.forEach(job => {
@@ -1142,10 +1119,10 @@ window.DashboardView = {
         const client = clients.find(c => c.id === clientId);
         if (!client || !client.address || !client.city) continue;
 
-        const address = `${client.address}, ${client.city}, ${client.postal || ''} Greece`;
-        let coordinates = geocodeCache[address];
+        // Get coordinates from database
+        const coordinates = client.coordinates;
         
-        if (!coordinates || coordinates === 'ZERO_RESULTS') continue;
+        if (!coordinates || !coordinates.lat || !coordinates.lng) continue;
 
         // Determine marker color based on next visit
         let color, label, priority;

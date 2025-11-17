@@ -244,12 +244,13 @@ window.ClientsView = {
           client.coordinates = coords;
           Toast.success('✅ Βρέθηκαν συντεταγμένες!');
         } else {
-          // Fallback to random coordinates
-          client.coordinates = Utils.generateRandomCoordinates();
-          Toast.warning('⚠️ Χρήση τυχαίων συντεταγμένων - διόρθωσε στον Χάρτη');
+          // No coordinates found - leave empty
+          client.coordinates = null;
+          Toast.warning('⚠️ Δεν βρέθηκαν συντεταγμένες - μπορείς να τις ορίσεις στον Χάρτη');
         }
       } else {
-        client.coordinates = Utils.generateRandomCoordinates();
+        // No address provided
+        client.coordinates = null;
       }
     } else {
       // Keep existing coordinates
