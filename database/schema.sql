@@ -168,6 +168,7 @@ CREATE TABLE `timesheets` (
 CREATE TABLE `calendar_events` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `title` varchar(255) NOT NULL,
+  `original_title` varchar(255) DEFAULT NULL,
   `start_date` datetime NOT NULL,
   `end_date` datetime DEFAULT NULL,
   `start_time` time DEFAULT NULL,

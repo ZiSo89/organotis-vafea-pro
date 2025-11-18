@@ -789,14 +789,18 @@ window.JobsView = {
     const billingHours = parseFloat(document.getElementById('jobBillingHours').value) || 0;
     const billingRate = parseFloat(document.getElementById('jobBillingRate').value) || 50;
 
+    // Get and log next visit field value
+    const nextVisitRaw = document.getElementById('jobNextVisit').value;
+    const nextVisitConverted = Utils.greekToDate(nextVisitRaw);
+    console.log('[Jobs] Next visit field:', { raw: nextVisitRaw, converted: nextVisitConverted });
+    
     const jobData = {
-      // date will be auto-set by backend to current date
       clientId: Number(jobClient), // Convert to number
       type: document.getElementById('jobType').value || null,
       status: jobStatus,
       rooms: parseInt(document.getElementById('jobRooms').value) || null,
       area: parseFloat(document.getElementById('jobArea').value) || null,
-      nextVisit: Utils.greekToDate(document.getElementById('jobNextVisit').value),
+      nextVisit: nextVisitConverted,
       materialsCost: parseFloat(document.getElementById('jobMaterialsCost').value) || 0,
       kilometers: parseFloat(document.getElementById('jobKilometers').value) || 0,
       billingHours: billingHours,
@@ -807,6 +811,13 @@ window.JobsView = {
       assignedWorkers: JSON.stringify(this.assignedWorkers),
       paints: JSON.stringify(this.assignedPaints)
     };
+    
+    // Add date only for new jobs, not for edits
+    if (!this.currentEdit) {
+      jobData.date = new Date().toISOString().split('T')[0];
+    }
+    
+    console.log('[Jobs] Job data to save:', jobData);
 
     // If editing, add the ID
     if (this.currentEdit) {

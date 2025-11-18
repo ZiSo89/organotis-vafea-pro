@@ -97,6 +97,7 @@ window.CalendarView = {
     
     this.calendar = new FullCalendar.Calendar(calendarEl, {
       locale: 'el',
+      timeZone: 'local', // Use local timezone to prevent date shifts
       initialView: 'dayGridMonth',
       headerToolbar: {
         left: 'prev,next today',
@@ -133,12 +134,27 @@ window.CalendarView = {
       // Event sources
       events: async (info, successCallback, failureCallback) => {
         try {
+          console.log('🔄 FullCalendar requesting events for range:', info.start, 'to', info.end);
           const events = await this.loadEvents(info.start, info.end);
+          console.log('✅ FullCalendar received', events.length, 'events');
+          if (events.length > 0) {
+            console.log('📅 First event to render:', events[0]);
+            console.log('🏷️ Event title that will be displayed:', events[0].title);
+          }
           successCallback(events);
         } catch (error) {
           console.error('Error loading events:', error);
           failureCallback(error);
         }
+      },
+      
+      // Event rendering - log what FullCalendar is about to display
+      eventDidMount: (info) => {
+        console.log('🎨 FullCalendar rendering event:', {
+          id: info.event.id,
+          title: info.event.title,
+          'element.textContent': info.el.textContent
+        });
       },
       
       // Event click - Only on deliberate click
@@ -201,21 +217,32 @@ window.CalendarView = {
         const sql = `
           SELECT 
             ce.*,
-            c.name as client_name,
-            c.phone as client_phone,
-            j.title as original_title
+            c.name as clientName,
+            c.phone as clientPhone
           FROM calendar_events ce
           LEFT JOIN clients c ON ce.client_id = c.id
-          LEFT JOIN jobs j ON ce.job_id = j.id
           WHERE ce.start_date >= ? AND ce.start_date <= ?
+            AND ce._sync_status != 'deleted'
           ORDER BY ce.start_date ASC
         `;
         
         const response = await window.electronAPI.db.query(sql, [startStr, endStr]);
         const result = response.success ? response.data : [];
         
+        console.log('📅 loadEvents SQL result:', result.length, 'events');
+        if (result.length > 0) {
+          console.log('📅 First DB event:', result[0]);
+          console.log('📊 DB event fields:', Object.keys(result[0]));
+        }
+        
         // Transform database results to FullCalendar format
         events = result.map(event => this.transformEventFromDB(event));
+        
+        console.log('📅 After transformation:', events.length, 'events');
+        if (events.length > 0) {
+          console.log('📅 First transformed event:', events[0]);
+          console.log('📊 Transformed event has title:', events[0].title);
+        }
         
       } else {
         // Web version - use API
@@ -263,46 +290,97 @@ window.CalendarView = {
     console.log('🔄 Transforming DB event:', dbEvent);
     
     // Check what field names exist
-    let startDate = dbEvent.start_date || dbEvent.startDate || dbEvent.date;
-    let endDate = dbEvent.end_date || dbEvent.endDate;
-    const startTime = dbEvent.start_time || dbEvent.startTime;
-    const endTime = dbEvent.end_time || dbEvent.endTime;
-    const allDay = dbEvent.all_day !== undefined ? dbEvent.all_day : dbEvent.allDay;
+    let startDate = dbEvent.startDate || dbEvent.start_date || dbEvent.date;
+    let endDate = dbEvent.endDate || dbEvent.end_date;
+    const startTime = dbEvent.startTime || dbEvent.start_time;
+    const endTime = dbEvent.endTime || dbEvent.end_time;
+    const allDay = dbEvent.allDay !== undefined ? dbEvent.allDay : dbEvent.all_day;
     
     // Clean up date format - remove time part if it's ' 00:00:00'
     if (startDate && typeof startDate === 'string') {
-      startDate = startDate.replace(' 00:00:00', '');
+      startDate = startDate.replace(' 00:00:00', '').split('T')[0];
     }
     if (endDate && typeof endDate === 'string') {
-      endDate = endDate.replace(' 00:00:00', '');
+      endDate = endDate.replace(' 00:00:00', '').split('T')[0];
     }
     
     console.log('🔍 Date fields:', { startDate, endDate, startTime, endTime, allDay });
     
-    const title = dbEvent.client_name 
-      ? `${dbEvent.client_name} - ${dbEvent.title}` 
-      : dbEvent.title;
+    // Extract client name - camelCase from electronAPI.db.query()
+    const clientName = dbEvent.clientName || '';
+    const clientPhone = dbEvent.clientPhone || '';
+    
+    // Use stored title as the base (clean job title or user input)
+    const baseTitle = dbEvent.title || 'Επίσκεψη';
+    
+    // Build display title: "Title - ClientName"
+    // ALWAYS build on-the-fly, never store combined title
+    const displayTitle = clientName ? `${baseTitle} - ${clientName}` : baseTitle;
+    
+    console.log('🏷️ Title info:', { 
+      storedTitle: dbEvent.title,
+      clientName: clientName,
+      displayTitle: displayTitle
+    });
+    
+    console.log('📊 RETURN EVENT:', {
+      id: dbEvent.id,
+      'event.title (FullCalendar display)': displayTitle,
+      'extendedProps.originalTitle (for editing)': baseTitle,
+      'extendedProps.clientName': clientName
+    });
+    
+    // For all-day events, FullCalendar needs dates in local timezone to prevent shifts
+    // Create Date objects in local timezone by parsing YYYY-MM-DD as local date
+    let eventStart, eventEnd;
+    
+    if (allDay) {
+      // For all-day events: parse as local date to prevent UTC conversion
+      // Use date constructor with year, month, day to ensure local timezone
+      const [year, month, day] = startDate.split('-').map(Number);
+      eventStart = new Date(year, month - 1, day); // month is 0-indexed
+      
+      if (endDate) {
+        const [endYear, endMonth, endDay] = endDate.split('-').map(Number);
+        // FullCalendar uses EXCLUSIVE end dates for all-day events
+        // So we need to add 1 day to include the end date in the display
+        const endDateObj = new Date(endYear, endMonth - 1, endDay);
+        endDateObj.setDate(endDateObj.getDate() + 1); // Add 1 day to make it inclusive
+        eventEnd = endDateObj;
+      } else {
+        eventEnd = null;
+      }
+    } else {
+      // For timed events: include time component
+      eventStart = `${startDate}T${startTime || '00:00:00'}`;
+      eventEnd = endDate ? `${endDate}T${endTime || '23:59:59'}` : null;
+    }
     
     return {
       id: dbEvent.id,
-      title: title,
-      start: allDay ? startDate : `${startDate}T${startTime || '00:00:00'}`,
-      end: endDate 
-        ? (allDay ? endDate : `${endDate}T${endTime || '23:59:59'}`)
-        : null,
+      title: displayTitle,
+      start: eventStart,
+      end: eventEnd,
       allDay: Boolean(allDay),
       backgroundColor: this.getStatusColor(dbEvent.status),
       borderColor: this.getStatusColor(dbEvent.status),
       extendedProps: {
-        original_title: dbEvent.original_title || dbEvent.title,
-        client_id: dbEvent.client_id,
-        client_name: dbEvent.client_name,
-        client_phone: dbEvent.client_phone,
-        job_id: dbEvent.job_id,
+        originalTitle: baseTitle,
+        original_title: baseTitle,
+        clientId: dbEvent.clientId,
+        client_id: dbEvent.clientId,
+        clientName: clientName,
+        client_name: clientName,
+        clientPhone: clientPhone,
+        client_phone: clientPhone,
+        jobId: dbEvent.jobId,
+        job_id: dbEvent.jobId,
         address: dbEvent.address,
         description: dbEvent.description,
         status: dbEvent.status,
+        startTime: startTime,
         start_time: startTime,
+        endTime: endTime,
         end_time: endTime
       }
     };
@@ -346,14 +424,13 @@ window.CalendarView = {
         const sql = `
           SELECT 
             ce.*,
-            c.name as client_name,
-            c.phone as client_phone,
-            j.title as original_title
+            c.name as clientName,
+            c.phone as clientPhone
           FROM calendar_events ce
           LEFT JOIN clients c ON ce.client_id = c.id
-          LEFT JOIN jobs j ON ce.job_id = j.id
           WHERE ce.start_date >= ? AND ce.start_date <= ?
           AND ce.start_date IS NOT NULL
+          AND ce._sync_status != 'deleted'
           ORDER BY ce.start_date ASC
           LIMIT 10
         `;  
@@ -362,6 +439,15 @@ window.CalendarView = {
         console.log('📅 SQLite response:', response);
         const result = response.success ? response.data : [];
         console.log('📅 Calendar events from DB:', result);
+        
+        // Log first event to see ALL field names
+        if (result.length > 0) {
+          console.log('📅 First event raw data:', result[0]);
+          console.log('📅 All field names:', Object.keys(result[0]));
+          console.log('📅 clientId:', result[0].clientId);
+          console.log('📅 jobId:', result[0].jobId);
+          console.log('📅 clientName from JOIN:', result[0].clientName);
+        }
         
         // Transform database results
         events = result.map(event => this.transformEventFromDB(event));
@@ -436,15 +522,23 @@ window.CalendarView = {
       const status = props.status || visit.status || 'pending';
       const normalizedStatus = this.normalizeStatus(status);
       
-      // Extract client info
-      const clientName = props.client_name || visit.client_name || '';
-      const clientPhone = props.client_phone || visit.client_phone || '';
+      // Extract client info - use camelCase (from extendedProps)
+      const clientName = props.clientName || props.client_name || '';
+      const clientPhone = props.clientPhone || props.client_phone || '';
       const address = props.address || visit.address || '';
       
-      // Use original_title to avoid duplicate client name in title
-      const displayTitle = props.original_title || visit.title;
+      // Use original_title from extendedProps (clean title without client name)
+      // Build displayTitle from original_title + clientName, or use visit.title if original_title doesn't exist
+      const originalTitle = props.original_title || props.originalTitle;
+      const displayTitle = originalTitle 
+        ? (clientName ? `${originalTitle} - ${clientName}` : originalTitle)
+        : visit.title;
       
-      console.log('📅 Rendering visit:', { title: displayTitle, clientName, hasOriginalTitle: !!props.original_title });
+      console.log('📅 Rendering visit:', { 
+        originalTitle,
+        clientName, 
+        displayTitle
+      });
       
       return `
         <div class="visit-item" data-event-id="${visit.id}" style="cursor: pointer;">
@@ -548,15 +642,49 @@ window.CalendarView = {
      ======================================== */
   showEventDetailsFromData(visitData) {
     
+    console.log('📅 showEventDetailsFromData called with:', visitData);
+    
     const props = visitData.extendedProps || {};
+    
+    console.log('📦 extendedProps:', props);
     
     // Get status from multiple possible sources
     const status = props.status || visitData.status || 'pending';
     const normalizedStatus = this.normalizeStatus(status);
     
-    // Use original_title if available (without client name), otherwise use visitData.title
-    const displayTitle = props.original_title || visitData.title;
+    // Use originalTitle if available (without client name), otherwise use visitData.title
+    const displayTitle = props.original_title || props.originalTitle || visitData.title;
     
+    console.log('🏷️ Modal title will be:', displayTitle);
+    console.log('📊 Title sources:', {
+      'props.original_title': props.original_title,
+      'props.originalTitle': props.originalTitle,
+      'visitData.title': visitData.title,
+      'FINAL displayTitle': displayTitle
+    });
+    
+    // For all-day events, the API adds +1 day to end date for FullCalendar
+    // We need to subtract 1 day to show the actual end date in the modal
+    let displayEndDate = visitData.end;
+    if (visitData.end && visitData.allDay) {
+      // Handle both Date objects and strings
+      let endDate;
+      if (visitData.end instanceof Date) {
+        endDate = new Date(visitData.end);
+        endDate.setDate(endDate.getDate() - 1);
+      } else {
+        // Parse string as local date to avoid UTC conversion
+        const endDateStr = visitData.end.split('T')[0];
+        const [year, month, day] = endDateStr.split('-').map(Number);
+        endDate = new Date(year, month - 1, day);
+        endDate.setDate(endDate.getDate() - 1);
+      }
+      // Always format to string for display
+      const newYear = endDate.getFullYear();
+      const newMonth = String(endDate.getMonth() + 1).padStart(2, '0');
+      const newDay = String(endDate.getDate()).padStart(2, '0');
+      displayEndDate = `${newYear}-${newMonth}-${newDay}`;
+    }
     
     Modal.show({
       title: displayTitle,
@@ -566,10 +694,10 @@ window.CalendarView = {
             <strong><i class="fas fa-calendar"></i> Ημερομηνία:</strong>
             <span>${this.formatDateTime(visitData.start)}</span>
           </div>
-          ${visitData.end ? `
+          ${displayEndDate ? `
             <div class="detail-row">
               <strong><i class="fas fa-calendar-check"></i> Λήξη:</strong>
-              <span>${this.formatDateTime(visitData.end)}</span>
+              <span>${this.formatDateTime(displayEndDate)}</span>
             </div>
           ` : ''}
           ${!visitData.allDay && (props.start_time || props.end_time) ? `
@@ -693,9 +821,12 @@ window.CalendarView = {
      ======================================== */
   async deleteEventById(eventId) {
     try {
+      console.log('🗑️ Deleting event ID:', eventId);
+      
       // In Electron, use SQLite database
       if (typeof window.electronAPI !== 'undefined') {
-        await window.electronAPI.db.delete('calendar_events', eventId);
+        const result = await window.electronAPI.db.delete('calendar_events', eventId);
+        console.log('🗑️ Delete result:', result);
         
       } else {
         // Web version - use API
@@ -709,17 +840,24 @@ window.CalendarView = {
       
       Toast.show('Η επίσκεψη διαγράφηκε (η εργασία παραμένει)', 'success');
       
-      // Remove from calendar if exists
+      // Remove from calendar UI immediately
       const event = this.calendar.getEventById(eventId);
       if (event) {
         event.remove();
       }
       
-      // Reload upcoming visits
-      await this.loadUpcomingVisits();
+      // Reload upcoming visits immediately (DB already updated)
+      this.loadUpcomingVisits().catch(err => {
+        console.error('Error reloading upcoming visits:', err);
+      });
+      
+      // Refetch all calendar events to ensure consistency
+      if (this.calendar) {
+        this.calendar.refetchEvents();
+      }
       
     } catch (error) {
-      console.error('Error deleting event:', error);
+      console.error('❌ Error deleting event:', error);
       Toast.show('Σφάλμα διαγραφής', 'error');
     }
   },
@@ -729,15 +867,56 @@ window.CalendarView = {
      ======================================== */
   showEventDetails(event) {
     
+    console.log('📅 showEventDetails called with:', event);
+    
     const props = event.extendedProps || {};
+    
+    console.log('📦 extendedProps:', props);
     
     // Get status from multiple possible sources
     const status = props.status || event.status || 'pending';
     const normalizedStatus = this.normalizeStatus(status);
     
-    // Use original_title if available (without client name), otherwise use event.title
-    const displayTitle = props.original_title || event.title;
+    // Use originalTitle if available (without client name), otherwise use event.title
+    const displayTitle = props.originalTitle || props.original_title || event.title;
+    const clientName = props.clientName || props.client_name || '';
+    const clientPhone = props.clientPhone || props.client_phone || '';
     
+    console.log('🏷️ Modal title will be:', displayTitle);
+    console.log('👤 Client info:', { clientName, clientPhone });
+    console.log('📊 Title sources:', {
+      'props.originalTitle': props.originalTitle,
+      'props.original_title': props.original_title,
+      'event.title': event.title,
+      'FINAL displayTitle': displayTitle
+    });
+    
+    // For all-day events, the API adds +1 day to end date for FullCalendar
+    // We need to subtract 1 day to show the actual end date in the modal
+    let displayEndDate = event.end;
+    if (event.end && event.allDay) {
+      // Handle both Date objects and strings
+      let endDate;
+      if (event.end instanceof Date) {
+        endDate = new Date(event.end);
+        endDate.setDate(endDate.getDate() - 1);
+      } else {
+        // Parse string as local date to avoid UTC conversion
+        const endDateStr = event.end.split('T')[0];
+        const [year, month, day] = endDateStr.split('-').map(Number);
+        endDate = new Date(year, month - 1, day);
+        endDate.setDate(endDate.getDate() - 1);
+      }
+      // Format back to string or keep as Date
+      if (typeof event.end === 'string') {
+        const newYear = endDate.getFullYear();
+        const newMonth = String(endDate.getMonth() + 1).padStart(2, '0');
+        const newDay = String(endDate.getDate()).padStart(2, '0');
+        displayEndDate = `${newYear}-${newMonth}-${newDay}`;
+      } else {
+        displayEndDate = endDate;
+      }
+    }
     
     Modal.show({
       title: displayTitle,
@@ -747,28 +926,28 @@ window.CalendarView = {
             <strong><i class="fas fa-calendar"></i> Ημερομηνία:</strong>
             <span>${this.formatDateTime(event.start)}</span>
           </div>
-          ${event.end ? `
+          ${displayEndDate ? `
             <div class="detail-row">
               <strong><i class="fas fa-calendar-check"></i> Λήξη:</strong>
-              <span>${this.formatDateTime(event.end)}</span>
+              <span>${this.formatDateTime(displayEndDate)}</span>
             </div>
           ` : ''}
-          ${!event.allDay && (props.start_time || props.end_time) ? `
+          ${!event.allDay && (props.startTime || props.start_time || props.endTime || props.end_time) ? `
             <div class="detail-row">
               <strong><i class="fas fa-clock"></i> Ώρα:</strong>
-              <span>${this.formatTime(props.start_time) || ''}${props.end_time ? ' - ' + this.formatTime(props.end_time) : ''}</span>
+              <span>${this.formatTime(props.startTime || props.start_time) || ''}${(props.endTime || props.end_time) ? ' - ' + this.formatTime(props.endTime || props.end_time) : ''}</span>
             </div>
           ` : ''}
-          ${props.client_name ? `
+          ${clientName ? `
             <div class="detail-row">
               <strong><i class="fas fa-user"></i> Πελάτης:</strong>
-              <span>${props.client_name}</span>
+              <span>${clientName}</span>
             </div>
           ` : ''}
-          ${props.client_phone ? `
+          ${clientPhone ? `
             <div class="detail-row">
               <strong><i class="fas fa-phone"></i> Τηλέφωνο:</strong>
-              <span><a href="tel:${props.client_phone}">${props.client_phone}</a></span>
+              <span><a href="tel:${clientPhone}">${clientPhone}</a></span>
             </div>
           ` : ''}
           ${props.address ? `
@@ -836,11 +1015,26 @@ window.CalendarView = {
     try {
       jobs = await API.getJobs();
       clients = await API.getClients();
+      
+      // Map client names to jobs for ALL platforms (Electron and Web)
+      jobs = jobs.map(job => {
+        const jobClientId = job.clientId || job.client_id;
+        const client = clients.find(c => c.id === jobClientId);
+        return {
+          ...job,
+          clientName: client ? client.name : 'Χωρίς πελάτη'
+        };
+      });
+      
+      console.log('➕ Add Modal - Jobs with clients:', jobs);
+      
     } catch (error) {
       console.error('Error loading data:', error);
     }
     
-    const today = new Date().toISOString().split('T')[0];
+    // Use local date to avoid timezone shift
+    const todayObj = new Date();
+    const today = `${todayObj.getFullYear()}-${String(todayObj.getMonth() + 1).padStart(2, '0')}-${String(todayObj.getDate()).padStart(2, '0')}`;
     // Extract only date part (YYYY-MM-DD) from datetime strings
     const defaultStart = startDate ? startDate.split('T')[0] : today;
     const defaultEnd = endDate ? endDate.split('T')[0] : defaultStart;
@@ -873,11 +1067,6 @@ window.CalendarView = {
                 data-address="${c.address || ''}"
               >${c.name}</option>`).join('')}
             </select>
-          </div>
-          
-          <div class="form-group" id="clientTextGroup" style="display: none;">
-            <label for="visitClientText">Πελάτης από Εργασία</label>
-            <input type="text" id="visitClientText" class="form-control" readonly>
           </div>
           
           <div class="form-group" id="clientTextGroup" style="display: none;">
@@ -1046,8 +1235,19 @@ window.CalendarView = {
     const allDayCheckbox = document.getElementById('visitAllDay');
     const isAllDay = allDayCheckbox ? allDayCheckbox.checked : false;
     
+    const title = document.getElementById('visitTitle').value;
+    
+    console.log('➕ Creating visit with:', {
+      title: title,
+      clientId: clientId,
+      jobId: selectedJobId,
+      'Stored in DB as title': title,
+      'Stored in DB as original_title': title
+    });
+    
     const data = {
-      title: document.getElementById('visitTitle').value,
+      title: title,
+      original_title: title,
       start_date: document.getElementById('visitStartDate').value,
       end_date: document.getElementById('visitEndDate').value || null,
       client_id: clientId || null,
@@ -1117,20 +1317,47 @@ window.CalendarView = {
   async showEditVisitModal(event) {
     const props = event.extendedProps || {};
     
-    // Handle date conversion safely
+    // Handle date conversion safely - use local timezone to avoid date shifts
     let startDate = '';
     let endDate = '';
     
-    // Convert start date
+    // Convert start date - if it's already YYYY-MM-DD string, use it directly
     if (event.start) {
-      const startObj = typeof event.start === 'string' ? new Date(event.start) : event.start;
-      startDate = (startObj && !isNaN(startObj.getTime())) ? startObj.toISOString().split('T')[0] : '';
+      if (typeof event.start === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(event.start)) {
+        startDate = event.start;
+      } else {
+        const startObj = typeof event.start === 'string' ? new Date(event.start) : event.start;
+        if (startObj && !isNaN(startObj.getTime())) {
+          // Use local date to avoid UTC conversion shift
+          const year = startObj.getFullYear();
+          const month = String(startObj.getMonth() + 1).padStart(2, '0');
+          const day = String(startObj.getDate()).padStart(2, '0');
+          startDate = `${year}-${month}-${day}`;
+        }
+      }
     }
     
-    // Convert end date
+    // Convert end date - if it's already YYYY-MM-DD string, use it directly
     if (event.end) {
-      const endObj = typeof event.end === 'string' ? new Date(event.end) : event.end;
-      endDate = (endObj && !isNaN(endObj.getTime())) ? endObj.toISOString().split('T')[0] : '';
+      if (typeof event.end === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(event.end)) {
+        endDate = event.end;
+      } else {
+        const endObj = typeof event.end === 'string' ? new Date(event.end) : event.end;
+        if (endObj && !isNaN(endObj.getTime())) {
+          // For all-day events, FullCalendar adds +1 day to end date (exclusive end)
+          // We need to subtract 1 day to show the actual end date in the form
+          const adjustedEndObj = new Date(endObj);
+          if (event.allDay) {
+            adjustedEndObj.setDate(adjustedEndObj.getDate() - 1);
+          }
+          
+          // Use local date to avoid UTC conversion shift
+          const year = adjustedEndObj.getFullYear();
+          const month = String(adjustedEndObj.getMonth() + 1).padStart(2, '0');
+          const day = String(adjustedEndObj.getDate()).padStart(2, '0');
+          endDate = `${year}-${month}-${day}`;
+        }
+      }
     }
     
     // Get jobs and clients for dropdowns
@@ -1140,16 +1367,39 @@ window.CalendarView = {
     try {
       jobs = await API.getJobs();
       clients = await API.getClients();
+      
+      // Map client names to jobs
+      jobs = jobs.map(job => {
+        const jobClientId = job.clientId || job.client_id;
+        const client = clients.find(c => c.id === jobClientId);
+        return {
+          ...job,
+          clientName: client ? client.name : 'Χωρίς πελάτη'
+        };
+      });
+      
+      console.log('📋 Edit Modal - Jobs with clients:', jobs);
+      
     } catch (error) {
       console.error('Error loading data:', error);
     }
     
-    const clientId = props.client_id || '';
-    const jobId = props.job_id || '';
+    const clientId = props.clientId || props.client_id || '';
+    const jobId = props.jobId || props.job_id || '';
+    
+    console.log('✏️ Edit Modal - Event data:', {
+      eventId: event.id,
+      clientId: clientId,
+      jobId: jobId,
+      cleanTitle: props.originalTitle || props.original_title,
+      fullTitle: event.title
+    });
     
     
-    // Use original_title (without client name) for editing
-    const originalTitle = props.original_title || event.title;
+    // Use title from extendedProps (clean title without client name)
+    // For events with jobs, this should be the job title
+    // For manual events, this is the user-entered title
+    const cleanTitle = props.originalTitle || props.original_title || event.title;
     
     // Normalize status for comparison
     const normalizedStatus = this.normalizeStatus(props.status || 'pending');
@@ -1194,7 +1444,7 @@ window.CalendarView = {
           
           <div class="form-group">
             <label for="editVisitTitle">Τίτλος *</label>
-            <input type="text" id="editVisitTitle" class="form-control" value="${originalTitle}" placeholder="π.χ. Βαφή Διαμερίσματος" required>
+            <input type="text" id="editVisitTitle" class="form-control" value="${cleanTitle}" placeholder="π.χ. Βαφή Διαμερίσματος" required>
           </div>
           
           <div class="form-group">
@@ -1362,8 +1612,20 @@ window.CalendarView = {
     
     const isAllDay = allDayElement ? allDayElement.checked : false;
     
+    const title = document.getElementById('editVisitTitle').value;
+    
+    console.log('✏️ Updating visit with:', {
+      eventId: event.id,
+      title: title,
+      clientId: clientId,
+      jobId: jobId,
+      'Stored in DB as title': title,
+      'Stored in DB as original_title': title
+    });
+    
     const eventData = {
-      title: document.getElementById('editVisitTitle').value,
+      title: title,
+      original_title: title,
       start_date: document.getElementById('editVisitStartDate').value,
       end_date: document.getElementById('editVisitEndDate').value || null,
       job_id: jobId,
@@ -1556,19 +1818,50 @@ window.CalendarView = {
       
       // In Electron, use SQLite database
       if (typeof window.electronAPI !== 'undefined') {
-        // Get all jobs from database
+        // Get all jobs and clients from database
         const jobsResponse = await window.electronAPI.db.getAll('jobs');
         const jobs = jobsResponse.success ? jobsResponse.data : [];
         
+        const clientsResponse = await window.electronAPI.db.getAll('clients');
+        const clients = clientsResponse.success ? clientsResponse.data : [];
+        
         console.log('📋 Syncing jobs to calendar:', jobs.length, 'jobs');
+        console.log('👥 Available clients:', clients.length, 'clients');
         
         let created = 0;
         let updated = 0;
         let skipped = 0;
+        let deleted = 0;
+        
+        // First, get all job IDs that have next_visit
+        const jobIdsWithVisits = jobs
+          .filter(job => job.nextVisit || job.next_visit)
+          .map(job => job.id);
+        
+        // Delete calendar events for jobs that no longer have next_visit
+        // ONLY delete events that are linked to jobs (job_id IS NOT NULL)
+        // Manual events (job_id = NULL) should never be touched by sync
+        if (jobIdsWithVisits.length > 0) {
+          const placeholders = jobIdsWithVisits.map(() => '?').join(',');
+          const deleteSQL = `
+            UPDATE calendar_events 
+            SET _sync_status = 'deleted', _sync_timestamp = ?
+            WHERE job_id IS NOT NULL 
+              AND job_id NOT IN (${placeholders})
+              AND _sync_status != 'deleted'
+          `;
+          const deleteResult = await window.electronAPI.db.query(deleteSQL, [Date.now(), ...jobIdsWithVisits]);
+          deleted = deleteResult.success && deleteResult.data?.changes ? deleteResult.data.changes : 0;
+          
+          if (deleted > 0) {
+            console.log(`🗑️ Deleted ${deleted} events for jobs without next_visit`);
+          }
+        }
         
         // For each job, create/update calendar event if it has next_visit
         for (const job of jobs) {
-          const visitDate = job.next_visit;
+          // Support both camelCase (from Electron) and snake_case (from API)
+          const visitDate = job.nextVisit || job.next_visit;
           
           // Skip if no next_visit date
           if (!visitDate) {
@@ -1576,17 +1869,27 @@ window.CalendarView = {
             continue;
           }
           
-          // Check if calendar event already exists for this job
-          const sql = `SELECT id FROM calendar_events WHERE job_id = ?`;
+          // Get client ID
+          const jobClientId = job.clientId || job.client_id;
+          
+          // Store ONLY the job title (clean, without client name)
+          // original_title also stores the same for edit purposes
+          const eventTitle = job.title || 'Εργασία';
+          
+          console.log(`📅 Job ${job.id}: clientId=${jobClientId}, storing title="${eventTitle}"`);
+          
+          // Check if calendar event already exists for this job (excluding deleted ones)
+          const sql = `SELECT id FROM calendar_events WHERE job_id = ? AND _sync_status != 'deleted'`;
           const existingResponse = await window.electronAPI.db.query(sql, [job.id]);
           const existing = existingResponse.success ? existingResponse.data : [];
           
           const eventData = {
-            title: job.title || 'Εργασία',
+            title: eventTitle,
+            original_title: eventTitle,
             start_date: visitDate,
             end_date: null,
             job_id: job.id,
-            client_id: job.client_id || null,
+            client_id: jobClientId,
             address: job.address || '',
             description: job.notes || '',
             status: job.status || 'pending',
@@ -1604,7 +1907,11 @@ window.CalendarView = {
           }
         }
         
-        let message = `Δημιουργήθηκαν ${created} και ενημερώθηκαν ${updated} επισκέψεις`;
+        let message = `Δημιουργήθηκαν ${created}, ενημερώθηκαν ${updated}`;
+        if (deleted > 0) {
+          message += `, διαγράφηκαν ${deleted}`;
+        }
+        message += ' επισκέψεις';
         if (skipped > 0) {
           message += ` (παραλείφθηκαν ${skipped})`;
         }
@@ -1620,13 +1927,16 @@ window.CalendarView = {
       if (result.success) {
         Toast.show(`✅ ${result.message}`, 'success');
         
-        // Ανανέωση του ημερολογίου
+        // Force re-render of calendar
+        console.log('🔄 Refreshing calendar after sync...');
+        
+        // Reload upcoming visits first
+        await this.loadUpcomingVisits();
+        
+        // Then refresh the calendar
         if (this.calendar) {
           this.calendar.refetchEvents();
         }
-        
-        // Ανανέωση της λίστας επόμενων επισκέψεων
-        await this.loadUpcomingVisits();
       } else {
         Toast.show('❌ Σφάλμα κατά τον συγχρονισμό', 'error');
       }

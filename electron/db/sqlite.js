@@ -136,11 +136,47 @@ class SQLiteDB {
   }
 
   /* ========================================
+     Database Migrations
+     ======================================== */
+
+  async runMigrations() {
+    console.log('🔄 Running database migrations...');
+    
+    try {
+      // Migration 1: Add original_title column to calendar_events
+      const tableInfo = this.db.prepare('PRAGMA table_info(calendar_events)').all();
+      const hasOriginalTitle = tableInfo.some(col => col.name === 'original_title');
+      
+      if (!hasOriginalTitle) {
+        console.log('📝 Migration: Adding original_title column to calendar_events');
+        this.db.prepare('ALTER TABLE calendar_events ADD COLUMN original_title TEXT').run();
+        
+        // Migrate existing data: copy title to original_title for events with job_id
+        const updateSql = `
+          UPDATE calendar_events 
+          SET original_title = title 
+          WHERE job_id IS NOT NULL AND original_title IS NULL
+        `;
+        const result = this.db.prepare(updateSql).run();
+        console.log(`✅ Migrated ${result.changes} existing job-linked events`);
+      } else {
+        console.log('✅ Migration: original_title column already exists');
+      }
+      
+      console.log('✅ All migrations completed');
+    } catch (error) {
+      console.error('❌ Migration error:', error);
+      throw error;
+    }
+  }
+
+  /* ========================================
      Initialize Database Schema
      ======================================== */
 
   async init() {
-
+    // Run migrations first
+    await this.runMigrations();
     
     // Create tables matching MySQL schema EXACTLY (with underscores)
     this.db.exec(`
@@ -313,6 +349,7 @@ class SQLiteDB {
       CREATE TABLE IF NOT EXISTS calendar_events (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT NOT NULL,
+        original_title TEXT,
         start_date TEXT NOT NULL,
         end_date TEXT,
         start_time TEXT,
