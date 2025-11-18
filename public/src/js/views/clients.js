@@ -60,12 +60,12 @@ window.ClientsView = {
 
           <div class="form-group">
             <label>Πόλη</label>
-            <input type="text" id="c_city" placeholder="Αθήνα" />
+            <input type="text" id="c_city" placeholder="Αλεξανδρούπολη" value="Αλεξανδρούπολη" />
           </div>
 
           <div class="form-group">
             <label>Τ.Κ.</label>
-            <input type="text" id="c_postal" placeholder="12345" maxlength="5" />
+            <input type="text" id="c_postal" placeholder="68100" value="68100" maxlength="5" />
           </div>
 
           <!-- Σημειώσεις -->
@@ -291,6 +291,9 @@ window.ClientsView = {
 
   clearForm() {
     document.getElementById('clientFormElement').reset();
+    // Επαναφορά default τιμών
+    document.getElementById('c_city').value = 'Αλεξανδρούπολη';
+    document.getElementById('c_postal').value = '68100';
     this.editingClientId = null;
     Toast.info('Η φόρμα καθαρίστηκε');
   },

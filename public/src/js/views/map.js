@@ -15,6 +15,7 @@ window.MapView = {
   geocodeCache: {},
   requestCount: 0,
   maxRequests: 100,
+  lastRequestTime: 0, // For rate limiting in Electron
   // Stored handlers to avoid duplicate event listeners
   showClientsHandler: null,
   showUpcomingHandler: null,
@@ -25,6 +26,7 @@ window.MapView = {
   geocodeQueueSet: new Set(),
   geocodeQueueRunning: false,
   geocodeIntervalMs: 1100,
+  lastRequestTime: 0, // For rate limiting in Electron mode
   isElectron: typeof window !== 'undefined' && window.electronAPI !== undefined,
 
   render(container) {
@@ -814,49 +816,95 @@ window.MapView = {
     try {
       const greeklishAddr = this.greeklishify(address);
       
+      // Helper: Remove first word from address but keep number (e.g., "Λεωφόρος Δημοκρατίας 26" → "Δημοκρατίας 26")
+      const removeFirstWord = (addr) => {
+        const parts = addr.trim().split(/\s+/);
+        // Only remove first word if there are at least 3 parts (word + word + number)
+        if (parts.length >= 3) {
+          return parts.slice(1).join(' '); // Keep everything except first word
+        }
+        return null; // Return null if too short (will be filtered out)
+      };
+      
       // Try multiple search patterns for better results
       const searchPatterns = [
-        address, // Original address (Greek)
-        greeklishAddr, // Full Greeklish version
-        address.replace(/\s+/g, ' ').trim(), // Normalized spaces (Greek)
-        greeklishAddr.replace(/\s+/g, ' ').trim(), // Normalized spaces (Greeklish)
+        address, // 1. Original address (Greek with number)
+        greeklishAddr, // 2. Full Greeklish version (with number)
+        address.replace(/\s+/g, ' ').trim(), // 3. Normalized spaces (Greek with number)
+        greeklishAddr.replace(/\s+/g, ' ').trim(), // 4. Normalized spaces (Greeklish with number)
         // Try without street number if first attempts fail
-        address.replace(/\d+/g, '').replace(/\s+/g, ' ').trim(),
-        greeklishAddr.replace(/\d+/g, '').replace(/\s+/g, ' ').trim()
-      ];
+        address.replace(/\d+/g, '').replace(/\s+/g, ' ').trim(), // 5. Greek WITHOUT number
+        greeklishAddr.replace(/\d+/g, '').replace(/\s+/g, ' ').trim(), // 6. Greeklish WITHOUT number
+        // 7. Try without first word in GREEK - KEEP THE NUMBER (e.g., "Λεωφόρος Δημοκρατίας 26" → "Δημοκρατίας 26")
+        removeFirstWord(address) // Uses original address WITH number, removes only first word
+      ].filter(pattern => pattern && pattern.length >= 5); // Filter out null/invalid patterns
       
       // Remove duplicates
       const uniquePatterns = [...new Set(searchPatterns)];
       
       for (let i = 0; i < uniquePatterns.length; i++) {
         const searchAddress = uniquePatterns[i];
-        if (!searchAddress || searchAddress.length < 5) continue; // Skip invalid patterns
         
-        // Use backend PHP proxy to avoid CORS issues
-        const url = `/api/geocode.php?address=${encodeURIComponent(searchAddress)}`;
+        const isElectron = typeof window.electronAPI !== 'undefined';
         
         if (i === 0) {
-          console.log(`📡 Geocoding via backend: ${address}`);
+          console.log(`📡 Geocoding: ${address}`);
         } else {
           console.log(`🔄 Attempt ${i + 1}/${uniquePatterns.length}: ${searchAddress}`);
         }
         
-        const response = await fetch(url);
-        
-        if (!response.ok) {
-          console.warn(`⚠️ Geocode request failed: ${response.status}`);
-          continue; // Try next pattern
-        }
-        
-        const result = await response.json();
-        
-        if (result.success && result.data && result.data.length > 0) {
-          const location = result.data[0];
-          console.log(`✅ Found: ${location.display_name}`);
-          return {
-            lat: parseFloat(location.lat),
-            lng: parseFloat(location.lon)
-          };
+        if (isElectron) {
+          // Electron: Direct Nominatim API call
+          // Rate limiting: 1 request per second
+          const now = Date.now();
+          const timeSinceLastRequest = now - this.lastRequestTime;
+          if (timeSinceLastRequest < 1000) {
+            await new Promise(resolve => setTimeout(resolve, 1000 - timeSinceLastRequest));
+          }
+          this.lastRequestTime = Date.now();
+          
+          const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchAddress)}&limit=1`;
+          const response = await fetch(url, {
+            headers: {
+              'User-Agent': 'NikolPaintMaster/1.0'
+            }
+          });
+          
+          if (!response.ok) {
+            console.warn(`⚠️ Nominatim failed: ${response.status}`);
+            continue; // Try next pattern
+          }
+          
+          const result = await response.json();
+          
+          if (result && result.length > 0) {
+            const location = result[0];
+            console.log(`✅ Found: ${location.display_name}`);
+            return {
+              lat: parseFloat(location.lat),
+              lng: parseFloat(location.lon)
+            };
+          }
+        } else {
+          // Web: Use backend PHP proxy to avoid CORS issues
+          const url = `/api/geocode.php?address=${encodeURIComponent(searchAddress)}`;
+          const response = await fetch(url);
+          
+          if (!response.ok) {
+            console.warn(`⚠️ Geocode request failed: ${response.status}`);
+            continue; // Try next pattern
+          }
+          
+          const result = await response.json();
+          
+          if (result.success && result.data && result.data.length > 0) {
+            const location = result.data[0];
+            console.log(`✅ Found: ${location.display_name}`);
+            return {
+              lat: parseFloat(location.lat),
+              lng: parseFloat(location.lon)
+            };
+          }
         }
       }
       
