@@ -5,39 +5,53 @@ Write-Host "Starting Deployment Process..." -ForegroundColor Cyan
 Write-Host ""
 
 # Vima 0: Elegchos SSH Agent kai SSH Key
-Write-Host "Step 0: Checking SSH Agent..." -ForegroundColor Yellow
-$sshAgent = Get-Process ssh-agent -ErrorAction SilentlyContinue
-if (-not $sshAgent) {
-    Write-Host "   Starting SSH Agent..." -ForegroundColor Cyan
+Write-Host "Step 0: Checking SSH Configuration..." -ForegroundColor Yellow
+
+# Set Git to use Windows OpenSSH
+$env:GIT_SSH = "C:\Windows\System32\OpenSSH\ssh.exe"
+
+# Check if ssh-agent service is running
+$sshAgentService = Get-Service ssh-agent -ErrorAction SilentlyContinue
+if (-not $sshAgentService -or $sshAgentService.Status -ne 'Running') {
+    Write-Host "   Starting SSH Agent service..." -ForegroundColor Cyan
+    Set-Service ssh-agent -StartupType Manual -ErrorAction SilentlyContinue
     Start-Service ssh-agent -ErrorAction SilentlyContinue
-    # Alternative: Start ssh-agent manually
-    $env:SSH_AUTH_SOCK = $null
-    ssh-agent | ForEach-Object {
-        if ($_ -match '(?<key>[^=]+)=(?<value>[^;]+);') {
-            Set-Item -Path "env:$($matches['key'])" -Value $matches['value']
-        }
-    }
-    Write-Host "   SSH Agent started" -ForegroundColor Gray
+    Write-Host "   SSH Agent service started" -ForegroundColor Green
+} else {
+    Write-Host "   SSH Agent service is running" -ForegroundColor Green
 }
 
 # Check if SSH key is loaded
 $sshKeyPath = "$env:USERPROFILE\.ssh\ZiSo_Dell"
 if (Test-Path $sshKeyPath) {
     $sshList = ssh-add -l 2>&1
-    if ($sshList -notmatch "ZiSo_Dell") {
+    if ($sshList -notmatch "ZiSo_Dell" -or $LASTEXITCODE -ne 0) {
         Write-Host "   Adding SSH key..." -ForegroundColor Cyan
         Write-Host "   NOTE: You may need to enter your SSH key passphrase" -ForegroundColor Yellow
         ssh-add $sshKeyPath
         if ($LASTEXITCODE -eq 0) {
             Write-Host "   SSH key added successfully" -ForegroundColor Green
         } else {
-            Write-Host "   Warning: Failed to add SSH key. You may need to do it manually." -ForegroundColor Yellow
+            Write-Host "   ERROR: Failed to add SSH key" -ForegroundColor Red
+            Write-Host "   Please add manually: ssh-add $sshKeyPath" -ForegroundColor Yellow
+            exit 1
         }
     } else {
         Write-Host "   SSH key already loaded" -ForegroundColor Green
     }
 } else {
-    Write-Host "   Warning: SSH key not found at $sshKeyPath" -ForegroundColor Yellow
+    Write-Host "   ERROR: SSH key not found at $sshKeyPath" -ForegroundColor Red
+    exit 1
+}
+
+# Test GitHub SSH connection
+Write-Host "   Testing GitHub connection..." -ForegroundColor Cyan
+$testResult = ssh -T git@github.com 2>&1
+if ($testResult -match "successfully authenticated") {
+    Write-Host "   GitHub connection: SUCCESS" -ForegroundColor Green
+} else {
+    Write-Host "   WARNING: GitHub SSH test response:" -ForegroundColor Yellow
+    Write-Host "   $testResult" -ForegroundColor DarkGray
 }
 
 Write-Host ""
