@@ -4,6 +4,44 @@
 Write-Host "Starting Deployment Process..." -ForegroundColor Cyan
 Write-Host ""
 
+# Vima 0: Elegchos SSH Agent kai SSH Key
+Write-Host "Step 0: Checking SSH Agent..." -ForegroundColor Yellow
+$sshAgent = Get-Process ssh-agent -ErrorAction SilentlyContinue
+if (-not $sshAgent) {
+    Write-Host "   Starting SSH Agent..." -ForegroundColor Cyan
+    Start-Service ssh-agent -ErrorAction SilentlyContinue
+    # Alternative: Start ssh-agent manually
+    $env:SSH_AUTH_SOCK = $null
+    ssh-agent | ForEach-Object {
+        if ($_ -match '(?<key>[^=]+)=(?<value>[^;]+);') {
+            Set-Item -Path "env:$($matches['key'])" -Value $matches['value']
+        }
+    }
+    Write-Host "   SSH Agent started" -ForegroundColor Gray
+}
+
+# Check if SSH key is loaded
+$sshKeyPath = "$env:USERPROFILE\.ssh\ZiSo_Dell"
+if (Test-Path $sshKeyPath) {
+    $sshList = ssh-add -l 2>&1
+    if ($sshList -notmatch "ZiSo_Dell") {
+        Write-Host "   Adding SSH key..." -ForegroundColor Cyan
+        Write-Host "   NOTE: You may need to enter your SSH key passphrase" -ForegroundColor Yellow
+        ssh-add $sshKeyPath
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "   SSH key added successfully" -ForegroundColor Green
+        } else {
+            Write-Host "   Warning: Failed to add SSH key. You may need to do it manually." -ForegroundColor Yellow
+        }
+    } else {
+        Write-Host "   SSH key already loaded" -ForegroundColor Green
+    }
+} else {
+    Write-Host "   Warning: SSH key not found at $sshKeyPath" -ForegroundColor Yellow
+}
+
+Write-Host ""
+
 # Vima 1: Elegchos oti eimaste sto develop
 Write-Host "Step 1: Checking current branch..." -ForegroundColor Yellow
 $currentBranch = git rev-parse --abbrev-ref HEAD
