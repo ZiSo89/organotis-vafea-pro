@@ -126,9 +126,23 @@ function handleGet($conn) {
             $color = $event['color'] ?: getEventColor($event['status']);
             
             // Δημιουργία πλούσιου τίτλου με πελάτη για το ημερολόγιο
-            $displayTitle = $event['title'];
-            if ($event['client_name']) {
-                $displayTitle .= ' - ' . $event['client_name'];
+            // Use clean_title (original_title or title if original_title is NULL)
+            $cleanTitle = $event['clean_title'];
+            $displayTitle = '';
+            
+            // Build display title based on what we have
+            if (!empty($cleanTitle) && !empty($event['client_name'])) {
+                // Both title and client: "Title - ClientName"
+                $displayTitle = $cleanTitle . ' - ' . $event['client_name'];
+            } else if (!empty($cleanTitle)) {
+                // Only title, no client
+                $displayTitle = $cleanTitle;
+            } else if (!empty($event['client_name'])) {
+                // Only client, no title - just show client name without " - "
+                $displayTitle = $event['client_name'];
+            } else {
+                // Neither - fallback
+                $displayTitle = 'Επίσκεψη';
             }
             
             // Format start and end with time if not all-day
@@ -150,6 +164,12 @@ function handleGet($conn) {
                     $endDateTime->modify('+1 hour');
                     $end = $endDateTime->format('Y-m-d\TH:i:s');
                 }
+            } else if ($event['end_date']) {
+                // For all-day events, FullCalendar uses EXCLUSIVE end dates
+                // Add 1 day to make the end date inclusive in the display
+                $endDateTime = new DateTime($end);
+                $endDateTime->modify('+1 day');
+                $end = $endDateTime->format('Y-m-d');
             }
             
             $events[] = [
@@ -161,7 +181,7 @@ function handleGet($conn) {
                 'backgroundColor' => $color,
                 'borderColor' => $color,
                 'extendedProps' => [
-                    'original_title' => $event['title'], // Original title χωρίς το όνομα πελάτη
+                    'original_title' => $cleanTitle, // Clean title χωρίς το όνομα πελάτη
                     'status' => $event['status'],
                     'client_id' => $event['client_id'],
                     'client_name' => $event['client_name'],
