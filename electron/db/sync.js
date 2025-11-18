@@ -135,9 +135,9 @@ class SyncManager {
           }
         }
         
-        // Re-enable foreign key constraints for insertion
-        console.log('🔒 Re-enabling foreign key constraints...');
-        db.pragma('foreign_keys = ON');        // Import in normal order (parents first, then children)
+        // Keep foreign keys DISABLED during import to avoid constraint errors
+        console.log('⚠️  Keeping foreign key constraints disabled during import...');
+        // Import in normal order (parents first, then children)
         for (const table of this.tables) {
           if (!allData[table]) {
             console.log(`⏭️  Skipping ${table} - no data fetched`);
@@ -158,6 +158,24 @@ class SyncManager {
                   // Remove sync metadata fields if they exist
                   delete converted._sync_status;
                   delete converted._sync_timestamp;
+                  
+                  // Validate foreign keys - set to NULL if referenced record doesn't exist
+                  if (table === 'calendar_events') {
+                    if (converted.client_id) {
+                      const clientExists = db.prepare('SELECT 1 FROM clients WHERE id = ?').get(converted.client_id);
+                      if (!clientExists) {
+                        console.warn(`⚠️  calendar_event #${converted.id}: client_id ${converted.client_id} not found, setting to NULL`);
+                        converted.client_id = null;
+                      }
+                    }
+                    if (converted.job_id) {
+                      const jobExists = db.prepare('SELECT 1 FROM jobs WHERE id = ?').get(converted.job_id);
+                      if (!jobExists) {
+                        console.warn(`⚠️  calendar_event #${converted.id}: job_id ${converted.job_id} not found, setting to NULL`);
+                        converted.job_id = null;
+                      }
+                    }
+                  }
                   
                   const keys = Object.keys(converted);
                   const values = Object.values(converted);
@@ -204,6 +222,10 @@ class SyncManager {
       
       // Execute transaction
       importAll();
+      
+      // Re-enable foreign key constraints after import
+      console.log('🔒 Re-enabling foreign key constraints...');
+      db.pragma('foreign_keys = ON');
       
       // Ensure all changes are written to disk
       console.log('💾 Committing changes to disk...');

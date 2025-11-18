@@ -7,10 +7,11 @@
 window.Geocoding = {
   // Session cache only (not persisted)
   cache: {},
+  lastRequestTime: 0,
   
   /**
    * Get coordinates for an address
-   * Uses backend PHP proxy to avoid CORS issues with OpenStreetMap Nominatim
+   * Uses backend PHP proxy (Web) or direct Nominatim API (Electron)
    */
   async getCoordinates(address, city, postalCode = '') {
     // Build full address
@@ -23,31 +24,66 @@ window.Geocoding = {
       return this.cache[cacheKey];
     }
     
-    console.log('🔍 Geocoding via backend:', fullAddress);
+    console.log('🔍 Geocoding:', fullAddress);
     
     try {
-      // Use backend PHP proxy (avoids CORS issues)
-      const url = `/api/geocode.php?address=${encodeURIComponent(fullAddress)}`;
+      const isElectron = typeof window.electronAPI !== 'undefined';
+      let result;
       
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        console.warn('⚠️ Geocoding API failed:', response.status);
-        return null;
-      }
-      
-      const result = await response.json();
-      
-      if (result.success && result.data && result.data.length > 0) {
-        const coords = {
-          lat: parseFloat(result.data[0].lat),
-          lng: parseFloat(result.data[0].lon)
-        };
+      if (isElectron) {
+        // Electron: Direct Nominatim API call
+        // Rate limiting: 1 request per second
+        const now = Date.now();
+        const timeSinceLastRequest = now - this.lastRequestTime;
+        if (timeSinceLastRequest < 1000) {
+          await new Promise(resolve => setTimeout(resolve, 1000 - timeSinceLastRequest));
+        }
+        this.lastRequestTime = Date.now();
         
-        // Cache for this session only
-        this.cache[cacheKey] = coords;
-        console.log('✅ Found coordinates:', coords);
-        return coords;
+        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(fullAddress)}&limit=1`;
+        const response = await fetch(url, {
+          headers: {
+            'User-Agent': 'NikolPaintMaster/1.0'
+          }
+        });
+        
+        if (!response.ok) {
+          console.warn('⚠️ Nominatim API failed:', response.status);
+          return null;
+        }
+        
+        const data = await response.json();
+        
+        if (data && data.length > 0) {
+          const coords = {
+            lat: parseFloat(data[0].lat),
+            lng: parseFloat(data[0].lon)
+          };
+          this.cache[cacheKey] = coords;
+          console.log('✅ Found coordinates:', coords);
+          return coords;
+        }
+      } else {
+        // Web: Use backend PHP proxy (avoids CORS issues)
+        const url = `/api/geocode.php?address=${encodeURIComponent(fullAddress)}`;
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+          console.warn('⚠️ Geocoding API failed:', response.status);
+          return null;
+        }
+        
+        result = await response.json();
+        
+        if (result.success && result.data && result.data.length > 0) {
+          const coords = {
+            lat: parseFloat(result.data[0].lat),
+            lng: parseFloat(result.data[0].lon)
+          };
+          this.cache[cacheKey] = coords;
+          console.log('✅ Found coordinates:', coords);
+          return coords;
+        }
       }
       
       console.warn('⚠️ No coordinates found for:', fullAddress);

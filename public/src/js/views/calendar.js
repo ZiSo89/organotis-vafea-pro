@@ -407,7 +407,6 @@ window.CalendarView = {
       return;
     }
     
-    
     // Store visits data for later access
     this._upcomingVisitsData = {};
     visits.forEach(visit => {
@@ -468,66 +467,80 @@ window.CalendarView = {
       `;
     }).join('');
     
-    const renderedItems = container.querySelectorAll('.visit-item');
-    renderedItems.forEach((item, index) => {
-      const id = item.getAttribute('data-event-id');
-    });
+    // Setup event delegation
+    this.setupUpcomingVisitsListeners();
+  },
+  
+  /* ========================================
+     Setup Upcoming Visits Click Listeners
+     ======================================== */
+  setupUpcomingVisitsListeners() {
+    const container = document.getElementById('upcomingVisitsList');
+    if (!container) return;
     
-    // Setup event delegation ONCE on first call
-    if (!this._upcomingVisitsSetup) {
-      this._upcomingVisitsSetup = true;
-      
-      // Use event delegation on the container (permanent listener)
-      container.addEventListener('click', (e) => {
-        // Find the clicked visit-item (even if clicked on child element)
-        const visitItem = e.target.closest('.visit-item');
-        if (!visitItem) return;
-        
-        const eventId = visitItem.getAttribute('data-event-id');
-        
-        if (!eventId) {
-          return;
-        }
-        
-        
-        // First try to get from stored data
-        let visitData = this._upcomingVisitsData[eventId];
-        
-        if (!visitData) {
-          // Fallback: try to get from calendar
-          const event = this.calendar.getEventById(eventId);
-          if (event) {
-            visitData = {
-              id: event.id,
-              title: event.title,
-              start: event.start,
-              end: event.end,
-              extendedProps: event.extendedProps
-            };
-          } else {
-            console.error('❌ Event not found in stored data or calendar for ID:', eventId);
-            return;
-          }
-        }
-        
-        
-        // Show modal with the visit data
-        this.showEventDetailsFromData(visitData);
-        
-        // Navigate calendar to that date
-        // Convert string date to Date object if needed
-        const dateToGo = typeof visitData.start === 'string' 
-          ? new Date(visitData.start) 
-          : visitData.start;
-        
-        if (dateToGo && !isNaN(dateToGo.getTime())) {
-          this.calendar.gotoDate(dateToGo);
-        }
-      });
-      
-    } else {
+    // Remove old listener if exists
+    if (this._upcomingVisitsClickHandler) {
+      container.removeEventListener('click', this._upcomingVisitsClickHandler);
     }
     
+    // Create new click handler
+    this._upcomingVisitsClickHandler = (e) => {
+      // Prevent link clicks from triggering visit click
+      if (e.target.tagName === 'A') {
+        return;
+      }
+      
+      // Find the clicked visit-item (even if clicked on child element)
+      const visitItem = e.target.closest('.visit-item');
+      if (!visitItem) return;
+      
+      const eventId = visitItem.getAttribute('data-event-id');
+      
+      if (!eventId) {
+        console.warn('⚠️ Visit item clicked but no event ID found');
+        return;
+      }
+      
+      console.log('📅 Visit item clicked, ID:', eventId);
+      
+      // First try to get from stored data
+      let visitData = this._upcomingVisitsData[eventId];
+      
+      if (!visitData) {
+        // Fallback: try to get from calendar
+        const event = this.calendar.getEventById(eventId);
+        if (event) {
+          visitData = {
+            id: event.id,
+            title: event.title,
+            start: event.start,
+            end: event.end,
+            extendedProps: event.extendedProps
+          };
+        } else {
+          console.error('❌ Event not found in stored data or calendar for ID:', eventId);
+          return;
+        }
+      }
+      
+      console.log('📅 Opening modal for visit:', visitData);
+      
+      // Show modal with the visit data
+      this.showEventDetailsFromData(visitData);
+      
+      // Navigate calendar to that date
+      const dateToGo = typeof visitData.start === 'string' 
+        ? new Date(visitData.start) 
+        : visitData.start;
+      
+      if (dateToGo && !isNaN(dateToGo.getTime())) {
+        this.calendar.gotoDate(dateToGo);
+      }
+    };
+    
+    // Add new listener
+    container.addEventListener('click', this._upcomingVisitsClickHandler);
+    console.log('✅ Upcoming visits click listeners attached');
   },
 
   /* ========================================

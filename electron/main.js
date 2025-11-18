@@ -57,7 +57,11 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js')
+      preload: path.join(__dirname, 'preload.js'),
+      webviewTag: false,
+      enableRemoteModule: false,
+      // Allow text selection and input focus
+      disableBlinkFeatures: ''
     },
     show: false,
     backgroundColor: '#1a1a2e'

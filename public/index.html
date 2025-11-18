@@ -114,30 +114,64 @@
   
   <!-- Leaflet Maps (Fallback) - Loaded conditionally via JavaScript -->
   
-  <!-- Nominatim Geocoding via Backend PHP Proxy (avoids CORS) -->
   <script>
-    // Nominatim Geocoding Helper - Uses backend PHP proxy
+    // Nominatim Geocoding Helper - Uses backend PHP proxy (Web) or direct API (Electron)
     const Geocoding = {
+      lastRequestTime: 0,
+      
       async getCoordinates(address, city = 'Αλεξανδρούπολη', country = 'Ελλάδα') {
         try {
           const query = `${address}, ${city}, ${country}`;
-          // Use backend PHP proxy to avoid CORS issues
-          const url = `/api/geocode.php?address=${encodeURIComponent(query)}`;
+          const isElectron = typeof window.electronAPI !== 'undefined';
           
-          const response = await fetch(url);
-          
-          if (!response.ok) {
-            console.warn('Geocoding API failed:', response.status);
-            return null;
-          }
-          
-          const result = await response.json();
-          
-          if (result.success && result.data && result.data.length > 0) {
-            return {
-              lat: parseFloat(result.data[0].lat),
-              lng: parseFloat(result.data[0].lon)
-            };
+          if (isElectron) {
+            // Electron: Direct Nominatim API call
+            // Rate limiting: 1 request per second
+            const now = Date.now();
+            const timeSinceLastRequest = now - this.lastRequestTime;
+            if (timeSinceLastRequest < 1000) {
+              await new Promise(resolve => setTimeout(resolve, 1000 - timeSinceLastRequest));
+            }
+            this.lastRequestTime = Date.now();
+            
+            const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`;
+            const response = await fetch(url, {
+              headers: {
+                'User-Agent': 'NikolPaintMaster/1.0'
+              }
+            });
+            
+            if (!response.ok) {
+              console.warn('Nominatim API failed:', response.status);
+              return null;
+            }
+            
+            const result = await response.json();
+            
+            if (result && result.length > 0) {
+              return {
+                lat: parseFloat(result[0].lat),
+                lng: parseFloat(result[0].lon)
+              };
+            }
+          } else {
+            // Web: Use backend PHP proxy to avoid CORS issues
+            const url = `/api/geocode.php?address=${encodeURIComponent(query)}`;
+            const response = await fetch(url);
+            
+            if (!response.ok) {
+              console.warn('Geocoding API failed:', response.status);
+              return null;
+            }
+            
+            const result = await response.json();
+            
+            if (result.success && result.data && result.data.length > 0) {
+              return {
+                lat: parseFloat(result.data[0].lat),
+                lng: parseFloat(result.data[0].lon)
+              };
+            }
           }
           
           return null;
@@ -326,7 +360,7 @@
   <script src="src/js/views/inventory.js?v=20251111b" defer></script>
   <script src="src/js/views/jobs.js?v=20251111b" defer></script>
   <script src="src/js/views/calendar.js?v=20251111S" defer></script>
-  <script src="src/js/views/map.js?v=20251111b" defer></script>
+  <script src="src/js/views/map.js?v=20251118a" defer></script>
   <script src="src/js/views/offers.js?v=20251111b" defer></script>
   <script src="src/js/views/invoices.js?v=20251111b" defer></script>
   <script src="src/js/views/statistics.js?v=20251111b" defer></script>
