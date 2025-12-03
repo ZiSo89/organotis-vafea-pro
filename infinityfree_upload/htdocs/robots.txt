@@ -1,0 +1,14 @@
+# Οργανωτής Βαφέα - Private Application
+# Αποκλεισμός όλων των search engines
+
+User-agent: *
+Disallow: /
+
+# Αποκλεισμός όλων των directories
+Disallow: /api/
+Disallow: /config/
+Disallow: /database/
+Disallow: /src/
+Disallow: /assets/
+
+# No sitemap - private application
