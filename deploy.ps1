@@ -21,37 +21,41 @@ if (-not $sshAgentService -or $sshAgentService.Status -ne 'Running') {
     Write-Host "   SSH Agent service is running" -ForegroundColor Green
 }
 
-# Check if SSH key is loaded
+# Check if SSH key is loaded / GitHub reachable
+$githubOk = $false
+$testResult = ssh -T git@github.com 2>&1
+if ($testResult -match "successfully authenticated") {
+    Write-Host "   GitHub connection: SUCCESS (SSH key already loaded)" -ForegroundColor Green
+    $githubOk = $true
+}
+
 $sshKeyPath = "$env:USERPROFILE\.ssh\ZiSo_Dell"
-if (Test-Path $sshKeyPath) {
-    $sshList = ssh-add -l 2>&1
-    if ($sshList -notmatch "ZiSo_Dell" -or $LASTEXITCODE -ne 0) {
-        Write-Host "   Adding SSH key..." -ForegroundColor Cyan
-        Write-Host "   NOTE: You may need to enter your SSH key passphrase" -ForegroundColor Yellow
-        ssh-add $sshKeyPath
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host "   SSH key added successfully" -ForegroundColor Green
-        } else {
-            Write-Host "   ERROR: Failed to add SSH key" -ForegroundColor Red
-            Write-Host "   Please add manually: ssh-add $sshKeyPath" -ForegroundColor Yellow
-            exit 1
-        }
+if (-not $githubOk -and (Test-Path $sshKeyPath)) {
+    Write-Host "   Adding SSH key..." -ForegroundColor Cyan
+    Write-Host "   NOTE: You may need to enter your SSH key passphrase" -ForegroundColor Yellow
+    ssh-add $sshKeyPath
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "   SSH key added successfully" -ForegroundColor Green
+        $githubOk = $true
     } else {
-        Write-Host "   SSH key already loaded" -ForegroundColor Green
+        Write-Host "   ERROR: Failed to add SSH key" -ForegroundColor Red
+        Write-Host "   Please add manually: ssh-add $sshKeyPath" -ForegroundColor Yellow
+        exit 1
     }
-} else {
-    Write-Host "   ERROR: SSH key not found at $sshKeyPath" -ForegroundColor Red
+} elseif (-not $githubOk) {
+    Write-Host "   ERROR: GitHub SSH failed and key not found at $sshKeyPath" -ForegroundColor Red
     exit 1
 }
 
-# Test GitHub SSH connection
-Write-Host "   Testing GitHub connection..." -ForegroundColor Cyan
-$testResult = ssh -T git@github.com 2>&1
-if ($testResult -match "successfully authenticated") {
-    Write-Host "   GitHub connection: SUCCESS" -ForegroundColor Green
-} else {
-    Write-Host "   WARNING: GitHub SSH test response:" -ForegroundColor Yellow
-    Write-Host "   $testResult" -ForegroundColor DarkGray
+if (-not $githubOk) {
+    $testResult = ssh -T git@github.com 2>&1
+    if ($testResult -match "successfully authenticated") {
+        Write-Host "   GitHub connection: SUCCESS" -ForegroundColor Green
+    } else {
+        Write-Host "   ERROR: GitHub SSH test failed:" -ForegroundColor Red
+        Write-Host "   $testResult" -ForegroundColor DarkGray
+        exit 1
+    }
 }
 
 Write-Host ""
@@ -126,8 +130,18 @@ if (Test-Path ".htaccess.production") {
 #   $env:PAINTER_DB_USER, $env:PAINTER_DB_PASS, $env:PAINTER_SYNC_API_KEY
 Write-Host "   Generating production config/secrets.local.php..." -ForegroundColor Cyan
 
+# PHP single-quoted strings: escape backslash and single quote
+function Escape-Php($s) { return ($s -replace '\\', '\\' -replace "'", "\'") }
+
 $prodDbUser = if ($env:PAINTER_DB_USER) { $env:PAINTER_DB_USER } else { "painter_user" }
 $prodDbPass = $env:PAINTER_DB_PASS
+if (-not $prodDbPass) {
+    $existingSecrets = git show deploy:config/secrets.local.php 2>$null
+    if ($existingSecrets -match "'DB_PASS'\s*=>\s*'((?:\\'|[^'])*)'") {
+        $prodDbPass = $Matches[1] -replace "\\'", "'"
+        Write-Host "   Using DB_PASS from existing deploy branch secrets.local.php" -ForegroundColor Gray
+    }
+}
 if (-not $prodDbPass) {
     Write-Host "   PAINTER_DB_PASS env var not set." -ForegroundColor Yellow
     $secure = Read-Host "   Enter PRODUCTION database password" -AsSecureString
@@ -136,53 +150,52 @@ if (-not $prodDbPass) {
 }
 $prodSyncKey = if ($env:PAINTER_SYNC_API_KEY) { $env:PAINTER_SYNC_API_KEY } else { "electron-sync-key-2025" }
 
-$adminHashLine = ""
-if ($env:PAINTER_ADMIN_PASSWORD_HASH) {
-    $hashEsc = Escape-Php $env:PAINTER_ADMIN_PASSWORD_HASH
-    $adminHashLine = "`n    'ADMIN_PASSWORD_HASH' => '$hashEsc',"
-    Write-Host "   Admin password: bcrypt hash from PAINTER_ADMIN_PASSWORD_HASH" -ForegroundColor Gray
-} else {
-    Write-Host "   WARNING: PAINTER_ADMIN_PASSWORD_HASH not set — use npm run admin:hash before deploy!" -ForegroundColor Yellow
-}
-
-# PHP single-quoted strings: escape backslash and single quote
-function Escape-Php($s) { return ($s -replace '\\', '\\' -replace "'", "\'") }
 $userEsc = Escape-Php $prodDbUser
 $passEsc = Escape-Php $prodDbPass
 $keyEsc  = Escape-Php $prodSyncKey
 
+$adminHashLine = ""
+if ($env:PAINTER_ADMIN_PASSWORD_HASH) {
+    $hashEsc = Escape-Php $env:PAINTER_ADMIN_PASSWORD_HASH
+    $adminHashLine = "    'ADMIN_PASSWORD_HASH' => '$hashEsc',"
+    Write-Host "   Admin password: bcrypt hash from PAINTER_ADMIN_PASSWORD_HASH" -ForegroundColor Gray
+} else {
+    Write-Host "   WARNING: PAINTER_ADMIN_PASSWORD_HASH not set - use npm run admin:hash before deploy!" -ForegroundColor Yellow
+}
+
 # Google Calendar (optional) - only injected if env vars are set.
-#   $env:PAINTER_GOOGLE_CLIENT_ID, $env:PAINTER_GOOGLE_CLIENT_SECRET, $env:PAINTER_GOOGLE_REDIRECT_URI
-$googleLines = ""
+$googleLines = @()
 if ($env:PAINTER_GOOGLE_CLIENT_ID -and $env:PAINTER_GOOGLE_CLIENT_SECRET) {
     $gcidEsc = Escape-Php $env:PAINTER_GOOGLE_CLIENT_ID
     $gsecEsc = Escape-Php $env:PAINTER_GOOGLE_CLIENT_SECRET
     $gredir  = if ($env:PAINTER_GOOGLE_REDIRECT_URI) { $env:PAINTER_GOOGLE_REDIRECT_URI } else { "https://nikolpaintmaster.e-gata.gr/api/google_oauth.php?action=callback" }
     $gredEsc = Escape-Php $gredir
-    $googleLines = @"
-
-    'GOOGLE_CLIENT_ID'     => '$gcidEsc',
-    'GOOGLE_CLIENT_SECRET' => '$gsecEsc',
-    'GOOGLE_REDIRECT_URI'  => '$gredEsc',
-"@
+    $googleLines = @(
+        "    'GOOGLE_CLIENT_ID'     => '$gcidEsc',"
+        "    'GOOGLE_CLIENT_SECRET' => '$gsecEsc',"
+        "    'GOOGLE_REDIRECT_URI'  => '$gredEsc',"
+    )
     Write-Host "   Google Calendar keys: included from env vars" -ForegroundColor Gray
 } else {
     Write-Host "   Google Calendar keys: NOT set (PAINTER_GOOGLE_CLIENT_ID/SECRET) - skipping" -ForegroundColor DarkGray
 }
 
-$secretsContent = @"
-<?php
-// AUTO-GENERATED for production by deploy.ps1 - do not edit by hand.
-return [
-    'DB_HOST'      => 'localhost',
-    'DB_PORT'      => '3306',
-    'DB_NAME'      => 'painter_app',
-    'DB_USER'      => '$userEsc',
-    'DB_PASS'      => '$passEsc',
-    'SYNC_API_KEY' => '$keyEsc',$adminHashLine
-    'DEBUG_MODE'   => false,$googleLines
-];
-"@
+$secretsLines = @(
+    '<?php'
+    '// AUTO-GENERATED for production by deploy.ps1 - do not edit by hand.'
+    'return ['
+    "    'DB_HOST'      => 'localhost',"
+    "    'DB_PORT'      => '3306',"
+    "    'DB_NAME'      => 'painter_app',"
+    "    'DB_USER'      => '$userEsc',"
+    "    'DB_PASS'      => '$passEsc',"
+    "    'SYNC_API_KEY' => '$keyEsc',"
+)
+if ($adminHashLine) { $secretsLines += $adminHashLine }
+$secretsLines += "    'DEBUG_MODE'   => false,"
+$secretsLines += $googleLines
+$secretsLines += '];'
+$secretsContent = $secretsLines -join "`n"
 
 Set-Content "config/secrets.local.php" -Value $secretsContent -NoNewline -Encoding UTF8
 
