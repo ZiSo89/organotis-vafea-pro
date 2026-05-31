@@ -5,6 +5,9 @@
 
 const { contextBridge, ipcRenderer } = require('electron');
 
+// Debug mode flag (used to silence verbose logging in production builds)
+const isDev = process.argv.includes('--dev') || process.env.PAINTER_DEBUG === '1';
+
 // Database ready promise
 let dbReadyResolve;
 const dbReadyPromise = new Promise((resolve) => {
@@ -132,10 +135,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   platform: {
     isElectron: true,
+    isDev: isDev,
     node: process.versions.node,
     chrome: process.versions.chrome,
     electron: process.versions.electron
   }
 });
 
-console.log('✅ Preload script loaded - Electron APIs exposed');
+// Silence verbose console output in production (keep warnings/errors)
+if (!isDev) {
+  const noop = () => {};
+  console.log = noop;
+  console.info = noop;
+  console.debug = noop;
+}
+
+if (isDev) {
+  console.log('✅ Preload script loaded - Electron APIs exposed');
+}

@@ -1028,6 +1028,37 @@ window.SettingsView = {
           </div>
         </div>
 
+        <!-- Google Calendar Card (Web only) -->
+        <div class="card" id="googleCalendarCard" style="display: none;">
+          <h3><i class="fab fa-google"></i> Google Calendar</h3>
+          <p style="color: var(--color-text-muted); margin-bottom: 15px;">
+            Συγχρονίστε αμφίδρομα τις επισκέψεις του ημερολογίου με το Google Calendar σας.
+          </p>
+
+          <div id="googleStatus" style="margin-bottom: 15px; padding: 10px; background: var(--color-bg); border-radius: 8px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+              <span>Κατάσταση:</span>
+              <span id="googleConnState"><i class="fas fa-circle"></i> Έλεγχος...</span>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+              <span>Τελευταίος συγχρονισμός:</span>
+              <span id="googleLastSync">-</span>
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+            <button class="btn btn-primary" id="googleConnectBtn">
+              <i class="fab fa-google"></i> Σύνδεση με Google
+            </button>
+            <button class="btn btn-success" id="googleSyncBtn" style="display: none;" title="Φέρνει αλλαγές/διαγραφές που έγιναν κατευθείαν στο Google. Οι αλλαγές της εφαρμογής στέλνονται αυτόματα.">
+              <i class="fas fa-cloud-download-alt"></i> Εισαγωγή αλλαγών από Google
+            </button>
+            <button class="btn btn-danger" id="googleDisconnectBtn" style="display: none;">
+              <i class="fas fa-unlink"></i> Αποσύνδεση
+            </button>
+          </div>
+        </div>
+
         <div class="card">
           <h3><i class="fas fa-palette"></i> Εμφάνιση</h3>
           <div class="button-group">
@@ -1072,6 +1103,152 @@ window.SettingsView = {
     
     // Initialize sync UI if in Electron
     this.initSyncUI();
+
+    // Initialize Google Calendar UI (web only)
+    this.initGoogleCalendarUI();
+  },
+
+  /* ========================================
+     Google Calendar (Web only)
+     ======================================== */
+
+  async initGoogleCalendarUI() {
+    const card = document.getElementById('googleCalendarCard');
+    if (!card) return;
+
+    // OAuth ζει στον PHP server -> διαθέσιμο μόνο στην web έκδοση (όχι Electron)
+    if (OfflineService.isElectron()) return;
+
+    card.style.display = 'block';
+
+    // Toast από το OAuth redirect (?gcal=connected | error)
+    const params = new URLSearchParams(window.location.search);
+    const gcal = params.get('gcal');
+    if (gcal === 'connected') {
+      Toast.success('✅ Συνδέθηκε με Google Calendar');
+    } else if (gcal === 'error') {
+      Toast.error('❌ Αποτυχία σύνδεσης με Google Calendar');
+    }
+    if (gcal) {
+      // Καθάρισε το query param
+      const clean = window.location.pathname + window.location.hash;
+      window.history.replaceState({}, '', clean);
+    }
+
+    document.getElementById('googleConnectBtn')?.addEventListener('click', () => {
+      window.location.href = '/api/google_oauth.php?action=connect';
+    });
+    document.getElementById('googleSyncBtn')?.addEventListener('click', () => this.syncGoogleCalendar());
+    document.getElementById('googleDisconnectBtn')?.addEventListener('click', () => this.disconnectGoogle());
+
+    await this.updateGoogleStatus();
+  },
+
+  async updateGoogleStatus() {
+    const connState = document.getElementById('googleConnState');
+    const lastSync = document.getElementById('googleLastSync');
+    const connectBtn = document.getElementById('googleConnectBtn');
+    const syncBtn = document.getElementById('googleSyncBtn');
+    const disconnectBtn = document.getElementById('googleDisconnectBtn');
+
+    try {
+      const response = await fetch('/api/google_oauth.php?action=status');
+      const result = await response.json();
+
+      if (!result.configured) {
+        if (connState) {
+          connState.innerHTML = '<i class="fas fa-circle" style="color: var(--color-warning);"></i> Μη ρυθμισμένο';
+        }
+        if (connectBtn) {
+          connectBtn.disabled = true;
+          connectBtn.title = 'Λείπουν τα GOOGLE_CLIENT_ID / SECRET στον server';
+        }
+        return;
+      }
+
+      const connected = !!result.connected;
+      if (connState) {
+        const color = connected ? 'var(--color-success)' : 'var(--color-error)';
+        const text = connected ? 'Συνδεδεμένο' : 'Μη συνδεδεμένο';
+        connState.innerHTML = `<i class="fas fa-circle" style="color: ${color};"></i> ${text}`;
+      }
+      if (lastSync) {
+        lastSync.textContent = result.lastSync
+          ? new Date(result.lastSync).toLocaleString('el-GR')
+          : 'Ποτέ';
+      }
+      if (connectBtn) connectBtn.style.display = connected ? 'none' : 'inline-flex';
+      if (syncBtn) syncBtn.style.display = connected ? 'inline-flex' : 'none';
+      if (disconnectBtn) disconnectBtn.style.display = connected ? 'inline-flex' : 'none';
+    } catch (error) {
+      console.error('Google status error:', error);
+      if (connState) {
+        connState.innerHTML = '<i class="fas fa-circle" style="color: var(--color-error);"></i> Σφάλμα';
+      }
+    }
+  },
+
+  async syncGoogleCalendar() {
+    const syncBtn = document.getElementById('googleSyncBtn');
+    try {
+      if (syncBtn) {
+        syncBtn.disabled = true;
+        syncBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Εισαγωγή...';
+      }
+      Toast.info('Εισαγωγή αλλαγών από Google Calendar...');
+
+      const response = await fetch('/api/google_calendar.php?action=sync', {
+        method: 'POST',
+        credentials: 'include'
+      });
+      const result = await response.json();
+
+      if (result.success) {
+        const cleared = result.clearedJobs ? `, ${result.clearedJobs} εργασίες καθαρίστηκαν` : '';
+        Toast.success(`✅ Sync: ${result.pulled} από Google, ${result.pushed} προς Google${cleared}`);
+        if (typeof State !== 'undefined') {
+          if (State.loadAll) await State.loadAll();
+          if (State.refreshCalendarIfNeeded) State.refreshCalendarIfNeeded();
+          if (State.refreshJobsIfNeeded) State.refreshJobsIfNeeded();
+        }
+      } else {
+        const msg = result.error || (result.errors && result.errors.join(', ')) || 'Άγνωστο σφάλμα';
+        Toast.error('❌ ' + msg);
+      }
+      await this.updateGoogleStatus();
+    } catch (error) {
+      console.error('Google sync error:', error);
+      Toast.error('❌ Σφάλμα συγχρονισμού: ' + error.message);
+    } finally {
+      if (syncBtn) {
+        syncBtn.disabled = false;
+        syncBtn.innerHTML = '<i class="fas fa-cloud-download-alt"></i> Εισαγωγή αλλαγών από Google';
+      }
+    }
+  },
+
+  disconnectGoogle() {
+    Modal.confirm({
+      title: 'Αποσύνδεση Google Calendar',
+      message: 'Θα διακοπεί ο συγχρονισμός. Τα events στο Google παραμένουν. Συνέχεια;',
+      confirmText: 'Αποσύνδεση',
+      cancelText: 'Ακύρωση',
+      onConfirm: async () => {
+        try {
+          const response = await fetch('/api/google_oauth.php?action=disconnect', { method: 'POST' });
+          const result = await response.json();
+          if (result.success) {
+            Toast.success('Αποσυνδέθηκε από Google Calendar');
+          } else {
+            Toast.error('❌ ' + (result.error || 'Σφάλμα αποσύνδεσης'));
+          }
+          await this.updateGoogleStatus();
+        } catch (error) {
+          console.error('Google disconnect error:', error);
+          Toast.error('❌ Σφάλμα: ' + error.message);
+        }
+      }
+    });
   },
 
   /* ========================================

@@ -78,6 +78,10 @@ CREATE TABLE `jobs` (
   `type` varchar(100) DEFAULT NULL,
   `date` date DEFAULT NULL,
   `next_visit` date DEFAULT NULL,
+  `visit_end_date` date DEFAULT NULL COMMENT 'Λήξη πολυήμερης επίσκεψης',
+  `visit_start_time` time DEFAULT NULL,
+  `visit_end_time` time DEFAULT NULL,
+  `visit_all_day` tinyint(1) NOT NULL DEFAULT 1,
   `description` text DEFAULT NULL,
   `address` text DEFAULT NULL,
   `city` varchar(100) DEFAULT NULL,
@@ -181,6 +185,7 @@ CREATE TABLE `calendar_events` (
   `status` varchar(50) DEFAULT 'pending',
   `color` varchar(20) DEFAULT '#3b82f6',
   `reminder_sent` tinyint(1) DEFAULT 0,
+  `google_event_id` varchar(255) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`),
@@ -188,6 +193,7 @@ CREATE TABLE `calendar_events` (
   KEY `job_id` (`job_id`),
   KEY `idx_calendar_events_start_date` (`start_date`),
   KEY `idx_calendar_events_status` (`status`),
+  KEY `idx_calendar_events_google_event_id` (`google_event_id`),
   CONSTRAINT `calendar_events_ibfk_1` FOREIGN KEY (`client_id`) REFERENCES `clients` (`id`) ON DELETE SET NULL,
   CONSTRAINT `calendar_events_ibfk_2` FOREIGN KEY (`job_id`) REFERENCES `jobs` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

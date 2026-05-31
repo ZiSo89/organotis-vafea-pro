@@ -10,7 +10,11 @@
     "prebuild": "npx electron-rebuild",
     "build": "electron-builder",
     "build:portable": "electron-builder --win portable",
-    "package": "electron-packager . \"Οργανωτής Βαφέα\" --platform=win32 --arch=x64 --out=dist --overwrite"
+    "package": "electron-packager . \"Οργανωτής Βαφέα\" --platform=win32 --arch=x64 --out=dist --overwrite",
+    "lint": "eslint .",
+    "lint:php": "node tools/lint-php.js",
+    "test": "npm run lint && npm run lint:php",
+    "admin:hash": "php tools/make-admin-hash.php"
   },
   "build": {
     "appId": "com.painter.organizer",
@@ -53,9 +57,11 @@
     "better-sqlite3": "^9.6.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.4",
     "electron": "^27.0.0",
     "electron-builder": "^24.6.4",
     "electron-packager": "^17.1.2",
-    "electron-rebuild": "^3.2.9"
+    "electron-rebuild": "^3.2.9",
+    "eslint": "^9.39.4"
   }
 }

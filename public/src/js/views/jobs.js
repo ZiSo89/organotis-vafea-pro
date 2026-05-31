@@ -4,6 +4,28 @@
 
 window.JobsView = {
   currentEdit: null,
+
+  /** Μορφοποίηση προγραμματισμού επίσκεψης για πίνακα/προβολή */
+  formatVisitSchedule(job) {
+    const nv = job.nextVisit || job.next_visit;
+    if (!nv) return '-';
+    let text = Utils.formatDate(nv);
+    const ved = job.visitEndDate || job.visit_end_date;
+    const nvDay = String(nv).substring(0, 10);
+    const vedDay = ved ? String(ved).substring(0, 10) : null;
+    if (vedDay && vedDay !== nvDay) {
+      text += ' – ' + Utils.formatDate(ved);
+    }
+    const allDay = job.visitAllDay ?? job.visit_all_day;
+    const isAllDay = allDay === undefined || allDay === null || Number(allDay) === 1;
+    const st = job.visitStartTime || job.visit_start_time;
+    if (!isAllDay && st) {
+      const start = String(st).substring(0, 5);
+      const et = job.visitEndTime || job.visit_end_time;
+      text += et ? ` (${start}–${String(et).substring(0, 5)})` : ` (${start})`;
+    }
+    return text;
+  },
   assignedWorkers: [], // Array to hold workers assigned to current job
   assignedPaints: [], // Array to hold paints assigned to current job
   tableClickHandler: null,
@@ -90,13 +112,43 @@ window.JobsView = {
                 </select>
               </div>
 
-              <!-- Row 3: Next Visit -->
-              <div class="form-group span-2">
+              <!-- Πρόγραμμα επίσκεψης -->
+              <div class="form-group span-2" style="margin-top: 0.5rem; padding-top: 12px; border-top: 1px solid var(--border-color);">
+                <h4 style="margin: 0 0 12px; font-size: 1rem; color: var(--text-primary);">
+                  <i class="fas fa-calendar-check"></i> Πρόγραμμα επίσκεψης
+                </h4>
+              </div>
+              <div class="form-group">
                 <label>Επόμενη Επίσκεψη</label>
                 <input type="text" id="jobNextVisit" placeholder="ΗΗ/ΜΜ/ΕΕΕΕ" inputmode="numeric" autocomplete="off">
+              </div>
+              <div class="form-group">
+                <label>Λήξη Επίσκεψης</label>
+                <input type="text" id="jobVisitEndDate" placeholder="ΗΗ/ΜΜ/ΕΕΕΕ (πολυήμερη)" inputmode="numeric" autocomplete="off">
                 <small style="color: var(--text-muted); margin-top: 0.25rem; display: block;">
-                  <i class="fas fa-info-circle"></i> Πότε θα επισκεφτείτε τον πελάτη;
+                  <i class="fas fa-info-circle"></i> Για πολυήμερες επισκέψεις — αφήστε κενό για μία μέρα
                 </small>
+              </div>
+              <div class="form-group span-2">
+                <small style="color: var(--text-muted); display: block;">
+                  <i class="fas fa-info-circle"></i> Οι ημερομηνίες συγχρονίζονται αυτόματα με το ημερολόγιο
+                </small>
+              </div>
+
+              <!-- Row 3b: Ωράριο επίσκεψης (ενοποιημένο με το ημερολόγιο) -->
+              <div class="form-group span-2">
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                  <input type="checkbox" id="jobVisitAllDay" checked style="width: auto;">
+                  Ολοήμερη επίσκεψη
+                </label>
+              </div>
+              <div class="form-group" id="jobVisitTimeWrap" style="display: none;">
+                <label>Ώρα από</label>
+                <input type="time" id="jobVisitStartTime" autocomplete="off">
+              </div>
+              <div class="form-group" id="jobVisitEndTimeWrap" style="display: none;">
+                <label>Ώρα έως</label>
+                <input type="time" id="jobVisitEndTime" autocomplete="off">
               </div>
             </div>
             
@@ -391,9 +443,23 @@ window.JobsView = {
       form.addEventListener('submit', this.formSubmitHandler);
     }
     
-    // Initialize date pickers
-    Utils.initDatePicker('#jobDate');
+    // Initialize date pickers (#jobDate δεν υπάρχει πλέον στη φόρμα)
     Utils.initDatePicker('#jobNextVisit');
+    Utils.initDatePicker('#jobVisitEndDate');
+
+    // Toggle ωραρίου επίσκεψης (ολοήμερη <-> με ώρα)
+    const allDayToggle = document.getElementById('jobVisitAllDay');
+    if (allDayToggle) {
+      const applyVisitTimeVisibility = () => {
+        const show = !allDayToggle.checked;
+        const wrap = document.getElementById('jobVisitTimeWrap');
+        const endWrap = document.getElementById('jobVisitEndTimeWrap');
+        if (wrap) wrap.style.display = show ? '' : 'none';
+        if (endWrap) endWrap.style.display = show ? '' : 'none';
+      };
+      allDayToggle.addEventListener('change', applyVisitTimeVisibility);
+      applyVisitTimeVisibility();
+    }
     
     // Cancel button - remove old listener first
     const cancelBtn = document.getElementById('cancelJobFormBtn');
@@ -588,7 +654,7 @@ window.JobsView = {
               <td title="${clientName}">${clientName}</td>
               <td title="${job.type || '-'}">${job.type || '-'}</td>
               <td><span class="status-pill status-${job.status?.toLowerCase().replace(/\s+/g, '-')}">${Utils.translateStatus(job.status)}</span></td>
-              <td>${job.nextVisit ? `<strong style="color: var(--accent-primary);" title="${Utils.formatDate(job.nextVisit)}">${Utils.formatDate(job.nextVisit)}</strong>` : '-'}</td>
+              <td>${this.formatVisitSchedule(job) !== '-' ? `<strong style="color: var(--accent-primary);">${this.formatVisitSchedule(job)}</strong>` : '-'}</td>
               <td title="${Utils.formatCurrency(job.totalCost || job.total_cost || 0)}"><strong>${Utils.formatCurrency(job.totalCost || job.total_cost || 0)}</strong></td>
               <td title="Κέρδος: ${Utils.formatCurrency(profit)}"><strong style="color: ${profitColor};">${profitSign}${Utils.formatCurrency(profit)}</strong></td>
               <td class="actions">
@@ -642,6 +708,7 @@ window.JobsView = {
     
     // Initialize date picker for next visit
     Utils.initDatePicker('#jobNextVisit');
+    Utils.initDatePicker('#jobVisitEndDate');
     
     // Load default billing rate from settings (use cached value)
     const pricingSettings = SettingsService.cache.pricing_settings || { hourlyRate: 50, vat: 24, travelCost: 0.5 };
@@ -792,15 +859,28 @@ window.JobsView = {
     // Get and log next visit field value
     const nextVisitRaw = document.getElementById('jobNextVisit').value;
     const nextVisitConverted = Utils.greekToDate(nextVisitRaw);
-    console.log('[Jobs] Next visit field:', { raw: nextVisitRaw, converted: nextVisitConverted });
-    
+    const visitEndRaw = document.getElementById('jobVisitEndDate')?.value || '';
+    const visitEndConverted = visitEndRaw ? Utils.greekToDate(visitEndRaw) : null;
+    console.log('[Jobs] Next visit field:', { raw: nextVisitRaw, converted: nextVisitConverted, visitEnd: visitEndConverted });
+
+    // Ωράριο επίσκεψης (ενοποίηση με ημερολόγιο)
+    const visitAllDayEl = document.getElementById('jobVisitAllDay');
+    const visitAllDay = visitAllDayEl && !visitAllDayEl.checked ? 0 : 1;
+    const visitStartTime = visitAllDay ? null : (document.getElementById('jobVisitStartTime')?.value || null);
+    const visitEndTime = visitAllDay ? null : (document.getElementById('jobVisitEndTime')?.value || null);
+
     const jobData = {
       clientId: Number(jobClient), // Convert to number
       type: document.getElementById('jobType').value || null,
       status: jobStatus,
+      address: document.getElementById('jobAddress')?.value || null,
       rooms: parseInt(document.getElementById('jobRooms').value) || null,
       area: parseFloat(document.getElementById('jobArea').value) || null,
       nextVisit: nextVisitConverted,
+      visitEndDate: visitEndConverted,
+      visitAllDay: visitAllDay,
+      visitStartTime: visitStartTime,
+      visitEndTime: visitEndTime,
       materialsCost: parseFloat(document.getElementById('jobMaterialsCost').value) || 0,
       kilometers: parseFloat(document.getElementById('jobKilometers').value) || 0,
       billingHours: billingHours,
@@ -870,6 +950,9 @@ window.JobsView = {
 
       this.cancelForm();
       this.refreshTable();
+      if (typeof State !== 'undefined' && State.refreshCalendarIfNeeded) {
+        State.refreshCalendarIfNeeded();
+      }
     } catch (error) {
       console.error('❌ Error saving job:', error);
       Toast.error('Σφάλμα κατά την αποθήκευση: ' + error.message);
@@ -884,9 +967,16 @@ window.JobsView = {
     }
   },
 
-  viewJob(id) {
+  async viewJob(id) {
     console.log('[Jobs] Viewing job:', id);
-    const job = State.data.jobs.find(j => Number(j.id) === Number(id));
+    let job = null;
+    try {
+      job = await API.getJob(id);
+      const idx = State.data.jobs.findIndex(j => Number(j.id) === Number(id));
+      if (idx >= 0) State.data.jobs[idx] = job;
+    } catch (e) {
+      job = State.data.jobs.find(j => Number(j.id) === Number(id));
+    }
     if (!job) {
       console.error('[Jobs] Job not found:', id);
       return;
@@ -971,7 +1061,7 @@ window.JobsView = {
             </div>
             <div class="detail-item">
               <label>Επόμενη Επίσκεψη:</label>
-              <span>${job.nextVisit ? Utils.formatDate(job.nextVisit) : '-'}</span>
+              <span>${this.formatVisitSchedule(job)}</span>
             </div>
           </div>
         </div>
@@ -1172,16 +1262,27 @@ window.JobsView = {
     }, 50);
   },
 
-  editJob(id) {
+  async editJob(id) {
     console.log('[Jobs] Editing job:', id);
-    const job = State.data.jobs.find(j => Number(j.id) === Number(id));
+    let job = null;
+    try {
+      job = await API.getJob(id);
+      const idx = State.data.jobs.findIndex(j => Number(j.id) === Number(id));
+      if (idx >= 0) State.data.jobs[idx] = job;
+    } catch (e) {
+      job = State.data.jobs.find(j => Number(j.id) === Number(id));
+    }
     if (!job) {
       console.error('[Jobs] Job not found:', id);
       return;
     }
 
+    this.fillJobForm(job);
+  },
+
+  fillJobForm(job) {
     console.log('[Jobs] Job data:', job);
-    this.currentEdit = Number(id);
+    this.currentEdit = Number(job.id);
     document.getElementById('formTitle').textContent = 'Επεξεργασία Εργασίας';
     document.getElementById('jobForm').style.display = 'block';
 
@@ -1198,6 +1299,25 @@ window.JobsView = {
     document.getElementById('jobRooms').value = job.rooms ? Math.round(job.rooms) : '';
     document.getElementById('jobArea').value = job.area ? Math.round(job.area) : '';
     document.getElementById('jobNextVisit').value = Utils.dateToGreek(job.nextVisit);
+    const visitEndEl = document.getElementById('jobVisitEndDate');
+    if (visitEndEl) {
+      visitEndEl.value = Utils.dateToGreek(job.visitEndDate || job.visit_end_date || '');
+    }
+    document.getElementById('jobAddress').value = job.address || '';
+    // Ωράριο επίσκεψης (ενοποιημένο με ημερολόγιο)
+    const editAllDayEl = document.getElementById('jobVisitAllDay');
+    if (editAllDayEl) {
+      const isAllDay = (job.visitAllDay === undefined || job.visitAllDay === null) ? true : !!Number(job.visitAllDay);
+      editAllDayEl.checked = isAllDay;
+      const startEl = document.getElementById('jobVisitStartTime');
+      const endEl = document.getElementById('jobVisitEndTime');
+      if (startEl) startEl.value = job.visitStartTime ? String(job.visitStartTime).substring(0, 5) : '';
+      if (endEl) endEl.value = job.visitEndTime ? String(job.visitEndTime).substring(0, 5) : '';
+      const wrap = document.getElementById('jobVisitTimeWrap');
+      const endWrap = document.getElementById('jobVisitEndTimeWrap');
+      if (wrap) wrap.style.display = isAllDay ? 'none' : '';
+      if (endWrap) endWrap.style.display = isAllDay ? 'none' : '';
+    }
     document.getElementById('jobMaterialsCost').value = job.materialsCost ? Math.round(job.materialsCost) : 0;
     document.getElementById('jobKilometers').value = job.kilometers ? Math.round(job.kilometers) : 0;
     document.getElementById('jobBillingHours').value = job.billingHours ? Math.round(job.billingHours) : 0;

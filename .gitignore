@@ -25,6 +25,10 @@ npm-debug.log*
 .env
 .env.local
 
+# Local secrets - NEVER commit real credentials
+config/secrets.local.php
+**/secrets.local.php
+
 # Temporary files
 *.tmp
 *.temp

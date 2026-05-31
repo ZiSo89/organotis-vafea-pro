@@ -120,26 +120,76 @@ if (Test-Path ".htaccess.production") {
     Write-Host "   .htaccess updated for production" -ForegroundColor Gray
 }
 
-# Enimerwsi database.php me production settings
-Write-Host "   Updating database.php with production settings..." -ForegroundColor Cyan
+# Generate production secrets file (config/secrets.local.php)
+# NOTE: real credentials are NEVER hardcoded here. They come from environment
+# variables on the machine running this deploy script.
+#   $env:PAINTER_DB_USER, $env:PAINTER_DB_PASS, $env:PAINTER_SYNC_API_KEY
+Write-Host "   Generating production config/secrets.local.php..." -ForegroundColor Cyan
 
-$dbFile = "config/database.php"
-$dbContent = Get-Content $dbFile -Raw
+$prodDbUser = if ($env:PAINTER_DB_USER) { $env:PAINTER_DB_USER } else { "painter_user" }
+$prodDbPass = $env:PAINTER_DB_PASS
+if (-not $prodDbPass) {
+    Write-Host "   PAINTER_DB_PASS env var not set." -ForegroundColor Yellow
+    $secure = Read-Host "   Enter PRODUCTION database password" -AsSecureString
+    $prodDbPass = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto(
+        [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure))
+}
+$prodSyncKey = if ($env:PAINTER_SYNC_API_KEY) { $env:PAINTER_SYNC_API_KEY } else { "electron-sync-key-2025" }
 
-# Replace DEBUG_MODE
-$dbContent = $dbContent -replace 'define\(''DEBUG_MODE'',\s*true\);', 'define(''DEBUG_MODE'', false);'
+$adminHashLine = ""
+if ($env:PAINTER_ADMIN_PASSWORD_HASH) {
+    $hashEsc = Escape-Php $env:PAINTER_ADMIN_PASSWORD_HASH
+    $adminHashLine = "`n    'ADMIN_PASSWORD_HASH' => '$hashEsc',"
+    Write-Host "   Admin password: bcrypt hash from PAINTER_ADMIN_PASSWORD_HASH" -ForegroundColor Gray
+} else {
+    Write-Host "   WARNING: PAINTER_ADMIN_PASSWORD_HASH not set — use npm run admin:hash before deploy!" -ForegroundColor Yellow
+}
 
-# Replace DB credentials
-$dbContent = $dbContent -replace 'define\(''DB_USER'',\s*''[^'']*''\);', 'define(''DB_USER'', ''painter_user'');'
-$dbContent = $dbContent -replace 'define\(''DB_PASS'',\s*''[^'']*''\);', 'define(''DB_PASS'', ''~cjN4bOZcq77jqy@'');'
+# PHP single-quoted strings: escape backslash and single quote
+function Escape-Php($s) { return ($s -replace '\\', '\\' -replace "'", "\'") }
+$userEsc = Escape-Php $prodDbUser
+$passEsc = Escape-Php $prodDbPass
+$keyEsc  = Escape-Php $prodSyncKey
 
-# Update comment
-$dbContent = $dbContent -replace '// Database credentials.*', '// Database credentials (Production)'
-$dbContent = $dbContent -replace '// Debug mode.*', '// Debug mode - ALWAYS false in production'
+# Google Calendar (optional) - only injected if env vars are set.
+#   $env:PAINTER_GOOGLE_CLIENT_ID, $env:PAINTER_GOOGLE_CLIENT_SECRET, $env:PAINTER_GOOGLE_REDIRECT_URI
+$googleLines = ""
+if ($env:PAINTER_GOOGLE_CLIENT_ID -and $env:PAINTER_GOOGLE_CLIENT_SECRET) {
+    $gcidEsc = Escape-Php $env:PAINTER_GOOGLE_CLIENT_ID
+    $gsecEsc = Escape-Php $env:PAINTER_GOOGLE_CLIENT_SECRET
+    $gredir  = if ($env:PAINTER_GOOGLE_REDIRECT_URI) { $env:PAINTER_GOOGLE_REDIRECT_URI } else { "https://nikolpaintmaster.e-gata.gr/api/google_oauth.php?action=callback" }
+    $gredEsc = Escape-Php $gredir
+    $googleLines = @"
 
-Set-Content $dbFile -Value $dbContent -NoNewline
+    'GOOGLE_CLIENT_ID'     => '$gcidEsc',
+    'GOOGLE_CLIENT_SECRET' => '$gsecEsc',
+    'GOOGLE_REDIRECT_URI'  => '$gredEsc',
+"@
+    Write-Host "   Google Calendar keys: included from env vars" -ForegroundColor Gray
+} else {
+    Write-Host "   Google Calendar keys: NOT set (PAINTER_GOOGLE_CLIENT_ID/SECRET) - skipping" -ForegroundColor DarkGray
+}
 
-Write-Host "Files merged and database.php configured for production" -ForegroundColor Green
+$secretsContent = @"
+<?php
+// AUTO-GENERATED for production by deploy.ps1 - do not edit by hand.
+return [
+    'DB_HOST'      => 'localhost',
+    'DB_PORT'      => '3306',
+    'DB_NAME'      => 'painter_app',
+    'DB_USER'      => '$userEsc',
+    'DB_PASS'      => '$passEsc',
+    'SYNC_API_KEY' => '$keyEsc',$adminHashLine
+    'DEBUG_MODE'   => false,$googleLines
+];
+"@
+
+Set-Content "config/secrets.local.php" -Value $secretsContent -NoNewline -Encoding UTF8
+
+# Force-add despite .gitignore so the deploy branch / Plesk pull receives it
+git add -f config/secrets.local.php
+
+Write-Host "Files merged and production secrets generated" -ForegroundColor Green
 
 # Vima 6: Diagrafi development files (an yparxoun)
 Write-Host ""

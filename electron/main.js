@@ -6,6 +6,15 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
+// Development mode check (also silences verbose console output in production)
+const isDev = process.argv.includes('--dev') || process.env.PAINTER_DEBUG === '1';
+if (!isDev) {
+  const noop = () => {};
+  console.log = noop;
+  console.info = noop;
+  console.debug = noop;
+}
+
 // Log file setup
 const logDir = app.getPath('logs');
 const logFile = path.join(logDir, 'main.log');
@@ -43,9 +52,6 @@ const Sync = require('./db/sync');
 let mainWindow;
 let db;
 let syncManager;
-
-// Development mode check
-const isDev = process.argv.includes('--dev');
 
 function createWindow() {
   mainWindow = new BrowserWindow({

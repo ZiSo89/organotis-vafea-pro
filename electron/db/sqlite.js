@@ -33,7 +33,9 @@ class SQLiteDB {
       throw error; // Don't continue if we can't load the database
     }
     
-    this.db = new Database(dbPath, { verbose: console.log });
+    // Only log every SQL statement in dev mode (very noisy + slow otherwise)
+    const isDev = process.argv.includes('--dev') || process.env.PAINTER_DEBUG === '1';
+    this.db = new Database(dbPath, isDev ? { verbose: console.log } : {});
     this.db.pragma('journal_mode = WAL'); // Better performance
     this.db.pragma('foreign_keys = ON');   // Enable foreign keys
   }
@@ -162,7 +164,38 @@ class SQLiteDB {
       } else {
         console.log('✅ Migration: original_title column already exists');
       }
-      
+
+      // Migration 2: Add google_event_id column to calendar_events (Google Calendar sync)
+      const calInfo = this.db.prepare('PRAGMA table_info(calendar_events)').all();
+      const hasGoogleEventId = calInfo.some(col => col.name === 'google_event_id');
+      if (!hasGoogleEventId) {
+        console.log('📝 Migration: Adding google_event_id column to calendar_events');
+        this.db.prepare('ALTER TABLE calendar_events ADD COLUMN google_event_id TEXT').run();
+      } else {
+        console.log('✅ Migration: google_event_id column already exists');
+      }
+
+      // Migration 3: Add visit time columns to jobs (ενοποίηση εργασίας ↔ ημερολογίου)
+      const jobsInfo = this.db.prepare('PRAGMA table_info(jobs)').all();
+      const jobCols = {
+        visit_start_time: 'ALTER TABLE jobs ADD COLUMN visit_start_time TEXT',
+        visit_end_time: 'ALTER TABLE jobs ADD COLUMN visit_end_time TEXT',
+        visit_all_day: 'ALTER TABLE jobs ADD COLUMN visit_all_day INTEGER DEFAULT 1',
+      };
+      Object.keys(jobCols).forEach((name) => {
+        if (!jobsInfo.some(col => col.name === name)) {
+          console.log(`📝 Migration: Adding ${name} column to jobs`);
+          this.db.prepare(jobCols[name]).run();
+        }
+      });
+
+      // Migration 4: visit_end_date (ξεχωριστό από end_date έργου)
+      const jobsInfo2 = this.db.prepare('PRAGMA table_info(jobs)').all();
+      if (!jobsInfo2.some(col => col.name === 'visit_end_date')) {
+        console.log('📝 Migration: Adding visit_end_date column to jobs');
+        this.db.prepare('ALTER TABLE jobs ADD COLUMN visit_end_date TEXT').run();
+      }
+
       console.log('✅ All migrations completed');
     } catch (error) {
       console.error('❌ Migration error:', error);
@@ -206,6 +239,10 @@ class SQLiteDB {
         type TEXT,
         date TEXT,
         next_visit TEXT,
+        visit_end_date TEXT,
+        visit_start_time TEXT,
+        visit_end_time TEXT,
+        visit_all_day INTEGER DEFAULT 1,
         description TEXT,
         address TEXT,
         city TEXT,
@@ -362,6 +399,7 @@ class SQLiteDB {
         status TEXT,
         color TEXT,
         reminder_sent INTEGER DEFAULT 0,
+        google_event_id TEXT,
         created_at TEXT DEFAULT (datetime('now', 'localtime')),
         updated_at TEXT DEFAULT (datetime('now', 'localtime')),
         _sync_status TEXT DEFAULT 'synced',
@@ -534,6 +572,10 @@ class SQLiteDB {
     
     // Get the updated record and return it
     const updatedRecord = this.getById(table, id);
+
+    if (table === 'calendar_events') {
+      this.syncEventBackToJob(id);
+    }
     
     return {
       changes: result.changes,
@@ -543,6 +585,13 @@ class SQLiteDB {
 
   // Delete record
   delete(table, id) {
+    if (table === 'calendar_events') {
+      const ev = this.getById(table, id);
+      if (ev && ev.jobId) {
+        this.clearJobVisitSchedule(ev.jobId);
+      }
+    }
+
     // Soft delete by marking for sync
     const sql = `UPDATE ${table} 
                  SET _sync_status = 'deleted', _sync_timestamp = ${Date.now()}
@@ -566,6 +615,68 @@ class SQLiteDB {
     } else {
       return stmt.run(...params);
     }
+  }
+
+  /* ========================================
+     Calendar ↔ Job sync (Electron)
+     ======================================== */
+
+  clearJobVisitSchedule(jobId) {
+    if (!jobId) return;
+    this.db.prepare(`
+      UPDATE jobs SET
+        next_visit = NULL,
+        visit_end_date = NULL,
+        visit_start_time = NULL,
+        visit_end_time = NULL,
+        visit_all_day = 1,
+        updated_at = datetime('now', 'localtime'),
+        _sync_status = 'pending',
+        _sync_timestamp = ?
+      WHERE id = ?
+    `).run(Date.now(), jobId);
+  }
+
+  syncEventBackToJob(eventId) {
+    const ev = this.getById('calendar_events', eventId);
+    if (!ev || !ev.jobId) return;
+
+    const startDate = (ev.startDate || ev.start_date || '').substring(0, 10);
+    let endDate = (ev.endDate || ev.end_date || startDate).substring(0, 10);
+    if (endDate < startDate) endDate = startDate;
+
+    const statusMap = {
+      completed: 'Ολοκληρώθηκε',
+      in_progress: 'Σε εξέλιξη',
+      confirmed: 'Προγραμματισμένη',
+      cancelled: 'Ακυρώθηκε',
+      pending: 'Υποψήφιος',
+    };
+    const rawStatus = (ev.status || 'pending').toLowerCase();
+    const jobStatus = statusMap[rawStatus] || 'Υποψήφιος';
+
+    this.db.prepare(`
+      UPDATE jobs SET
+        next_visit = ?,
+        visit_end_date = ?,
+        visit_start_time = ?,
+        visit_end_time = ?,
+        visit_all_day = ?,
+        status = ?,
+        updated_at = datetime('now', 'localtime'),
+        _sync_status = 'pending',
+        _sync_timestamp = ?
+      WHERE id = ?
+    `).run(
+      startDate,
+      endDate,
+      ev.startTime || ev.start_time || null,
+      ev.endTime || ev.end_time || null,
+      ev.allDay ?? ev.all_day ?? 1,
+      jobStatus,
+      Date.now(),
+      ev.jobId
+    );
   }
 
   /* ========================================

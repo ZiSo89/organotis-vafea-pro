@@ -6,6 +6,24 @@
 const https = require('https');
 const http = require('http');
 
+function getSyncApiKey() {
+  return process.env.PAINTER_SYNC_API_KEY
+    || process.env.SYNC_API_KEY
+    || 'electron-sync-key-2025';
+}
+
+function getHttpsOptions(serverUrl) {
+  const insecure = process.env.ELECTRON_SYNC_INSECURE === '1'
+    || process.env.ELECTRON_SYNC_INSECURE === 'true';
+  if (serverUrl.startsWith('https') && !insecure) {
+    return { rejectUnauthorized: true };
+  }
+  if (serverUrl.startsWith('https')) {
+    return { rejectUnauthorized: false };
+  }
+  return {};
+}
+
 class SyncManager {
   constructor(db) {
     this.db = db;
@@ -399,9 +417,9 @@ class SyncManager {
       
       const options = {
         headers: {
-          'X-Sync-API-Key': 'electron-sync-key-2025'
+          'X-Sync-API-Key': getSyncApiKey()
         },
-        rejectUnauthorized: false
+        ...getHttpsOptions(url)
       };
       
       protocol.get(url, options, (res) => {
@@ -510,7 +528,6 @@ class SyncManager {
         table: table,
         changes: changes.map(row => {
           const clean = { ...row };
-          delete clean._sync_status;
           delete clean._sync_timestamp;
           return clean;
         })
@@ -524,9 +541,9 @@ class SyncManager {
         headers: {
           'Content-Type': 'application/json',
           'Content-Length': Buffer.byteLength(postData),
-          'X-Sync-API-Key': 'electron-sync-key-2025'
+          'X-Sync-API-Key': getSyncApiKey()
         },
-        rejectUnauthorized: false
+        ...getHttpsOptions(url)
       };
       
       console.log(`🔑 Request headers:`, options.headers);
