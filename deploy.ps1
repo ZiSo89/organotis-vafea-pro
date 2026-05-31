@@ -142,16 +142,15 @@ if (-not $prodDbPass) {
         Write-Host "   Using DB_PASS from existing deploy branch secrets.local.php" -ForegroundColor Gray
     }
 }
+$skipDbPassInFile = $false
 if (-not $prodDbPass) {
-    Write-Host "   PAINTER_DB_PASS env var not set." -ForegroundColor Yellow
-    $secure = Read-Host "   Enter PRODUCTION database password" -AsSecureString
-    $prodDbPass = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto(
-        [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure))
+    Write-Host "   PAINTER_DB_PASS not set - DB_PASS omitted from secrets.local.php (use Plesk env vars)." -ForegroundColor Yellow
+    $skipDbPassInFile = $true
 }
 $prodSyncKey = if ($env:PAINTER_SYNC_API_KEY) { $env:PAINTER_SYNC_API_KEY } else { "electron-sync-key-2025" }
 
 $userEsc = Escape-Php $prodDbUser
-$passEsc = Escape-Php $prodDbPass
+$passEsc = if ($prodDbPass) { Escape-Php $prodDbPass } else { "" }
 $keyEsc  = Escape-Php $prodSyncKey
 
 $adminHashLine = ""
@@ -188,7 +187,11 @@ $secretsLines = @(
     "    'DB_PORT'      => '3306',"
     "    'DB_NAME'      => 'painter_app',"
     "    'DB_USER'      => '$userEsc',"
-    "    'DB_PASS'      => '$passEsc',"
+)
+if (-not $skipDbPassInFile) {
+    $secretsLines += "    'DB_PASS'      => '$passEsc',"
+}
+$secretsLines += @(
     "    'SYNC_API_KEY' => '$keyEsc',"
 )
 if ($adminHashLine) { $secretsLines += $adminHashLine }
