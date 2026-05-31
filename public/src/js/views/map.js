@@ -26,7 +26,6 @@ window.MapView = {
   geocodeQueueSet: new Set(),
   geocodeQueueRunning: false,
   geocodeIntervalMs: 1100,
-  lastRequestTime: 0, // For rate limiting in Electron mode
   isElectron: typeof window !== 'undefined' && window.electronAPI !== undefined,
 
   render(container) {

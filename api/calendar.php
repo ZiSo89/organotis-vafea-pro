@@ -9,6 +9,10 @@ ini_set('display_errors', 0); // Disable display to avoid breaking JSON
 ini_set('log_errors', 1);
 
 require_once '../config/database.php';
+require_once __DIR__ . '/auth_check.php';
+require_once __DIR__ . '/calendar_helpers.php';
+
+checkAuthentication();
 
 // Set headers after all processing
 function sendResponse($data, $code = 200) {
@@ -47,9 +51,6 @@ switch($method) {
     case 'GET':
         handleGet($conn);
         break;
-    case 'POST':
-        handlePost($conn);
-        break;
     case 'PUT':
         handlePut($conn);
         break;
@@ -75,6 +76,7 @@ function handleGet($conn) {
             SELECT 
                 ce.id,
                 ce.title,
+                ce.original_title,
                 ce.start_date,
                 ce.end_date,
                 ce.start_time,
@@ -126,8 +128,8 @@ function handleGet($conn) {
             $color = $event['color'] ?: getEventColor($event['status']);
             
             // Δημιουργία πλούσιου τίτλου με πελάτη για το ημερολόγιο
-            // Use clean_title (original_title or title if original_title is NULL)
-            $cleanTitle = $event['clean_title'];
+            // clean_title = original_title (αν υπάρχει) αλλιώς title
+            $cleanTitle = !empty($event['original_title']) ? $event['original_title'] : $event['title'];
             $displayTitle = '';
             
             // Build display title based on what we have
@@ -204,83 +206,6 @@ function handleGet($conn) {
 }
 
 /* ========================================
-   POST - Δημιουργία νέας επίσκεψης
-   ======================================== */
-function handlePost($conn) {
-    try {
-        $rawInput = file_get_contents('php://input');
-        $data = json_decode($rawInput, true);
-        
-        // Validation
-        if (!isset($data['title']) || !isset($data['start_date'])) {
-            sendResponse(['error' => 'Missing required fields'], 400);
-            return;
-        }
-        
-        // Insert new calendar event
-        $query = "
-            INSERT INTO calendar_events (
-                title, 
-                client_id, 
-                job_id,
-                start_date, 
-                end_date,
-                start_time,
-                end_time,
-                all_day,
-                status, 
-                address,
-                description,
-                color,
-                created_at
-            ) VALUES (
-                :title,
-                :client_id,
-                :job_id,
-                :start_date,
-                :end_date,
-                :start_time,
-                :end_time,
-                :all_day,
-                :status,
-                :address,
-                :description,
-                :color,
-                NOW()
-            )
-        ";
-        
-        $stmt = $conn->prepare($query);
-        
-        $stmt->bindParam(':title', $data['title']);
-        $stmt->bindValue(':client_id', $data['client_id'] ?? null);
-        $stmt->bindValue(':job_id', $data['job_id'] ?? null);
-        $stmt->bindParam(':start_date', $data['start_date']);
-        $stmt->bindValue(':end_date', $data['end_date'] ?? null);
-        $stmt->bindValue(':start_time', $data['start_time'] ?? null);
-        $stmt->bindValue(':end_time', $data['end_time'] ?? null);
-        $stmt->bindValue(':all_day', $data['all_day'] ?? 0, PDO::PARAM_INT);
-        $stmt->bindValue(':status', $data['status'] ?? 'pending');
-        $stmt->bindValue(':address', $data['address'] ?? null);
-        $stmt->bindValue(':description', $data['description'] ?? null);
-        $stmt->bindValue(':color', $data['color'] ?? null);
-        
-        $stmt->execute();
-        
-        $newId = $conn->lastInsertId();
-        
-        sendResponse([
-            'success' => true,
-            'id' => $newId,
-            'message' => 'Η επίσκεψη δημιουργήθηκε επιτυχώς'
-        ], 201);
-        
-    } catch(PDOException $e) {
-        sendResponse(['error' => $e->getMessage()], 500);
-    }
-}
-
-/* ========================================
    PUT - Ενημέρωση επίσκεψης
    ======================================== */
 function handlePut($conn) {
@@ -299,6 +224,11 @@ function handlePut($conn) {
         if (isset($data['title'])) {
             $updateFields[] = "title = :title";
             $params[':title'] = $data['title'];
+        }
+        
+        if (isset($data['original_title'])) {
+            $updateFields[] = "original_title = :original_title";
+            $params[':original_title'] = $data['original_title'];
         }
         
         if (isset($data['start_date'])) {
@@ -367,7 +297,28 @@ function handlePut($conn) {
         
         $stmt = $conn->prepare($query);
         $stmt->execute($params);
-        
+
+        // Τίτλος επίσκεψης → τίτλος εργασίας (αν συνδέεται)
+        if (isset($data['title']) || isset($data['original_title'])) {
+            $evStmt = $conn->prepare("SELECT job_id FROM calendar_events WHERE id = ?");
+            $evStmt->execute([$data['id']]);
+            $linkedJobId = $evStmt->fetchColumn();
+            if ($linkedJobId) {
+                $newTitle = $data['title'] ?? $data['original_title'] ?? null;
+                if ($newTitle) {
+                    $conn->prepare("UPDATE jobs SET title = ?, updated_at = NOW() WHERE id = ?")
+                        ->execute([$newTitle, $linkedJobId]);
+                }
+            }
+        }
+
+        // Αντίστροφος συγχρονισμός: αν η επίσκεψη είναι συνδεδεμένη με εργασία,
+        // ενημέρωσε την εργασία (ημερομηνία/ώρες) ώστε τα δεδομένα να μένουν ενοποιημένα.
+        sync_event_back_to_job($conn, $data['id']);
+
+        // Auto-push στο Google (αν υπάρχει σύνδεση)
+        calendar_push_event_to_google($conn, $data['id']);
+
         sendResponse([
             'success' => true,
             'message' => 'Η επίσκεψη ενημερώθηκε'
@@ -389,13 +340,30 @@ function handleDelete($conn) {
             sendResponse(['error' => 'Missing event ID'], 400);
             return;
         }
-        
+
+        // Κράτησε google_event_id + job_id πριν τη διαγραφή
+        $sel = $conn->prepare("SELECT google_event_id, job_id FROM calendar_events WHERE id = ?");
+        $sel->execute([$id]);
+        $info = $sel->fetch(PDO::FETCH_ASSOC) ?: [];
+        $googleEventId = $info['google_event_id'] ?? null;
+        $jobId = $info['job_id'] ?? null;
+
         // Delete calendar event (NOT the job!)
         $query = "DELETE FROM calendar_events WHERE id = :id";
         $stmt = $conn->prepare($query);
         $stmt->bindParam(':id', $id);
         $stmt->execute();
-        
+
+        // Συνδεδεμένη εργασία: καθάρισε πάντα τον προγραμματισμό επίσκεψης
+        if ($jobId) {
+            clear_job_visit_after_event_removed($conn, $jobId);
+        }
+
+        // Auto-delete από το Google (αν υπάρχει σύνδεση)
+        if ($googleEventId) {
+            google_delete_remote_event($googleEventId);
+        }
+
         sendResponse([
             'success' => true,
             'message' => 'Η επίσκεψη διαγράφηκε (η εργασία παραμένει)'
@@ -409,134 +377,29 @@ function handleDelete($conn) {
 /* ========================================
    Helper Functions
    ======================================== */
-function getEventColor($status) {
-    // Normalize status - handle both Greek and English
-    $status = strtolower(trim($status));
-    
-    // Map Greek to English
-    $greekToEnglish = [
-        'ολοκληρώθηκε' => 'completed',
-        'σε εξέλιξη' => 'in_progress',
-        'υποψήφιος' => 'pending',
-        'σε αναμονή' => 'pending',
-        'ακυρώθηκε' => 'cancelled'
-    ];
-    
-    if (isset($greekToEnglish[$status])) {
-        $status = $greekToEnglish[$status];
-    }
-    
-    switch($status) {
-        case 'completed':
-            return '#10b981'; // green
-        case 'in_progress':
-        case 'in-progress':
-            return '#3b82f6'; // blue
-        case 'pending':
-            return '#f59e0b'; // orange
-        case 'cancelled':
-            return '#ef4444'; // red
-        default:
-            return '#6b7280'; // gray
-    }
-}
+// getEventColor() ορίζεται πλέον στο api/calendar_helpers.php (κοινή χρήση)
 
 /* ========================================
    SYNC - Συγχρονισμός Εργασιών με Ημερολόγιο
    ======================================== */
 function handleSync($conn) {
     try {
-        // Διαγραφή υπαρχόντων calendar events που έχουν job_id (δηλαδή προήλθαν από εργασίες)
-        $deleteQuery = "DELETE FROM calendar_events WHERE job_id IS NOT NULL";
-        $conn->exec($deleteQuery);
-        
-        // Παίρνουμε όλες τις εργασίες που έχουν next_visit
-        $query = "
-            SELECT 
-                j.id,
-                j.title,
-                j.client_id,
-                j.address,
-                j.description,
-                j.status,
-                j.next_visit,
-                c.name as client_name,
-                c.phone as client_phone
-            FROM jobs j
-            LEFT JOIN clients c ON j.client_id = c.id
-            WHERE j.next_visit IS NOT NULL 
-            AND j.next_visit != ''
-            AND j.next_visit != '0000-00-00'
-            ORDER BY j.next_visit ASC
-        ";
-        
-        $stmt = $conn->prepare($query);
-        $stmt->execute();
-        $jobs = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        
+        // Πλήρης επανασυγχρονισμός (repair): UPSERT ανά εργασία ώστε να ΜΗΝ χαθούν τα Google links.
+        // Κανονικά ο συγχρονισμός γίνεται αυτόματα σε κάθε αποθήκευση εργασίας.
+        $jobIds = $conn->query("SELECT id FROM jobs")->fetchAll(PDO::FETCH_COLUMN);
+
         $syncedCount = 0;
-        
-        // Δημιουργία calendar event για κάθε εργασία
-        foreach ($jobs as $job) {
-            // Δημιουργία τίτλου
-            $title = $job['title'];
-            if ($job['client_name']) {
-                $title = $job['client_name'] . ' - ' . $job['title'];
-            }
-            
-            // Προσδιορισμός χρώματος βάσει status
-            $color = getEventColor($job['status']);
-            
-            // Insert στο calendar
-            $insertQuery = "
-                INSERT INTO calendar_events (
-                    title,
-                    client_id,
-                    job_id,
-                    start_date,
-                    end_date,
-                    all_day,
-                    status,
-                    address,
-                    description,
-                    color,
-                    created_at
-                ) VALUES (
-                    :title,
-                    :client_id,
-                    :job_id,
-                    :start_date,
-                    :end_date,
-                    1,
-                    :status,
-                    :address,
-                    :description,
-                    :color,
-                    NOW()
-                )
-            ";
-            
-            $insertStmt = $conn->prepare($insertQuery);
-            $insertStmt->bindParam(':title', $title);
-            $insertStmt->bindParam(':client_id', $job['client_id']);
-            $insertStmt->bindParam(':job_id', $job['id']);
-            $insertStmt->bindParam(':start_date', $job['next_visit']);
-            $insertStmt->bindParam(':end_date', $job['next_visit']);
-            $insertStmt->bindParam(':status', $job['status']);
-            $insertStmt->bindParam(':address', $job['address']);
-            $insertStmt->bindParam(':description', $job['description']);
-            $insertStmt->bindParam(':color', $color);
-            
-            $insertStmt->execute();
+        foreach ($jobIds as $jobId) {
+            upsert_calendar_event_for_job($conn, $jobId);
             $syncedCount++;
         }
-        
+
         sendResponse([
             'success' => true,
             'synced' => $syncedCount,
-            'message' => "✅ Συγχρονίστηκαν $syncedCount εργασίες (οι χειροκίνητες επισκέψεις διατηρήθηκαν)"
+            'message' => "✅ Επανασυγχρονίστηκαν $syncedCount εργασίες (οι χειροκίνητες επισκέψεις διατηρήθηκαν)"
         ]);
-        
+
     } catch(PDOException $e) {
         sendResponse(['error' => $e->getMessage()], 500);
     }
@@ -562,6 +425,7 @@ function handleList($conn) {
                 description,
                 status,
                 color,
+                google_event_id AS googleEventId,
                 created_at AS createdAt,
                 updated_at AS updatedAt
             FROM calendar_events

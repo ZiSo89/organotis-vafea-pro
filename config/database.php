@@ -16,15 +16,19 @@ if (!is_dir($logDir)) {
 }
 ini_set('error_log', $logDir . '/php_errors.log');
 
-// Debug mode - ALWAYS false in production
-define('DEBUG_MODE', false);
+// Load credentials/config from environment or config/secrets.local.php
+// (never hardcode real secrets here - see config/secrets.php)
+require_once __DIR__ . '/secrets.php';
 
-// Database credentials (Production)
-define('DB_HOST', 'localhost');
-define('DB_PORT', '3306');
-define('DB_NAME', 'painter_app');
-define('DB_USER', 'painter_user');
-define('DB_PASS', '~cjN4bOZcq77jqy@');
+// Debug mode - true for local testing, false in production
+define('DEBUG_MODE', app_secret_bool('DEBUG_MODE', true));
+
+// Database credentials (values come from env / secrets.local.php / defaults)
+define('DB_HOST', app_secret('DB_HOST', 'localhost'));
+define('DB_PORT', app_secret('DB_PORT', '3306'));
+define('DB_NAME', app_secret('DB_NAME', 'painter_app'));
+define('DB_USER', app_secret('DB_USER', 'root'));
+define('DB_PASS', app_secret('DB_PASS', ''));
 define('DB_CHARSET', 'utf8mb4');
 
 // Include logger

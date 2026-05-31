@@ -4,6 +4,7 @@
  */
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/auth_check.php';
+require_once __DIR__ . '/calendar_helpers.php';
 checkAuthentication();
 
 logApiRequest('/api/jobs.php', $_SERVER['REQUEST_METHOD'], $_GET);
@@ -16,6 +17,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') exit(0);
 
 $db = getDBConnection();
 $method = $_SERVER['REQUEST_METHOD'];
+
+// Εξασφάλισε τα πεδία ώρας επίσκεψης (ενοποίηση εργασίας ↔ ημερολογίου)
+ensure_job_visit_columns($db);
 
 // Helper: compute job-level financials (billing WITHOUT VAT, net profit)
 function compute_job_financials_job($job) {
@@ -149,13 +153,15 @@ try {
             
             $stmt = $db->prepare("
                 INSERT INTO jobs (
-                    client_id, title, type, date, next_visit, description, address, city, postal_code,
+                    client_id, title, type, date, next_visit, visit_end_date, visit_start_time, visit_end_time, visit_all_day,
+                    description, address, city, postal_code,
                     rooms, area, substrate, materials_cost, kilometers, billing_hours, billing_rate,
                     vat, cost_per_km, notes, assigned_workers, paints,
                     start_date, end_date, status, total_cost, is_paid, coordinates
                 )
                 VALUES (
-                    :client_id, :title, :type, :date, :next_visit, :description, :address, :city, :postal_code,
+                    :client_id, :title, :type, :date, :next_visit, :visit_end_date, :visit_start_time, :visit_end_time, :visit_all_day,
+                    :description, :address, :city, :postal_code,
                     :rooms, :area, :substrate, :materials_cost, :kilometers, :billing_hours, :billing_rate,
                     :vat, :cost_per_km, :notes, :assigned_workers, :paints,
                     :start_date, :end_date, :status, :total_cost, :is_paid, :coordinates
@@ -168,6 +174,10 @@ try {
                 ':type' => $data['type'] ?? null,
                 ':date' => $data['date'] ?? null,
                 ':next_visit' => $data['next_visit'] ?? null,
+                ':visit_end_date' => !empty($data['visit_end_date']) ? $data['visit_end_date'] : null,
+                ':visit_start_time' => !empty($data['visit_start_time']) ? $data['visit_start_time'] : null,
+                ':visit_end_time' => !empty($data['visit_end_time']) ? $data['visit_end_time'] : null,
+                ':visit_all_day' => isset($data['visit_all_day']) ? (int)$data['visit_all_day'] : 1,
                 ':description' => $data['description'] ?? null,
                 ':address' => $data['address'] ?? null,
                 ':city' => $data['city'] ?? null,
@@ -199,7 +209,10 @@ try {
             if (isset($job['coordinates'])) $job['coordinates'] = json_decode($job['coordinates'], true);
             if (isset($job['assignedWorkers'])) $job['assignedWorkers'] = json_decode($job['assignedWorkers'], true);
             if (isset($job['paints'])) $job['paints'] = json_decode($job['paints'], true);
-            
+
+            // Αυτόματος συγχρονισμός με το ημερολόγιο (+ Google αν συνδεδεμένο) — χωρίς κουμπί
+            try { upsert_calendar_event_for_job($db, $jobId); } catch (Exception $e) { error_log('job->calendar upsert: ' . $e->getMessage()); }
+
             sendSuccess($job, 'Η εργασία δημιουργήθηκε επιτυχώς');
             break;
             
@@ -229,17 +242,34 @@ try {
                 $data['is_paid'] = 0;
             }
             
-            // Check if job exists first
-            $checkStmt = $db->prepare("SELECT id FROM jobs WHERE id = ?");
+            // Check if job exists first + φόρτωσε υπάρχοντα πεδία προγραμματισμού
+            $checkStmt = $db->prepare("SELECT id, next_visit, visit_end_date, end_date, visit_start_time, visit_end_time, visit_all_day FROM jobs WHERE id = ?");
             $checkStmt->execute([$_GET['id']]);
-            if (!$checkStmt->fetch()) {
+            $existingJob = $checkStmt->fetch(PDO::FETCH_ASSOC);
+            if (!$existingJob) {
                 sendError('Η εργασία δεν βρέθηκε', 404);
+            }
+
+            // Η φόρμα εργασίας δεν στέλνει end_date — μην το μηδενίσεις όταν αλλάζεις άλλα πεδία
+            if (!array_key_exists('end_date', $data) || $data['end_date'] === '' || $data['end_date'] === null) {
+                $data['end_date'] = $existingJob['end_date'];
+            }
+            if (!array_key_exists('visit_end_date', $data)) {
+                $data['visit_end_date'] = $existingJob['visit_end_date'] ?? null;
+            } elseif ($data['visit_end_date'] === '' || $data['visit_end_date'] === null) {
+                $data['visit_end_date'] = null;
+            }
+            // Διατήρηση next_visit αν δεν στάλθηκε (defensive)
+            if (!array_key_exists('next_visit', $data)) {
+                $data['next_visit'] = $existingJob['next_visit'];
             }
             
             $stmt = $db->prepare("
                 UPDATE jobs 
                 SET client_id = :client_id, title = :title, type = :type, date = :date, 
-                    next_visit = :next_visit, description = :description,
+                    next_visit = :next_visit, visit_end_date = :visit_end_date, visit_start_time = :visit_start_time,
+                    visit_end_time = :visit_end_time, visit_all_day = :visit_all_day,
+                    description = :description,
                     address = :address, city = :city, postal_code = :postal_code,
                     rooms = :rooms, area = :area, substrate = :substrate,
                     materials_cost = :materials_cost, kilometers = :kilometers,
@@ -258,6 +288,10 @@ try {
                 ':type' => $data['type'] ?? null,
                 ':date' => $data['date'] ?? null,
                 ':next_visit' => $data['next_visit'] ?? null,
+                ':visit_end_date' => !empty($data['visit_end_date']) ? $data['visit_end_date'] : null,
+                ':visit_start_time' => !empty($data['visit_start_time']) ? $data['visit_start_time'] : null,
+                ':visit_end_time' => !empty($data['visit_end_time']) ? $data['visit_end_time'] : null,
+                ':visit_all_day' => isset($data['visit_all_day']) ? (int)$data['visit_all_day'] : 1,
                 ':description' => $data['description'] ?? null,
                 ':address' => $data['address'] ?? null,
                 ':city' => $data['city'] ?? null,
@@ -288,12 +322,28 @@ try {
             if (isset($job['coordinates'])) $job['coordinates'] = json_decode($job['coordinates'], true);
             if (isset($job['assignedWorkers'])) $job['assignedWorkers'] = json_decode($job['assignedWorkers'], true);
             if (isset($job['paints'])) $job['paints'] = json_decode($job['paints'], true);
-            
+
+            // Αυτόματος συγχρονισμός με το ημερολόγιο (+ Google αν συνδεδεμένο) — χωρίς κουμπί
+            try { upsert_calendar_event_for_job($db, $_GET['id']); } catch (Exception $e) { error_log('job->calendar upsert: ' . $e->getMessage()); }
+
             sendSuccess($job, 'Η εργασία ενημερώθηκε επιτυχώς');
             break;
             
         case 'DELETE':
             if (!isset($_GET['id'])) sendError('Το ID είναι υποχρεωτικό');
+
+            // Σβήσε πρώτα τις συνδεδεμένες επισκέψεις ημερολογίου (+ Google)
+            try {
+                $evStmt = $db->prepare("SELECT id, google_event_id FROM calendar_events WHERE job_id = ?");
+                $evStmt->execute([$_GET['id']]);
+                foreach ($evStmt->fetchAll(PDO::FETCH_ASSOC) as $ev) {
+                    if (!empty($ev['google_event_id'])) {
+                        google_delete_remote_event($ev['google_event_id']);
+                    }
+                }
+                $db->prepare("DELETE FROM calendar_events WHERE job_id = ?")->execute([$_GET['id']]);
+            } catch (Exception $e) { error_log('job delete -> calendar cleanup: ' . $e->getMessage()); }
+
             $stmt = $db->prepare("DELETE FROM jobs WHERE id = ?");
             $stmt->execute([$_GET['id']]);
             $stmt->rowCount() > 0 ? sendSuccess(null, 'Η εργασία διαγράφηκε') : sendError('Δεν βρέθηκε', 404);

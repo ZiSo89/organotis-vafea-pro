@@ -549,6 +549,21 @@ const State = {
     }
   },
 
+  refreshCalendarIfNeeded() {
+    if (this.currentSection === 'calendar' && window.CalendarView && window.CalendarView.calendar) {
+      window.CalendarView.calendar.refetchEvents();
+      if (window.CalendarView.loadUpcomingVisits) {
+        window.CalendarView.loadUpcomingVisits().catch(() => {});
+      }
+    }
+  },
+
+  refreshJobsIfNeeded() {
+    if (this.currentSection === 'jobs' && window.JobsView && window.JobsView.refreshTable) {
+      window.JobsView.refreshTable();
+    }
+  },
+
   /**
    * Reload all data from SQLite/API
    * Useful after sync operations

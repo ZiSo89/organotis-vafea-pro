@@ -16,9 +16,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit(0);
 }
 
-// Hardcoded password
-const ADMIN_PASSWORD = 'admin';
+// Credentials come from env / config/secrets.local.php / default (see config/secrets.php)
+require_once __DIR__ . '/../config/secrets.php';
+require_once __DIR__ . '/auth_helpers.php';
+
+// Admin password: prefer a bcrypt hash (ADMIN_PASSWORD_HASH) over a plaintext value.
+define('ADMIN_PASSWORD_HASH', app_secret('ADMIN_PASSWORD_HASH', ''));
+define('ADMIN_PASSWORD', app_secret('ADMIN_PASSWORD', 'admin'));
 const SESSION_TIMEOUT = 7200; // 2 hours
+
+/**
+ * Verify the supplied password against a hash (preferred) or plaintext fallback.
+ */
+function verifyAdminPassword($password) {
+    if (ADMIN_PASSWORD_HASH !== '') {
+        return password_verify($password, ADMIN_PASSWORD_HASH);
+    }
+    // Constant-time compare for the plaintext fallback
+    return hash_equals((string) ADMIN_PASSWORD, (string) $password);
+}
 
 // Login
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action']) && $_GET['action'] === 'login') {
@@ -26,14 +42,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action']) && $_GET['ac
     $password = $input['password'] ?? '';
     $rememberMe = $input['rememberMe'] ?? false;
     
-    if ($password === ADMIN_PASSWORD) {
+    if (verifyAdminPassword($password)) {
         $_SESSION['authenticated'] = true;
         $_SESSION['login_time'] = time();
         
         // Remember me cookie (30 days)
         if ($rememberMe) {
             $token = bin2hex(random_bytes(32));
-            $_SESSION['remember_token'] = $token;
+            remember_me_store($token);
             // Set cookie with proper parameters for mobile/desktop
             setcookie('remember_token', $token, [
                 'expires' => time() + (30 * 24 * 60 * 60),
@@ -75,13 +91,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['act
         }
     }
     
-    // If not authenticated via session, check remember me cookie
-    if (!$isAuthenticated && isset($_COOKIE['remember_token']) && !empty($_COOKIE['remember_token'])) {
-        // Cookie exists, authenticate automatically
-        $_SESSION['authenticated'] = true;
-        $_SESSION['login_time'] = time();
-        $_SESSION['remember_token'] = $_COOKIE['remember_token'];
-        $isAuthenticated = true;
+    if (!$isAuthenticated) {
+        $isAuthenticated = auth_try_remember_cookie();
     }
     
     echo json_encode([
@@ -93,6 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['act
 
 // Logout
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action']) && $_GET['action'] === 'logout') {
+    remember_me_clear();
     session_destroy();
     // Clear remember me cookie
     setcookie('remember_token', '', [

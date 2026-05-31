@@ -1,0 +1,166 @@
+# Οργανωτής Βαφέα Pro — Cursor Rules
+
+Οδηγίες για τον AI agent ώστε να κατανοεί και να επεξεργάζεται σωστά αυτό το έργο.
+Όλη η επικοινωνία με τον χρήστη γίνεται στα **Ελληνικά**.
+
+---
+
+## 1. Τι είναι το έργο
+
+Εφαρμογή διαχείρισης για επαγγελματία **βαφέα/ελαιοχρωματιστή** (CRM + διαχείριση εργασιών).
+Διαχειρίζεται: Πελάτες, Εργασίες (jobs), Προσωπικό (workers), Αποθήκη/Υλικά (materials),
+Προσφορές (offers), Τιμολόγια (invoices), Ημερολόγιο (calendar), Χάρτη (map),
+Πρότυπα (templates), Στατιστικά και Ρυθμίσεις.
+
+Η γλώσσα του UI και των δεδομένων είναι **Ελληνικά** (π.χ. status: `Υποψήφιος`, `Σε εξέλιξη`, `Ολοκληρώθηκε`).
+
+---
+
+## 2. Διπλό περιβάλλον εκτέλεσης (ΚΡΙΣΙΜΟ)
+
+Ο ΙΔΙΟΣ frontend κώδικας τρέχει σε **δύο** περιβάλλοντα και πρέπει να λειτουργεί και στα δύο:
+
+1. **Electron Desktop App (offline)**
+   - Τοπική βάση **SQLite** (`better-sqlite3`) στο `electron/db/sqlite.js`.
+   - Επικοινωνία μέσω IPC handlers στο `electron/main.js` (`db:getAll`, `db:insert`, κ.λπ.).
+   - Στο frontend χρησιμοποιείται το `window.OfflineService` (`public/src/js/services/offline.js`).
+   - Συγχρονισμός με τον web server μέσω `electron/db/sync.js` (download/upload).
+
+2. **Web App (online)**
+   - **PHP API** στο `api/*.php` + **MySQL** (`config/database.php`).
+   - Στο frontend χρησιμοποιείται το `window.API` (`public/src/js/services/api.js`) με `fetch`.
+   - Authentication μέσω PHP sessions (`api/auth.php`, `api/auth_check.php`).
+
+**Ανίχνευση περιβάλλοντος:** παντού γίνεται έλεγχος
+`const isElectron = typeof window.electronAPI !== 'undefined';`
+Όταν αλλάζεις λογική δεδομένων, **πρέπει** να καλύπτεις και τα δύο μονοπάτια (Electron → OfflineService/SQLite, Web → API/PHP/MySQL).
+
+---
+
+## 3. Ροή δεδομένων / Αρχιτεκτονική frontend
+
+`View` → `State` → (`API` ή `OfflineService`) → (PHP/MySQL ή IPC/SQLite)
+
+- **`config.js`** — global `CONFIG` object (dropdowns, χρώματα status, Google Maps key, page sizes).
+- **`state.js`** — global `State` object: κρατά όλα τα δεδομένα στο `State.data`, κάνει CRUD, history (undo/redo), search/filter, pagination. Φορτώνει με `loadFromSQLite()` ή `loadFromAPI()` ανάλογα το περιβάλλον.
+- **`router.js`** — hash-based routing (`#dashboard`, `#clients`...). Τα views δηλώνονται στο `registerRoutes()`.
+- **`views/*.js`** — μία view ανά section· οι περισσότερες επεκτείνουν την `BaseView` (`views/base-view.js`) που δίνει event-listener cleanup, CRUD helpers, validation, modals.
+- **Δεν υπάρχει build step / bundler / modules.** Όλα τα `.js` φορτώνονται ως global `<script defer>` με **συγκεκριμένη σειρά** μέσα στο `public/index.html`. Αν προσθέσεις νέο αρχείο JS, **πρόσθεσέ το στο `index.html`** στη σωστή σειρά (services → config/utils → UI components → views → app.js).
+- Τα αντικείμενα εκτίθενται global μέσω `window.X = X` (π.χ. `window.ClientsView`).
+
+---
+
+## 4. Σύμβαση ονομάτων: camelCase ↔ snake_case (ΠΡΟΣΟΧΗ)
+
+- **Βάση δεδομένων** (MySQL & SQLite): `snake_case` (π.χ. `postal_code`, `is_paid`, `client_id`).
+- **Frontend / JavaScript**: `camelCase` (π.χ. `postalCode`, `isPaid`, `clientId`).
+- Η μετατροπή γίνεται αυτόματα:
+  - PHP: `convertKeys()` (→camelCase στην απόκριση) και `convertToSnakeCase()` (←camelCase στο input) στο `config/database.php`.
+  - SQLite: `convertRowToCamelCase()` / `convertDataToSnakeCase()` στο `electron/db/sqlite.js`.
+- **JSON πεδία** (αποθηκεύονται ως string, γίνονται parse/stringify αυτόματα):
+  `assigned_workers`, `paints`, `items`, `materials`, `tasks`, `coordinates`.
+  Αν προσθέσεις νέο JSON πεδίο, ενημέρωσε τις λίστες `jsonFields` και στα **δύο** layers (PHP & sqlite.js).
+- Το `materials` στο backend αντιστοιχεί στο `inventory` στο frontend (βλ. mapping στο `state.js`).
+
+---
+
+## 5. Σύμβαση PHP API
+
+Κάθε endpoint στο `api/<entity>.php`:
+1. `require` το `config/database.php` και το `auth_check.php`, μετά `checkAuthentication()`.
+2. Δρομολόγηση με βάση το `$_SERVER['REQUEST_METHOD']` (GET/POST/PUT/DELETE) σε `handleGet/Post/Put/Delete`.
+3. Απαντά πάντα JSON μέσω `sendSuccess($data, $msg)` / `sendError($msg, $code)`.
+4. Χρησιμοποιεί **PDO prepared statements** (ποτέ string concatenation σε SQL).
+5. Το `?action=list|get|create|update|delete` έρχεται από το `routeRequest()` του frontend.
+
+Authentication: PHP sessions (timeout 2 ώρες) + "remember me" cookie. Ο Electron sync χρησιμοποιεί header `X-Sync-API-Key`.
+
+---
+
+## 6. Συγχρονισμός (Electron ↔ Server)
+
+`electron/db/sync.js`:
+- **download**: κατεβάζει όλα τα tables από `api/<table>.php?action=list`, καθαρίζει & ξαναγεμίζει το SQLite μέσα σε transaction (foreign keys προσωρινά OFF).
+- **upload**: στέλνει τα `_sync_status IN ('pending','deleted')` στο `api/sync.php`.
+- Κάθε εγγραφή στο SQLite έχει `_sync_status` (`synced`/`pending`/`deleted`) και `_sync_timestamp`. Το delete είναι **soft delete** (mark `deleted`).
+- Ειδική περίπτωση: το table `calendar_events` χρησιμοποιεί endpoint `calendar.php`.
+
+---
+
+## 7. Δομή φακέλων
+
+- `public/` — **πηγαίος** frontend (HTML/CSS/JS) + serve target για το web.
+- `api/` — PHP REST endpoints (web).
+- `config/` — `database.php` (σύνδεση MySQL, helpers), `logger.php`.
+- `database/` — `schema.sql` (MySQL), backups, reset scripts.
+- `electron/` — desktop app: `main.js`, `preload.js`, `db/sqlite.js`, `db/sync.js`.
+- `router.php` — router για τοπικό PHP built-in server (`php -S localhost:8000 router.php`).
+- `config/secrets.php` + `config/secrets.local.php` (gitignored) — credentials/config (βλ. §10).
+
+> Σημείωση: ο παλιός φάκελος `infinityfree_upload/` (αντίγραφο για InfinityFree hosting) έχει
+> αφαιρεθεί. Single source of truth είναι το `public/` + `api/` + `config/`. Production = Plesk (e-gata.gr).
+
+---
+
+## 8. Deployment
+
+- Git workflow: branch `develop` (development) → branch `deploy` (production).
+- `deploy.ps1` (Windows PowerShell): merge selective files στο `deploy`, αντικαθιστά `.htaccess` με `.htaccess.production`, **παράγει** `config/secrets.local.php` με production credentials (από env vars `PAINTER_DB_USER`/`PAINTER_DB_PASS`/`PAINTER_SYNC_API_KEY`, force-add despite gitignore), αφαιρεί dev files (`electron/`, `database/`, `node_modules/`, `package.json`...), push στο `origin/deploy`. Μετά γίνεται Pull από Plesk.
+- Production domain: `https://nikolpaintmaster.e-gata.gr` (Plesk).
+- Build desktop: `npm run build` / `npm run build:portable` (electron-builder, Windows portable).
+
+---
+
+## 9. Κανόνες κώδικα
+
+- **Γλώσσα UI/μηνυμάτων:** Ελληνικά. Κράτα τη συνέπεια στα status strings του `CONFIG.STATUS_OPTIONS`.
+- **Vanilla JS** μόνο στο frontend — όχι frameworks, όχι npm packages στο `public/`. Εξωτερικές libs μπαίνουν ως CDN `<script>` στο `index.html` (Chart.js, jsPDF, SheetJS, FullCalendar, Flatpickr, Leaflet/Google Maps).
+- **SQL:** πάντα prepared statements (PDO στο PHP, `better-sqlite3` prepared στο Electron).
+- **CRUD από views:** πέρνα από το `State` (`State.create/update/delete/read`), όχι απευθείας στο API, ώστε να ενημερώνεται το τοπικό state + history + dashboard.
+- **Cache busting:** τα `<script>`/`<link>` στο `index.html` έχουν `?v=YYYYMMDD`. Όταν αλλάζεις ένα αρχείο που έχει version query, ανέβασε το version.
+- **Cleanup:** στα views που επεκτείνουν `BaseView`, κατέγραψε listeners μέσω `this.addEventListener` / `this.addDelegatedListener` για σωστό cleanup.
+- Μην εισάγεις regressions στο camelCase↔snake_case mapping — είναι η πιο συχνή πηγή bugs.
+- Διατήρησε τις αλλαγές μικρές και εστιασμένες· σεβάσου το υπάρχον στυλ του αρχείου.
+
+---
+
+## 10. Credentials / Secrets (ΣΗΜΑΝΤΙΚΟ)
+
+- **Όλα τα credentials** (DB, `ADMIN_PASSWORD`/`ADMIN_PASSWORD_HASH`, `SYNC_API_KEY`, `DEBUG_MODE`)
+  διαβάζονται μέσω `app_secret()` (`config/secrets.php`): **env var → `config/secrets.local.php` → default**.
+- **ΠΟΤΕ** μην βάζεις πραγματικά μυστικά σε committed αρχεία. Τοπικά: `config/secrets.local.php` (gitignored).
+  Πρότυπο: `config/secrets.local.example.php`.
+- Production: το `deploy.ps1` παράγει το `secrets.local.php` από env vars.
+- Ο `auth.php` προτιμά `ADMIN_PASSWORD_HASH` (bcrypt, `password_hash`) έναντι plaintext.
+
+### Εκκρεμότητες / ευκαιρίες βελτίωσης
+- Τα παλιά διαρρευσμένα credentials υπάρχουν ακόμα στο **git history** → χρειάζεται rotation στο panel.
+- Google Maps key εκτεθειμένο στο `config.js`/`index.html` (client-side· περιόρισέ το με HTTP referrer restrictions).
+- CSP με `'unsafe-inline'`/`'unsafe-eval'`.
+- Δεν υπάρχουν automated tests ούτε build/bundling για το frontend (vanilla, global scripts).
+- Verbose logging: σε production (packaged Electron, όχι `--dev`) τα `console.log/info/debug` σιγούν αυτόματα.
+  Για debug: τρέξε με `--dev` ή `PAINTER_DEBUG=1`.
+
+---
+
+## 10b. Google Calendar sync (αμφίδρομο)
+
+- **Πεδίο/οντότητα:** συγχρονίζεται ο πίνακας `calendar_events` (το πραγματικό ημερολόγιο) με Google Calendar — ΟΧΙ απευθείας τα `jobs`. Οι εργασίες με `next_visit` περνούν στο `calendar_events` μέσω `calendar.php?action=sync`.
+- **Αρχεία:**
+  - `config/google.php` — OAuth2 + Calendar REST v3 μέσω cURL (χωρίς composer). Tokens σε πίνακα `google_meta` (key/value, MySQL-only, ΔΕΝ συγχρονίζεται στο Electron).
+  - `api/google_oauth.php` — `?action=connect|callback|status|disconnect`. connect/callback είναι browser navigations (session auth + CSRF `state`)· status/disconnect είναι AJAX.
+  - `api/google_calendar.php` — `?action=sync` (POST): pull (Google→local) + push (local→Google) + delete reconcile.
+- **Αντιστοίχιση:** κάθε Google event έχει `extendedProperties.private.painterEventId = calendar_events.id`· το local κρατά `calendar_events.google_event_id`.
+- **DB:** στήλη `google_event_id` σε MySQL (`schema.sql`) + SQLite (`sqlite.js` schema + Migration 2). Το `calendar.php?action=list` την επιστρέφει ως `googleEventId`. Το `sync.php` ΔΕΝ την σβήνει όταν το Electron στέλνει κενή τιμή (guard).
+- **UI:** κάρτα "Google Calendar" στο `settings.js`, **web-only** (το OAuth ζει στον PHP server· στο Electron δεν εμφανίζεται). Επωφελείται το Electron έμμεσα μετά από download.
+- **Setup (ο χρήστης):** Google Cloud project → OAuth consent screen → OAuth client ID (Web) → redirect URI `https://<domain>/api/google_oauth.php?action=callback` → βάλε `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` στο `secrets.local.php` (ή env). Πρέπει να είναι ενεργό το Google Calendar API.
+
+---
+
+## 11. Πρακτικές οδηγίες για τον agent
+
+- Πριν αλλάξεις λογική δεδομένων, εντόπισε **και** το Electron μονοπάτι **και** το Web μονοπάτι.
+- Νέο entity/πεδίο → ενημέρωσε: `database/schema.sql`, `electron/db/sqlite.js` (CREATE TABLE + jsonFields), `api/<entity>.php`, `services/api.js`, `services/offline.js`, `state.js` mappings, και τα `<script>` στο `index.html` αν χρειάζεται.
+- Τοπικό web testing: `php -S localhost:8000 router.php` (το `.htaccess` ΔΕΝ ισχύει στον PHP built-in server).
+- Desktop testing: `npm run dev`.
+- Μην κάνεις commit/deploy χωρίς ρητή εντολή του χρήστη.

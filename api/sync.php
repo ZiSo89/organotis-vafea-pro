@@ -7,6 +7,10 @@
 require_once __DIR__ . '/common.php';
 require_once '../config/database.php';
 require_once '../config/logger.php';
+require_once __DIR__ . '/auth_check.php';
+require_once __DIR__ . '/calendar_helpers.php';
+
+checkAuthentication();
 
 // Enable debug mode for sync
 if (!defined('DEBUG_MODE')) {
@@ -24,11 +28,7 @@ logMessage('📥 Sync request received', 'INFO', [
 // Check API key (optional - for security)
 $apiKey = $_SERVER['HTTP_X_SYNC_API_KEY'] ?? null;
 if ($apiKey) {
-    logMessage('🔑 API Key received: ' . $apiKey, 'DEBUG');
-    if ($apiKey !== 'electron-sync-key-2025') {
-        logMessage('❌ Invalid API key: ' . $apiKey, 'WARNING');
-        // Not blocking for now, just logging
-    }
+    logMessage('🔑 Sync API key received', 'DEBUG');
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -97,9 +97,31 @@ try {
             ]);
             
             $id = $change['id'] ?? null;
+            $syncStatus = $change['_sync_status'] ?? null;
             unset($change['id']);
             unset($change['created_at']);
             unset($change['updated_at']);
+            unset($change['_sync_status']);
+            unset($change['_sync_timestamp']);
+
+            // Διαγραφή από Electron
+            if ($syncStatus === 'deleted' && $id) {
+                if ($table === 'calendar_events') {
+                    $sel = $db->prepare("SELECT job_id, google_event_id FROM calendar_events WHERE id = ?");
+                    $sel->execute([$id]);
+                    $row = $sel->fetch(PDO::FETCH_ASSOC);
+                    if ($row && !empty($row['google_event_id'])) {
+                        google_delete_remote_event($row['google_event_id']);
+                    }
+                    if ($row && !empty($row['job_id'])) {
+                        clear_job_visit_after_event_removed($db, $row['job_id']);
+                    }
+                }
+                $db->prepare("DELETE FROM $table WHERE id = ?")->execute([$id]);
+                logMessage("🗑️ Deleted record $id from $table", 'INFO');
+                $processed++;
+                continue;
+            }
             
             // Special handling for settings table
             if ($table === 'settings' && isset($change['setting_key'])) {
@@ -138,6 +160,11 @@ try {
                         logMessage("⚠️ Skipping invalid field name: $key", 'WARNING');
                         continue;
                     }
+                    // Don't let the Electron client wipe a server-side Google Calendar link
+                    if ($table === 'calendar_events' && $safeKey === 'google_event_id'
+                        && ($value === null || $value === '')) {
+                        continue;
+                    }
                     $fields[] = "$safeKey = ?";
                     $values[] = $value;
                 }
@@ -154,6 +181,10 @@ try {
                 $stmt = $db->prepare($sql);
                 $stmt->execute($values);
                 
+                if ($table === 'calendar_events') {
+                    try { sync_event_back_to_job($db, $id); } catch (Exception $e) { /* ignore */ }
+                }
+
                 logMessage("✅ Updated record $id in $table", 'INFO');
             } else {
                 // Insert new record
