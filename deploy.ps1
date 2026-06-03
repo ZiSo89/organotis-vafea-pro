@@ -124,88 +124,14 @@ if (Test-Path ".htaccess.production") {
     Write-Host "   .htaccess updated for production" -ForegroundColor Gray
 }
 
-# Generate production secrets file (config/secrets.local.php)
-# NOTE: real credentials are NEVER hardcoded here. They come from environment
-# variables on the machine running this deploy script.
-#   $env:PAINTER_DB_USER, $env:PAINTER_DB_PASS, $env:PAINTER_SYNC_API_KEY
-Write-Host "   Generating production config/secrets.local.php..." -ForegroundColor Cyan
+# Production secrets must not be committed. GitHub push protection rejects
+# OAuth credentials, and secrets should stay on the server (Plesk env vars or a
+# manually managed config/secrets.local.php).
+Write-Host "   Ensuring production secrets are not tracked by git..." -ForegroundColor Cyan
+git rm --cached --ignore-unmatch config/secrets.local.php 2>$null
+Write-Host "   config/secrets.local.php must be created manually on Plesk if env vars are unavailable." -ForegroundColor Yellow
 
-# PHP single-quoted strings: escape backslash and single quote
-function Escape-Php($s) { return ($s -replace '\\', '\\' -replace "'", "\'") }
-
-$prodDbUser = if ($env:PAINTER_DB_USER) { $env:PAINTER_DB_USER } else { "painter_user" }
-$prodDbPass = $env:PAINTER_DB_PASS
-if (-not $prodDbPass) {
-    $existingSecrets = git show deploy:config/secrets.local.php 2>$null
-    if ($existingSecrets -match "'DB_PASS'\s*=>\s*'((?:\\'|[^'])*)'") {
-        $prodDbPass = $Matches[1] -replace "\\'", "'"
-        Write-Host "   Using DB_PASS from existing deploy branch secrets.local.php" -ForegroundColor Gray
-    }
-}
-$skipDbPassInFile = $false
-if (-not $prodDbPass) {
-    Write-Host "   PAINTER_DB_PASS not set - DB_PASS omitted from secrets.local.php (use Plesk env vars)." -ForegroundColor Yellow
-    $skipDbPassInFile = $true
-}
-$prodSyncKey = if ($env:PAINTER_SYNC_API_KEY) { $env:PAINTER_SYNC_API_KEY } else { "electron-sync-key-2025" }
-
-$userEsc = Escape-Php $prodDbUser
-$passEsc = if ($prodDbPass) { Escape-Php $prodDbPass } else { "" }
-$keyEsc  = Escape-Php $prodSyncKey
-
-$adminHashLine = ""
-if ($env:PAINTER_ADMIN_PASSWORD_HASH) {
-    $hashEsc = Escape-Php $env:PAINTER_ADMIN_PASSWORD_HASH
-    $adminHashLine = "    'ADMIN_PASSWORD_HASH' => '$hashEsc',"
-    Write-Host "   Admin password: bcrypt hash from PAINTER_ADMIN_PASSWORD_HASH" -ForegroundColor Gray
-} else {
-    Write-Host "   WARNING: PAINTER_ADMIN_PASSWORD_HASH not set - use npm run admin:hash before deploy!" -ForegroundColor Yellow
-}
-
-# Google Calendar (optional) - only injected if env vars are set.
-$googleLines = @()
-if ($env:PAINTER_GOOGLE_CLIENT_ID -and $env:PAINTER_GOOGLE_CLIENT_SECRET) {
-    $gcidEsc = Escape-Php $env:PAINTER_GOOGLE_CLIENT_ID
-    $gsecEsc = Escape-Php $env:PAINTER_GOOGLE_CLIENT_SECRET
-    $gredir  = if ($env:PAINTER_GOOGLE_REDIRECT_URI) { $env:PAINTER_GOOGLE_REDIRECT_URI } else { "https://nikolpaintmaster.e-gata.gr/api/google_oauth.php?action=callback" }
-    $gredEsc = Escape-Php $gredir
-    $googleLines = @(
-        "    'GOOGLE_CLIENT_ID'     => '$gcidEsc',"
-        "    'GOOGLE_CLIENT_SECRET' => '$gsecEsc',"
-        "    'GOOGLE_REDIRECT_URI'  => '$gredEsc',"
-    )
-    Write-Host "   Google Calendar keys: included from env vars" -ForegroundColor Gray
-} else {
-    Write-Host "   Google Calendar keys: NOT set (PAINTER_GOOGLE_CLIENT_ID/SECRET) - skipping" -ForegroundColor DarkGray
-}
-
-$secretsLines = @(
-    '<?php'
-    '// AUTO-GENERATED for production by deploy.ps1 - do not edit by hand.'
-    'return ['
-    "    'DB_HOST'      => 'localhost',"
-    "    'DB_PORT'      => '3306',"
-    "    'DB_NAME'      => 'painter_app',"
-    "    'DB_USER'      => '$userEsc',"
-)
-if (-not $skipDbPassInFile) {
-    $secretsLines += "    'DB_PASS'      => '$passEsc',"
-}
-$secretsLines += @(
-    "    'SYNC_API_KEY' => '$keyEsc',"
-)
-if ($adminHashLine) { $secretsLines += $adminHashLine }
-$secretsLines += "    'DEBUG_MODE'   => false,"
-$secretsLines += $googleLines
-$secretsLines += '];'
-$secretsContent = $secretsLines -join "`n"
-
-Set-Content "config/secrets.local.php" -Value $secretsContent -NoNewline -Encoding UTF8
-
-# Force-add despite .gitignore so the deploy branch / Plesk pull receives it
-git add -f config/secrets.local.php
-
-Write-Host "Files merged and production secrets generated" -ForegroundColor Green
+Write-Host "Files merged and production secrets left untracked" -ForegroundColor Green
 
 # Vima 6: Diagrafi development files (an yparxoun)
 Write-Host ""
