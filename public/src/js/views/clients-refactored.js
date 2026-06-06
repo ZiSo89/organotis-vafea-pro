@@ -329,20 +329,16 @@ class ClientsViewNew extends BaseView {
         <table class="data-table">
           <thead>
             <tr>
+              <th style="text-align: left;">Ενέργειες</th>
               <th>Όνομα</th>
               <th>Τηλ.</th>
               <th>Email</th>
               <th>Οδός</th>
-              <th style="text-align: right;">Ενέργειες</th>
             </tr>
           </thead>
           <tbody>
             ${sortedClients.map(client => `
               <tr>
-                <td>${client.name}</td>
-                <td>${client.phone ? `<a href="tel:${client.phone}">${client.phone}</a>` : '-'}</td>
-                <td>${client.email || '-'}</td>
-                <td>${client.address || '-'}</td>
                 <td class="actions">
                   <button class="btn-icon view-client-btn" data-client-id="${client.id}" title="Προβολή">
                     <i class="fas fa-eye"></i>
@@ -354,6 +350,10 @@ class ClientsViewNew extends BaseView {
                     <i class="fas fa-trash"></i>
                   </button>
                 </td>
+                <td>${client.name}</td>
+                <td>${client.phone ? `<a href="tel:${client.phone}">${client.phone}</a>` : '-'}</td>
+                <td>${client.email || '-'}</td>
+                <td>${client.address || '-'}</td>
               </tr>
             `).join('')}
           </tbody>

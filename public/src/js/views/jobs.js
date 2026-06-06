@@ -603,14 +603,12 @@ window.JobsView = {
         <table class="data-table">
           <thead>
             <tr>
-              <th>Ημ/νία</th>
+              <th style="text-align: left;">Ενέργειες</th>
               <th>Πελάτης</th>
-              <th>Τύπος</th>
               <th>Κατάσταση</th>
               <th>Επόμ. Επίσκ.</th>
               <th>Σύνολο</th>
               <th>Καθαρό Κέρδος</th>
-              <th style="text-align: right;">Ενέργειες</th>
             </tr>
           </thead>
           <tbody>
@@ -650,13 +648,6 @@ window.JobsView = {
             
             return `
             <tr>
-              <td title="${Utils.formatDate(job.date)}">${Utils.formatDate(job.date)}</td>
-              <td title="${clientName}">${clientName}</td>
-              <td title="${job.type || '-'}">${job.type || '-'}</td>
-              <td><span class="status-pill status-${job.status?.toLowerCase().replace(/\s+/g, '-')}">${Utils.translateStatus(job.status)}</span></td>
-              <td>${this.formatVisitSchedule(job) !== '-' ? `<strong style="color: var(--accent-primary);">${this.formatVisitSchedule(job)}</strong>` : '-'}</td>
-              <td title="${Utils.formatCurrency(job.totalCost || job.total_cost || 0)}"><strong>${Utils.formatCurrency(job.totalCost || job.total_cost || 0)}</strong></td>
-              <td title="Κέρδος: ${Utils.formatCurrency(profit)}"><strong style="color: ${profitColor};">${profitSign}${Utils.formatCurrency(profit)}</strong></td>
               <td class="actions">
                 <button class="btn-icon view-job-btn" data-job-id="${job.id}" title="Προβολή">
                   <i class="fas fa-eye"></i>
@@ -668,6 +659,11 @@ window.JobsView = {
                   <i class="fas fa-trash"></i>
                 </button>
               </td>
+              <td title="${clientName}">${clientName}</td>
+              <td><span class="status-pill status-${job.status?.toLowerCase().replace(/\s+/g, '-')}">${Utils.translateStatus(job.status)}</span></td>
+              <td>${this.formatVisitSchedule(job) !== '-' ? `<strong style="color: var(--accent-primary);">${this.formatVisitSchedule(job)}</strong>` : '-'}</td>
+              <td title="${Utils.formatCurrency(job.totalCost || job.total_cost || 0)}"><strong>${Utils.formatCurrency(job.totalCost || job.total_cost || 0)}</strong></td>
+              <td title="Κέρδος: ${Utils.formatCurrency(profit)}"><strong style="color: ${profitColor};">${profitSign}${Utils.formatCurrency(profit)}</strong></td>
             </tr>
             `;
           }).join('')}
@@ -1668,22 +1664,17 @@ window.JobsView = {
         <table class="data-table" style="margin-top: 10px;">
           <thead>
             <tr>
+              <th style="width: 100px;">Ενέργειες</th>
               <th>Εργάτης</th>
               <th>Ειδικότητα</th>
               <th>Ωρομίσθιο</th>
               <th>Ώρες</th>
               <th>Κόστος</th>
-              <th style="width: 100px;">Ενέργειες</th>
             </tr>
           </thead>
           <tbody>
             ${this.assignedWorkers.map((w, index) => `
               <tr>
-                <td><strong>${w.workerName}</strong></td>
-                <td>${w.workerSpecialty || w.specialty || ''}</td>
-                <td>${Utils.formatCurrency(w.hourlyRate)}/ώρα</td>
-                <td>${w.hoursAllocated}h</td>
-                <td><strong style="color: var(--accent-primary);">${Utils.formatCurrency(w.laborCost)}</strong></td>
                 <td>
                   <button class="btn-icon edit-assigned-worker-btn" data-worker-index="${index}" title="Επεξεργασία">
                     <i class="fas fa-edit"></i>
@@ -1692,13 +1683,18 @@ window.JobsView = {
                     <i class="fas fa-trash"></i>
                   </button>
                 </td>
+                <td><strong>${w.workerName}</strong></td>
+                <td>${w.workerSpecialty || w.specialty || ''}</td>
+                <td>${Utils.formatCurrency(w.hourlyRate)}/ώρα</td>
+                <td>${w.hoursAllocated}h</td>
+                <td><strong style="color: var(--accent-primary);">${Utils.formatCurrency(w.laborCost)}</strong></td>
               </tr>
             `).join('')}
             <tr style="background: var(--bg-secondary); font-weight: bold;">
+              <td></td>
               <td colspan="3" style="text-align: right;">ΣΥΝΟΛΟ:</td>
               <td>${totalHours.toFixed(1)}h</td>
               <td><strong style="color: var(--accent-primary);">${Utils.formatCurrency(totalCost)}</strong></td>
-              <td></td>
             </tr>
           </tbody>
         </table>
@@ -1903,21 +1899,21 @@ window.JobsView = {
         <table class="data-table" style="margin-top: 10px;">
           <thead>
             <tr>
+              <th style="width: 80px;">Ενέργειες</th>
               <th>Όνομα Χρώματος</th>
               <th>Κωδικός</th>
-              <th style="width: 80px;">Ενέργειες</th>
             </tr>
           </thead>
           <tbody>
             ${this.assignedPaints.map((paint, index) => `
               <tr>
-                <td><strong>${paint.name}</strong></td>
-                <td>${paint.code || '-'}</td>
                 <td>
                   <button class="btn-icon remove-paint-btn" data-paint-index="${index}" title="Αφαίρεση">
                     <i class="fas fa-trash"></i>
                   </button>
                 </td>
+                <td><strong>${paint.name}</strong></td>
+                <td>${paint.code || '-'}</td>
               </tr>
             `).join('')}
           </tbody>

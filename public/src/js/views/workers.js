@@ -250,6 +250,7 @@ window.WorkersView = {
         <table class="data-table">
           <thead>
             <tr>
+              <th style="text-align: left;">Ενέργειες</th>
               <th>Όνομα</th>
               <th>Ειδικότητα</th>
               <th>Ωρομίσθιο</th>
@@ -257,7 +258,6 @@ window.WorkersView = {
               <th>Ώρες Μήνα</th>
               <th>Μισθός Μήνα</th>
               <th>Κατάσταση</th>
-              <th style="text-align: right;">Ενέργειες</th>
             </tr>
           </thead>
           <tbody>
@@ -297,13 +297,6 @@ window.WorkersView = {
             
             return `
             <tr>
-              <td title="${worker.name}"><strong>${worker.name}</strong></td>
-              <td title="${worker.specialty}">${worker.specialty}</td>
-              <td title="${Utils.formatCurrency(worker.hourlyRate)}">${Utils.formatCurrency(worker.hourlyRate)}/ώρα</td>
-              <td title="${worker.phone || '-'}">${worker.phone ? `<a href="tel:${worker.phone}" style="color: var(--color-text); text-decoration: none;">${worker.phone}</a>` : '-'}</td>
-              <td><strong>${monthlyHours.toFixed(1)}h</strong></td>
-              <td><strong>${Utils.formatCurrency(monthlyEarnings)}</strong></td>
-              <td>${statusBadge}</td>
               <td class="actions">
                 <button class="btn-icon view-worker-btn" data-worker-id="${worker.id}" title="Προβολή">
                   <i class="fas fa-eye"></i>
@@ -315,6 +308,13 @@ window.WorkersView = {
                   <i class="fas fa-trash"></i>
                 </button>
               </td>
+              <td title="${worker.name}"><strong>${worker.name}</strong></td>
+              <td title="${worker.specialty}">${worker.specialty}</td>
+              <td title="${Utils.formatCurrency(worker.hourlyRate)}">${Utils.formatCurrency(worker.hourlyRate)}/ώρα</td>
+              <td title="${worker.phone || '-'}">${worker.phone ? `<a href="tel:${worker.phone}" style="color: var(--color-text); text-decoration: none;">${worker.phone}</a>` : '-'}</td>
+              <td><strong>${monthlyHours.toFixed(1)}h</strong></td>
+              <td><strong>${Utils.formatCurrency(monthlyEarnings)}</strong></td>
+              <td>${statusBadge}</td>
             </tr>
             `;
           }).join('')}

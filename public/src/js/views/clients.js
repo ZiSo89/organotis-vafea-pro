@@ -497,20 +497,16 @@ window.ClientsView = {
         <table class="data-table">
           <thead>
             <tr>
+              <th style="text-align: left;">Ενέργειες</th>
               <th>Όνομα</th>
               <th>Τηλ.</th>
               <th>Email</th>
               <th>Οδός</th>
-              <th style="text-align: right;">Ενέργειες</th>
             </tr>
           </thead>
           <tbody>
             ${sortedClients.map(client => `
               <tr>
-                <td title="${client.name}">${client.name}</td>
-                <td title="${client.phone || '-'}">${client.phone ? `<a href="tel:${client.phone}" style="color: var(--color-text); text-decoration: none;">${client.phone}</a>` : '-'}</td>
-                <td title="${client.email || '-'}">${client.email || '-'}</td>
-                <td title="${client.address || '-'}">${client.address || '-'}</td>
                 <td class="actions">
                   <button class="btn-icon view-client-btn" data-client-id="${client.id}" title="Προβολή">
                     <i class="fas fa-eye"></i>
@@ -522,6 +518,10 @@ window.ClientsView = {
                     <i class="fas fa-trash"></i>
                   </button>
                 </td>
+                <td title="${client.name}">${client.name}</td>
+                <td title="${client.phone || '-'}">${client.phone ? `<a href="tel:${client.phone}" style="color: var(--color-text); text-decoration: none;">${client.phone}</a>` : '-'}</td>
+                <td title="${client.email || '-'}">${client.email || '-'}</td>
+                <td title="${client.address || '-'}">${client.address || '-'}</td>
               </tr>
             `).join('')}
           </tbody>
