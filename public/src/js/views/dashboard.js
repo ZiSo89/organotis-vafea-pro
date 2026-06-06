@@ -16,7 +16,7 @@ window.DashboardView = {
         
         <!-- Widgets - Single Row -->
         <div class="dashboard-widgets-single-row">
-          <div class="widget-compact">
+          <div class="widget-compact clickable" onclick="Router.navigate('jobs')">
             <div class="widget-content">
               <div class="widget-title">Εργασίες</div>
               <div class="widget-value">${stats.totalJobs}</div>
@@ -27,7 +27,7 @@ window.DashboardView = {
             </div>
           </div>
 
-          <div class="widget-compact">
+          <div class="widget-compact clickable" onclick="Router.navigate('clients')">
             <div class="widget-content">
               <div class="widget-title">Πελάτες</div>
               <div class="widget-value">${stats.totalClients}</div>

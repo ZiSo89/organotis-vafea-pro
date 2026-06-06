@@ -90,13 +90,6 @@
           return;
         }
         
-        // Only load on desktop or when explicitly requested
-        if (window.innerWidth <= 768) {
-          googleMapsPromise = null; // Reset promise for future attempts
-          reject('Mobile device');
-          return;
-        }
-        
         const script = document.createElement('script');
         script.src = 'https://maps.googleapis.com/maps/api/js?key=AIzaSyDbO_6f6Y_y_2_2MreK0XTWAIsZw-2AKWQ&libraries=geometry,places&callback=initMap';
         script.async = true;
@@ -367,13 +360,13 @@
   <script src="src/js/views/base-view.js?v=20251116a" defer></script>
   
   <!-- Views -->
-  <script src="src/js/views/dashboard.js?v=20251111e" defer></script>
+  <script src="src/js/views/dashboard.js?v=20260607a" defer></script>
   <script src="src/js/views/clients.js?v=20260606a" defer></script>
   <script src="src/js/views/workers.js?v=20260606a" defer></script>
   <script src="src/js/views/inventory.js?v=20251111b" defer></script>
   <script src="src/js/views/jobs.js?v=20260606b" defer></script>
   <script src="src/js/views/calendar.js?v=20260531f" defer></script>
-  <script src="src/js/views/map.js?v=20251118a" defer></script>
+  <script src="src/js/views/map.js?v=20260607a" defer></script>
   <script src="src/js/views/offers.js?v=20251111b" defer></script>
   <script src="src/js/views/invoices.js?v=20251111b" defer></script>
   <script src="src/js/views/statistics.js?v=20251111b" defer></script>
