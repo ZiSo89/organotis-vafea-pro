@@ -4,6 +4,13 @@
 Write-Host "Starting Deployment Process..." -ForegroundColor Cyan
 Write-Host ""
 
+$localSecretsPath = "config/secrets.local.php"
+$localSecretsBackup = Join-Path $env:TEMP "painter-secrets.local.php"
+$hadLocalSecrets = Test-Path $localSecretsPath
+if ($hadLocalSecrets) {
+    Copy-Item $localSecretsPath $localSecretsBackup -Force
+}
+
 # Vima 0: Elegchos SSH Agent kai SSH Key
 Write-Host "Step 0: Checking SSH Configuration..." -ForegroundColor Yellow
 
@@ -129,6 +136,9 @@ if (Test-Path ".htaccess.production") {
 # manually managed config/secrets.local.php).
 Write-Host "   Ensuring production secrets are not tracked by git..." -ForegroundColor Cyan
 git rm --cached --ignore-unmatch config/secrets.local.php 2>$null
+if (Test-Path "config/secrets.local.php") {
+    Remove-Item "config/secrets.local.php" -Force
+}
 Write-Host "   config/secrets.local.php must be created manually on Plesk if env vars are unavailable." -ForegroundColor Yellow
 
 Write-Host "Files merged and production secrets left untracked" -ForegroundColor Green
@@ -181,6 +191,9 @@ if ($LASTEXITCODE -eq 0) {
 } else {
     Write-Host "Failed to push to origin/deploy" -ForegroundColor Red
     git checkout develop
+    if ($hadLocalSecrets -and (Test-Path $localSecretsBackup)) {
+        Copy-Item $localSecretsBackup $localSecretsPath -Force
+    }
     exit 1
 }
 
@@ -188,6 +201,9 @@ if ($LASTEXITCODE -eq 0) {
 Write-Host ""
 Write-Host "Step 9: Returning to develop branch..." -ForegroundColor Yellow
 git checkout develop
+if ($hadLocalSecrets -and (Test-Path $localSecretsBackup)) {
+    Copy-Item $localSecretsBackup $localSecretsPath -Force
+}
 Write-Host "Switched back to develop" -ForegroundColor Green
 
 # Telos
@@ -199,7 +215,7 @@ Write-Host ""
 Write-Host "Summary:" -ForegroundColor Cyan
 Write-Host "   - Files deployed: api/, config/, public/, .htaccess" -ForegroundColor White
 Write-Host "   - DEBUG_MODE: false (production)" -ForegroundColor White
-Write-Host "   - Database: painter_user@painter_app" -ForegroundColor White
+Write-Host "   - Database: configured on Plesk via config/secrets.local.php" -ForegroundColor White
 Write-Host "   - Branch: origin/deploy (updated)" -ForegroundColor White
 Write-Host ""
 Write-Host "Next Steps:" -ForegroundColor Cyan
