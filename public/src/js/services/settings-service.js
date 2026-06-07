@@ -209,7 +209,6 @@ window.SettingsService = {
     console.log('[SettingsService] Getting pricing settings');
     const pricing = await this.get('pricing_settings', {
       hourlyRate: 50,
-      vat: 24,
       travelCost: 0.5
     });
     return pricing;

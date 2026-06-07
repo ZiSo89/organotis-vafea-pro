@@ -290,7 +290,7 @@ window.StatisticsView = {
       const monthlyAgg = Array.from({ length: 12 }, (_, i) => ({ month: String(i + 1).padStart(2, '0'), revenue: 0, profit: 0 }));
 
       jobsRows.forEach(j => {
-        // Reconstruct billing amount (without VAT)
+        // Reconstruct billing amount
         let billingAmount = parseNumber(j.billingAmount || j.billing_amount);
         if (!billingAmount) {
           const hours = parseNumber(j.billingHours || j.billing_hours);
@@ -299,13 +299,7 @@ window.StatisticsView = {
         }
         if (!billingAmount) {
           const totalCost = parseNumber(j.totalCost || j.total_cost);
-          const vat = parseNumber(j.vat);
-          if (totalCost && vat >= 0) {
-            const denom = 1 + (vat / 100);
-            billingAmount = denom > 0 ? (totalCost / denom) : totalCost;
-          } else {
-            billingAmount = totalCost;
-          }
+          billingAmount = totalCost;
         }
 
         const materialsCost = parseNumber(j.materialsCost || j.materials_cost);
@@ -322,11 +316,15 @@ window.StatisticsView = {
           assignedWorkers = [];
         }
         if (Array.isArray(assignedWorkers)) {
-          laborCost = assignedWorkers.reduce((s, w) => s + parseNumber(w.laborCost || w.labor_cost || w.cost || 0), 0);
+          laborCost = assignedWorkers.reduce((s, w) => {
+            const type = w.workerType || w.worker_type || 'employee';
+            if (type === 'owner') return s;
+            return s + parseNumber(w.laborCost || w.labor_cost || w.cost || 0);
+          }, 0);
         }
 
         const totalExpenses = materialsCost + laborCost + travelCost;
-        const profit = billingAmount - totalExpenses; // WITHOUT VAT
+        const profit = billingAmount - totalExpenses;
 
         // Add to totals
         totalRevenue += billingAmount;
@@ -516,8 +514,8 @@ window.StatisticsView = {
     const totalJobsEl = document.getElementById('totalJobs');
     const completedJobsEl = document.getElementById('completedJobs');
     
-    // Prefer server-side computed billing_without_vat / net_profit if available (backward-compatible)
-    const totalRevenue = data.billing_without_vat ?? data.totalRevenue ?? data.total_revenue ?? 0;
+    // Prefer server-side computed billing amount / net profit if available
+    const totalRevenue = data.billing_amount ?? data.totalRevenue ?? data.total_revenue ?? 0;
     const totalProfit = data.net_profit ?? data.totalProfit ?? data.total_profit ?? 0;
     const totalJobs = data.totalJobs || data.total_jobs || 0;
     const completedJobs = data.completedJobs || data.completed_jobs || 0;

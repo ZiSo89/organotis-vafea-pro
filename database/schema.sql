@@ -9,12 +9,17 @@ SET time_zone = "+00:00";
 DROP TABLE IF EXISTS `timesheets`;
 DROP TABLE IF EXISTS `job_materials`;
 DROP TABLE IF EXISTS `job_workers`;
+DROP TABLE IF EXISTS `supplier_payments`;
+DROP TABLE IF EXISTS `material_stock_movements`;
+DROP TABLE IF EXISTS `material_purchase_items`;
+DROP TABLE IF EXISTS `material_purchases`;
 DROP TABLE IF EXISTS `calendar_events`;
 DROP TABLE IF EXISTS `invoices`;
 DROP TABLE IF EXISTS `offers`;
 DROP TABLE IF EXISTS `jobs`;
 DROP TABLE IF EXISTS `workers`;
 DROP TABLE IF EXISTS `materials`;
+DROP TABLE IF EXISTS `suppliers`;
 DROP TABLE IF EXISTS `clients`;
 DROP TABLE IF EXISTS `templates`;
 DROP TABLE IF EXISTS `settings`;
@@ -44,6 +49,7 @@ CREATE TABLE `workers` (
   `specialty` varchar(100) DEFAULT NULL,
   `hourly_rate` decimal(10,2) DEFAULT 0.00,
   `daily_rate` decimal(10,2) DEFAULT 0.00,
+  `worker_type` enum('employee','owner') DEFAULT 'employee',
   `status` enum('active','inactive') DEFAULT 'active',
   `hire_date` date DEFAULT NULL,
   `notes` text DEFAULT NULL,
@@ -70,6 +76,95 @@ CREATE TABLE `materials` (
   KEY `idx_materials_category` (`category`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- SUPPLIERS TABLE (καταστήματα / προμηθευτές)
+CREATE TABLE `suppliers` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(255) NOT NULL,
+  `phone` varchar(50) DEFAULT NULL,
+  `email` varchar(255) DEFAULT NULL,
+  `address` text DEFAULT NULL,
+  `notes` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_suppliers_name` (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- MATERIAL PURCHASES TABLE
+CREATE TABLE `material_purchases` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `supplier_id` int(11) NOT NULL,
+  `purchase_date` date NOT NULL,
+  `reference_number` varchar(100) DEFAULT NULL,
+  `notes` text DEFAULT NULL,
+  `total_cost` decimal(10,2) DEFAULT 0.00,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_material_purchases_supplier` (`supplier_id`),
+  KEY `idx_material_purchases_date` (`purchase_date`),
+  CONSTRAINT `material_purchases_ibfk_1` FOREIGN KEY (`supplier_id`) REFERENCES `suppliers` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- MATERIAL PURCHASE ITEMS TABLE
+CREATE TABLE `material_purchase_items` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `purchase_id` int(11) NOT NULL,
+  `material_id` int(11) DEFAULT NULL,
+  `material_name` varchar(255) NOT NULL,
+  `quantity` decimal(10,2) DEFAULT 0.00,
+  `unit` varchar(50) DEFAULT NULL,
+  `unit_price` decimal(10,2) DEFAULT 0.00,
+  `total_cost` decimal(10,2) DEFAULT 0.00,
+  `notes` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_purchase_items_purchase` (`purchase_id`),
+  KEY `idx_purchase_items_material` (`material_id`),
+  CONSTRAINT `material_purchase_items_ibfk_1` FOREIGN KEY (`purchase_id`) REFERENCES `material_purchases` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `material_purchase_items_ibfk_2` FOREIGN KEY (`material_id`) REFERENCES `materials` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- SUPPLIER PAYMENTS TABLE
+CREATE TABLE `supplier_payments` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `supplier_id` int(11) NOT NULL,
+  `purchase_id` int(11) DEFAULT NULL,
+  `payment_date` date NOT NULL,
+  `amount` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `payment_method` varchar(100) DEFAULT NULL,
+  `notes` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_supplier_payments_supplier` (`supplier_id`),
+  KEY `idx_supplier_payments_purchase` (`purchase_id`),
+  KEY `idx_supplier_payments_date` (`payment_date`),
+  CONSTRAINT `supplier_payments_ibfk_1` FOREIGN KEY (`supplier_id`) REFERENCES `suppliers` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `supplier_payments_ibfk_2` FOREIGN KEY (`purchase_id`) REFERENCES `material_purchases` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- MATERIAL STOCK MOVEMENTS TABLE
+CREATE TABLE `material_stock_movements` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `material_id` int(11) NOT NULL,
+  `movement_date` date NOT NULL,
+  `movement_type` varchar(50) NOT NULL,
+  `quantity` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `previous_stock` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `new_stock` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `unit` varchar(50) DEFAULT NULL,
+  `reference_type` varchar(50) DEFAULT NULL,
+  `reference_id` int(11) DEFAULT NULL,
+  `notes` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_stock_movements_material` (`material_id`),
+  KEY `idx_stock_movements_date` (`movement_date`),
+  KEY `idx_stock_movements_reference` (`reference_type`,`reference_id`),
+  CONSTRAINT `material_stock_movements_ibfk_1` FOREIGN KEY (`material_id`) REFERENCES `materials` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- JOBS TABLE
 CREATE TABLE `jobs` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
@@ -93,7 +188,6 @@ CREATE TABLE `jobs` (
   `kilometers` decimal(10,2) DEFAULT 0.00,
   `billing_hours` decimal(10,2) DEFAULT 0.00,
   `billing_rate` decimal(10,2) DEFAULT 0.00,
-  `vat` decimal(5,2) DEFAULT 24.00,
   `cost_per_km` decimal(10,2) DEFAULT 0.50,
   `notes` text DEFAULT NULL,
   `assigned_workers` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`assigned_workers`)),

@@ -254,7 +254,6 @@ class SQLiteDB {
         kilometers INTEGER DEFAULT 0,
         billing_hours REAL DEFAULT 0,
         billing_rate REAL DEFAULT 0,
-        vat REAL DEFAULT 24,
         cost_per_km REAL DEFAULT 0.5,
         notes TEXT,
         assigned_workers TEXT,
@@ -305,6 +304,91 @@ class SQLiteDB {
         updated_at TEXT DEFAULT (datetime('now', 'localtime')),
         _sync_status TEXT DEFAULT 'synced',
         _sync_timestamp INTEGER DEFAULT 0
+      );
+
+      -- Suppliers Table
+      CREATE TABLE IF NOT EXISTS suppliers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        phone TEXT,
+        email TEXT,
+        address TEXT,
+        notes TEXT,
+        created_at TEXT DEFAULT (datetime('now', 'localtime')),
+        updated_at TEXT DEFAULT (datetime('now', 'localtime')),
+        _sync_status TEXT DEFAULT 'synced',
+        _sync_timestamp INTEGER DEFAULT 0
+      );
+
+      -- Material Purchases Table
+      CREATE TABLE IF NOT EXISTS material_purchases (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        supplier_id INTEGER NOT NULL,
+        purchase_date TEXT NOT NULL,
+        reference_number TEXT,
+        notes TEXT,
+        total_cost REAL DEFAULT 0,
+        created_at TEXT DEFAULT (datetime('now', 'localtime')),
+        updated_at TEXT DEFAULT (datetime('now', 'localtime')),
+        _sync_status TEXT DEFAULT 'synced',
+        _sync_timestamp INTEGER DEFAULT 0,
+        FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON DELETE CASCADE
+      );
+
+      -- Material Purchase Items Table
+      CREATE TABLE IF NOT EXISTS material_purchase_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        purchase_id INTEGER NOT NULL,
+        material_id INTEGER,
+        material_name TEXT NOT NULL,
+        quantity REAL DEFAULT 0,
+        unit TEXT,
+        unit_price REAL DEFAULT 0,
+        total_cost REAL DEFAULT 0,
+        notes TEXT,
+        created_at TEXT DEFAULT (datetime('now', 'localtime')),
+        updated_at TEXT DEFAULT (datetime('now', 'localtime')),
+        _sync_status TEXT DEFAULT 'synced',
+        _sync_timestamp INTEGER DEFAULT 0,
+        FOREIGN KEY (purchase_id) REFERENCES material_purchases(id) ON DELETE CASCADE,
+        FOREIGN KEY (material_id) REFERENCES materials(id) ON DELETE SET NULL
+      );
+
+      -- Supplier Payments Table
+      CREATE TABLE IF NOT EXISTS supplier_payments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        supplier_id INTEGER NOT NULL,
+        purchase_id INTEGER,
+        payment_date TEXT NOT NULL,
+        amount REAL DEFAULT 0,
+        payment_method TEXT,
+        notes TEXT,
+        created_at TEXT DEFAULT (datetime('now', 'localtime')),
+        updated_at TEXT DEFAULT (datetime('now', 'localtime')),
+        _sync_status TEXT DEFAULT 'synced',
+        _sync_timestamp INTEGER DEFAULT 0,
+        FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON DELETE CASCADE,
+        FOREIGN KEY (purchase_id) REFERENCES material_purchases(id) ON DELETE SET NULL
+      );
+
+      -- Material Stock Movements Table
+      CREATE TABLE IF NOT EXISTS material_stock_movements (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        material_id INTEGER NOT NULL,
+        movement_date TEXT NOT NULL,
+        movement_type TEXT NOT NULL,
+        quantity REAL DEFAULT 0,
+        previous_stock REAL DEFAULT 0,
+        new_stock REAL DEFAULT 0,
+        unit TEXT,
+        reference_type TEXT,
+        reference_id INTEGER,
+        notes TEXT,
+        created_at TEXT DEFAULT (datetime('now', 'localtime')),
+        updated_at TEXT DEFAULT (datetime('now', 'localtime')),
+        _sync_status TEXT DEFAULT 'synced',
+        _sync_timestamp INTEGER DEFAULT 0,
+        FOREIGN KEY (material_id) REFERENCES materials(id) ON DELETE CASCADE
       );
 
       -- Job Materials Junction Table
@@ -468,6 +552,13 @@ class SQLiteDB {
       CREATE INDEX IF NOT EXISTS idx_jobs_next_visit ON jobs(next_visit);
       CREATE INDEX IF NOT EXISTS idx_workers_status ON workers(status);
       CREATE INDEX IF NOT EXISTS idx_materials_category ON materials(category);
+      CREATE INDEX IF NOT EXISTS idx_suppliers_name ON suppliers(name);
+      CREATE INDEX IF NOT EXISTS idx_material_purchases_supplier ON material_purchases(supplier_id);
+      CREATE INDEX IF NOT EXISTS idx_material_purchases_date ON material_purchases(purchase_date);
+      CREATE INDEX IF NOT EXISTS idx_supplier_payments_supplier ON supplier_payments(supplier_id);
+      CREATE INDEX IF NOT EXISTS idx_supplier_payments_purchase ON supplier_payments(purchase_id);
+      CREATE INDEX IF NOT EXISTS idx_stock_movements_material ON material_stock_movements(material_id);
+      CREATE INDEX IF NOT EXISTS idx_stock_movements_date ON material_stock_movements(movement_date);
       CREATE INDEX IF NOT EXISTS idx_invoices_job_id ON invoices(job_id);
       CREATE INDEX IF NOT EXISTS idx_invoices_client_id ON invoices(client_id);
       CREATE INDEX IF NOT EXISTS idx_offers_client_id ON offers(client_id);
@@ -728,7 +819,7 @@ class SQLiteDB {
   // Export all data to JSON (Universal format - works with both Electron and PHP/MySQL)
   exportToJSON() {
     try {
-      const tables = ['clients', 'workers', 'materials', 'jobs', 'offers', 'calendar_events', 'invoices', 'job_workers', 'job_materials', 'timesheets'];
+      const tables = ['clients', 'workers', 'materials', 'material_stock_movements', 'suppliers', 'material_purchases', 'material_purchase_items', 'supplier_payments', 'jobs', 'offers', 'calendar_events', 'invoices', 'job_workers', 'job_materials', 'timesheets'];
       const backup = {
         version: '1.0',
         exported_at: new Date().toISOString().slice(0, 19).replace('T', ' '),
@@ -857,7 +948,7 @@ class SQLiteDB {
       // Start transaction
       const transaction = this.db.transaction(() => {
         // Clear existing data (in reverse dependency order)
-        const tables = ['calendar_events', 'invoices', 'offers', 'job_materials', 'job_workers', 'timesheets', 'jobs', 'materials', 'workers', 'clients'];
+        const tables = ['calendar_events', 'invoices', 'offers', 'job_materials', 'job_workers', 'timesheets', 'jobs', 'supplier_payments', 'material_purchase_items', 'material_purchases', 'suppliers', 'material_stock_movements', 'materials', 'workers', 'clients'];
         
         for (const table of tables) {
           console.log(`🗑️ Clearing ${table}...`);

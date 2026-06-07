@@ -221,7 +221,7 @@ window.DashboardView = {
              jobDate.getFullYear() === thisYear;
     });
 
-    // Calculate monthly revenue and profit using billing amount WITHOUT VAT.
+    // Calculate monthly revenue and profit using billing amount.
     // Consider only jobs with status 'Ολοκληρώθηκε' or 'Εξοφλήθηκε' (already filtered into monthlyJobs).
     const parseNumber = (v) => {
       const n = parseFloat(v);
@@ -239,19 +239,12 @@ window.DashboardView = {
         if (hours && rate) billingAmount = hours * rate;
       }
 
-      // Fallback: totalCost without VAT (if vat present)
       if (!billingAmount) {
         const totalCost = parseNumber(j.totalCost || j.total_cost);
-        const vat = parseNumber(j.vat);
-        if (totalCost && vat >= 0) {
-          const denom = 1 + (vat / 100);
-          billingAmount = denom > 0 ? (totalCost / denom) : totalCost;
-        } else {
-          billingAmount = totalCost;
-        }
+        billingAmount = totalCost;
       }
 
-      console.log('💰 Adding job billing (χωρίς ΦΠΑ) to monthly revenue:', billingAmount, 'from job:', j.id);
+      console.log('💰 Adding job billing to monthly revenue:', billingAmount, 'from job:', j.id);
       return total + billingAmount;
     }, 0);
 
@@ -264,13 +257,7 @@ window.DashboardView = {
       }
       if (!billingAmount) {
         const totalCost = parseNumber(j.totalCost || j.total_cost);
-        const vat = parseNumber(j.vat);
-        if (totalCost && vat >= 0) {
-          const denom = 1 + (vat / 100);
-          billingAmount = denom > 0 ? (totalCost / denom) : totalCost;
-        } else {
-          billingAmount = totalCost || 0;
-        }
+        billingAmount = totalCost || 0;
       }
 
       const materialsCost = parseNumber(j.materialsCost || j.materials_cost);
@@ -287,18 +274,22 @@ window.DashboardView = {
         assignedWorkers = [];
       }
       if (Array.isArray(assignedWorkers)) {
-        laborCost = assignedWorkers.reduce((s, w) => s + parseNumber(w.laborCost || w.labor_cost || 0), 0);
+        laborCost = assignedWorkers.reduce((s, w) => {
+          const type = w.workerType || w.worker_type || 'employee';
+          if (type === 'owner') return s;
+          return s + parseNumber(w.laborCost || w.labor_cost || 0);
+        }, 0);
       }
 
       const totalExpenses = materialsCost + laborCost + travelCost;
-      const profit = billingAmount - totalExpenses; // profit WITHOUT VAT (consistent with Jobs view)
+      const profit = billingAmount - totalExpenses;
 
-      console.log('📈 Job', j.id, 'profit (χωρίς ΦΠΑ):', profit, '(revenue:', billingAmount, '- expenses:', totalExpenses, ')');
+      console.log('📈 Job', j.id, 'profit:', profit, '(revenue:', billingAmount, '- expenses:', totalExpenses, ')');
       return total + profit;
     }, 0);
 
     // NOTE: removed older fallback monthlyProfit calculation to avoid duplicate declaration.
-    // The `monthlyProfit` above (using billing without VAT minus expenses) is the canonical value.
+    // The `monthlyProfit` above (billing minus expenses) is the canonical value.
 
     const stats = {
       totalJobs: jobs.length,
@@ -353,8 +344,8 @@ window.DashboardView = {
       const monthRow = (json.data || []).find(r => String(r.month) === month);
       if (!monthRow) return;
 
-      // revenue: prefer billing_without_vat, else revenue
-      const billing = Number(monthRow.billing_without_vat ?? monthRow.revenue ?? 0);
+      // revenue: prefer normalized billing amount, else revenue
+      const billing = Number(monthRow.billing_amount ?? monthRow.revenue ?? 0);
       const net = Number(monthRow.net_profit ?? monthRow.profit ?? 0);
 
       const revEl = document.getElementById('monthlyRevenueValue');
@@ -583,7 +574,11 @@ window.DashboardView = {
     }
     
     // Calculate costs
-    const laborCost = assignedWorkers.reduce((sum, w) => sum + (w.laborCost || 0), 0);
+    const laborCost = assignedWorkers.reduce((sum, w) => {
+      const type = w.workerType || w.worker_type || 'employee';
+      if (type === 'owner') return sum;
+      return sum + (w.laborCost || 0);
+    }, 0);
     const materialsCost = Number(job.materialsCost) || 0;
     const kilometers = Number(job.kilometers) || 0;
     const costPerKm = Number(job.costPerKm) || 0.5;
@@ -593,9 +588,7 @@ window.DashboardView = {
     const billingHours = Number(job.billingHours) || 0;
     const billingRate = Number(job.billingRate) || 50;
     const billingAmount = billingHours * billingRate;
-    const vat = Number(job.vat) || 24;
-    const vatAmount = billingAmount * (vat / 100);
-    const totalCost = billingAmount + vatAmount;
+    const totalCost = billingAmount;
     const profit = billingAmount - totalExpenses;
 
     const content = `
@@ -676,16 +669,19 @@ window.DashboardView = {
           </div>
         </div>
 
-        <!-- Χρώματα -->
+        <!-- Υλικά -->
         ${paints.length > 0 ? `
         <div class="detail-section">
-          <h4><i class="fas fa-palette"></i> Χρώματα</h4>
+          <h4><i class="fas fa-boxes"></i> Υλικά</h4>
           <div style="overflow-x: auto;">
             <table class="data-table">
               <thead>
                 <tr>
                   <th>Όνομα</th>
                   <th>Κωδικός</th>
+                  <th>Ποσότητα</th>
+                  <th>Πληροφορίες</th>
+                  <th>Κόστος</th>
                 </tr>
               </thead>
               <tbody>
@@ -693,6 +689,9 @@ window.DashboardView = {
                   <tr>
                     <td><strong>${paint.name}</strong></td>
                     <td>${paint.code || '-'}</td>
+                    <td>${paint.quantity || '-'}</td>
+                    <td>${paint.info || '-'}</td>
+                    <td><strong>${Utils.formatCurrency(Number(paint.cost) || 0)}</strong></td>
                   </tr>
                 `).join('')}
               </tbody>
@@ -710,6 +709,7 @@ window.DashboardView = {
               <thead>
                 <tr>
                   <th>Εργάτης</th>
+                  <th>Τύπος</th>
                   <th>Ειδικότητα</th>
                   <th>Ωρομίσθιο</th>
                   <th>Ώρες</th>
@@ -720,6 +720,7 @@ window.DashboardView = {
                 ${assignedWorkers.map(worker => `
                   <tr>
                     <td><strong>${worker.workerName}</strong></td>
+                    <td>${(worker.workerType || worker.worker_type) === 'owner' ? 'Ιδιοκτήτης' : 'Υπάλληλος'}</td>
                     <td>${worker.workerSpecialty || worker.specialty || ''}</td>
                     <td>${Utils.formatCurrency(worker.hourlyRate)}/ώρα</td>
                     <td>${worker.hoursAllocated}h</td>
@@ -727,7 +728,7 @@ window.DashboardView = {
                   </tr>
                 `).join('')}
                 <tr style="background: var(--bg-secondary); font-weight: bold;">
-                  <td colspan="3" style="text-align: right;">ΣΥΝΟΛΟ:</td>
+                  <td colspan="4" style="text-align: right;">ΣΥΝΟΛΟ:</td>
                   <td>${assignedWorkers.reduce((sum, w) => sum + w.hoursAllocated, 0).toFixed(1)}h</td>
                   <td><strong style="color: var(--error);">${Utils.formatCurrency(laborCost)}</strong></td>
                 </tr>
@@ -766,11 +767,7 @@ window.DashboardView = {
               <span style="color: var(--success);">${Utils.formatCurrency(billingAmount)}</span>
             </div>
             <div class="detail-item">
-              <label>ΦΠΑ (${vat}%):</label>
-              <span>${Utils.formatCurrency(vatAmount)}</span>
-            </div>
-            <div class="detail-item">
-              <label>Τελικό Ποσό:</label>
+              <label>Σύνολο Χρέωσης:</label>
               <span><strong style="color: var(--success); font-size: 1.2em;">${Utils.formatCurrency(totalCost)}</strong></span>
             </div>
             <div class="detail-item span-2">

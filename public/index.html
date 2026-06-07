@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
-  <meta name="description" content="Οργανωτής Βαφέα Pro - Διαχείριση εργασιών, πελατών και αποθήκης για επαγγελματίες βαφείς">
+  <meta name="description" content="Τέχνη και Χρώμα - Διαχείριση εργασιών, πελατών και αποθήκης για επαγγελματίες βαφείς">
   <meta name="keywords" content="βαφείς, διαχείριση εργασιών, CRM, ημερολόγιο, αποθήκη">
-  <meta name="author" content="Οργανωτής Βαφέα Pro">
+  <meta name="author" content="Τέχνη και Χρώμα">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta http-equiv="Cache-Control" content="public, max-age=31536000, immutable">
   <meta name="referrer" content="strict-origin-when-cross-origin">
@@ -20,7 +20,7 @@
     connect-src 'self' https://maps.googleapis.com https://nominatim.openstreetmap.org https://*.googleapis.com https://*.tile.openstreetmap.org https://unpkg.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; 
     frame-src 'self' https://www.google.com;
   ">
-  <title>Οργανωτής Βαφέα Pro</title>
+  <title>Τέχνη και Χρώμα</title>
   
   <!-- Performance: Preconnect to external domains -->
   <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
@@ -34,17 +34,17 @@
   <link rel="stylesheet" href="src/css/base.css">
   
   <!-- Favicon & App Icons -->
-  <link rel="icon" type="image/x-icon" href="/public/assets/icons/favicon.ico">
-  <link rel="icon" type="image/png" sizes="192x192" href="/public/assets/icons/icon.png">
-  <link rel="apple-touch-icon" href="/public/assets/icons/icon.png">
+  <link rel="icon" type="image/x-icon" href="/public/assets/icons/favicon.ico?v=techni-chroma-1">
+  <link rel="icon" type="image/png" sizes="192x192" href="/public/assets/icons/icon.png?v=techni-chroma-1">
+  <link rel="apple-touch-icon" href="/public/assets/icons/icon.png?v=techni-chroma-1">
   
   <!-- PWA Manifest -->
-  <link rel="manifest" href="/public/manifest.json">
+  <link rel="manifest" href="/public/manifest.json?v=techni-chroma-1">
   <meta name="theme-color" content="#1a1a2e">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Οργανωτής Βαφέα">
+  <meta name="apple-mobile-web-app-title" content="Τέχνη και Χρώμα">
 
   <!-- Font Awesome Icons -->
   <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
@@ -194,7 +194,7 @@
   <link rel="stylesheet" href="src/css/variables.css">
   <link rel="stylesheet" href="src/css/base.css?v=20251111a">
   <link rel="stylesheet" href="src/css/sidebar.css">
-  <link rel="stylesheet" href="src/css/components.css">
+  <link rel="stylesheet" href="src/css/components.css?v=20260607a">
   <!-- Non-critical CSS loaded asynchronously -->
   <link rel="preload" href="src/css/dashboard.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
   <link rel="preload" href="src/css/tables.css?v=20260606a" as="style" onload="this.onload=null;this.rel='stylesheet'">
@@ -235,7 +235,7 @@
       <div class="logo">
         <i class="fas fa-paint-roller"></i>
         <div class="logo-text">
-          <span class="company-name" id="sidebarCompanyName">Οργανωτής Βαφέα</span>
+          <span class="company-name" id="sidebarCompanyName">Τέχνη και Χρώμα</span>
         </div>
       </div>
       <button id="sidebarToggle" class="sidebar-toggle" aria-label="Toggle Sidebar">
@@ -259,6 +259,10 @@
       <a href="#workers" class="nav-item" data-section="workers" data-tooltip="Προσωπικό">
         <i class="fas fa-hard-hat" aria-hidden="true"></i>
         <span>Προσωπικό</span>
+      </a>
+      <a href="#suppliers" class="nav-item" data-section="suppliers" data-tooltip="Προμηθευτές">
+        <i class="fas fa-store" aria-hidden="true"></i>
+        <span>Προμηθευτές</span>
       </a>
       <a href="#inventory" class="nav-item" data-section="inventory" data-tooltip="Αποθήκη">
         <i class="fas fa-boxes" aria-hidden="true"></i>
@@ -295,7 +299,7 @@
       <button id="mobileMenuBtn" class="mobile-menu-btn" aria-label="Άνοιγμα μενού πλοήγησης" aria-expanded="false">
         <i class="fas fa-bars" aria-hidden="true"></i>
       </button>
-      <img src="assets/icons/logo.png" alt="Οργανωτής Βαφέα Pro λογότυπο" class="header-logo" width="150" height="40" loading="eager">
+      <img src="assets/icons/logo.png?v=techni-chroma-1" alt="Τέχνη και Χρώμα λογότυπο" class="header-logo" width="160" height="90" loading="eager">
     </header>
 
     <!-- Content Area -->
@@ -328,15 +332,15 @@
   <script src="src/js/performance.js?v=20251116a" defer></script>
   
   <!-- Core Services -->
-  <script src="src/js/services/api.js?v=20251111c" defer></script>
+  <script src="src/js/services/api.js?v=20260607a" defer></script>
   <script src="src/js/services/settings-service.js?v=20251112a" defer></script>
-  <script src="src/js/services/offline.js?v=20251115d" defer></script>
+  <script src="src/js/services/offline.js?v=20260607a" defer></script>
   
   <!-- Configuration & Utilities -->
   <script src="src/js/config.js?v=20251111c" defer></script>
   <script src="src/js/i18n.js?v=20251111c" defer></script>
   <script src="src/js/geocoding.js?v=20251115a" defer></script>
-  <script src="src/js/state.js?v=20260531b" defer></script>
+  <script src="src/js/state.js?v=20260607a" defer></script>
   <script src="src/js/utils.js?v=20251111b" defer></script>
   <script src="src/js/validation.js?v=20251111b" defer></script>
   
@@ -348,7 +352,7 @@
   <script src="src/js/theme.js?v=20251111b" defer></script>
   <script src="src/js/help.js" defer></script>
   <script src="src/js/sidebar.js?v=20251111c" defer></script>
-  <script src="src/js/router.js?v=20251111b" defer></script>
+  <script src="src/js/router.js?v=20260607a" defer></script>
   <script src="src/js/search.js?v=20251111b" defer></script>
   <script src="src/js/table.js?v=20251111b" defer></script>
   <script src="src/js/pagination.js?v=20251111b" defer></script>
@@ -363,16 +367,17 @@
   <script src="src/js/views/dashboard.js?v=20260607a" defer></script>
   <script src="src/js/views/clients.js?v=20260606a" defer></script>
   <script src="src/js/views/workers.js?v=20260606a" defer></script>
-  <script src="src/js/views/inventory.js?v=20251111b" defer></script>
-  <script src="src/js/views/jobs.js?v=20260606b" defer></script>
+  <script src="src/js/views/inventory.js?v=20260607b" defer></script>
+  <script src="src/js/views/stock.js?v=20260607a" defer></script>
+  <script src="src/js/views/jobs.js?v=20260607a" defer></script>
   <script src="src/js/views/calendar.js?v=20260531f" defer></script>
   <script src="src/js/views/map.js?v=20260607a" defer></script>
   <script src="src/js/views/offers.js?v=20251111b" defer></script>
   <script src="src/js/views/invoices.js?v=20251111b" defer></script>
   <script src="src/js/views/statistics.js?v=20251111b" defer></script>
   <script src="src/js/views/templates.js?v=20251111b" defer></script>
-  <script src="src/js/views/settings.js?v=20260531c" defer></script>
-  <script src="src/js/views/help.js" defer></script>
+  <script src="src/js/views/settings.js?v=20260607a" defer></script>
+  <script src="src/js/views/help.js?v=20260607a" defer></script>
   
   <!-- App Initialization -->
   <script src="src/js/app.js?v=20251111b" defer></script>

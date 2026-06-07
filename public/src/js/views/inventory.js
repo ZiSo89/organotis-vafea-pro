@@ -1,20 +1,838 @@
 /* Placeholder Views - Θα υλοποιηθούν σύντομα */
 
-// Inventory View
-window.InventoryView = {
+// Suppliers View (stores, purchases and payments)
+window.SuppliersView = {
+  activeTab: 'suppliers',
+  editingSupplierId: null,
+  editingPaymentId: null,
+
   render(container) {
+    const suppliers = State.read('suppliers') || [];
+    const purchases = State.read('materialPurchases') || [];
+    const payments = State.read('supplierPayments') || [];
+    const inventory = State.read('inventory') || [];
+    const summary = this.calculateSummary(suppliers, purchases, payments, inventory);
+
     container.innerHTML = `
       <div class="view-header">
-        <h1><i class="fas fa-boxes"></i> Αποθήκη Χρωμάτων</h1>
+        <h1><i class="fas fa-store"></i> Προμηθευτές</h1>
       </div>
+
+      <div class="stats-grid" style="margin-bottom: 20px;">
+        <div class="stat-card">
+          <div class="stat-icon"><i class="fas fa-shopping-cart"></i></div>
+          <div class="stat-content">
+            <h3>${Utils.formatCurrency(summary.totalPurchases)}</h3>
+            <p>Σύνολο Αγορών</p>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon success"><i class="fas fa-money-bill-wave"></i></div>
+          <div class="stat-content">
+            <h3>${Utils.formatCurrency(summary.totalPaid)}</h3>
+            <p>Πληρωμένα</p>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon warning"><i class="fas fa-hand-holding-usd"></i></div>
+          <div class="stat-content">
+            <h3>${Utils.formatCurrency(summary.balance)}</h3>
+            <p>Υπόλοιπο</p>
+          </div>
+        </div>
+      </div>
+
       <div class="card">
-        <div class="empty-state">
-          <i class="fas fa-hammer fa-3x" style="color: var(--color-warning);"></i>
-          <h2>Σε ανάπτυξη...</h2>
-          <p class="text-muted">Αυτή η λειτουργία θα είναι σύντομα διαθέσιμη</p>
+        <div class="tabs">
+          <button class="tab-btn ${this.activeTab === 'suppliers' ? 'active' : ''}" data-inventory-tab="suppliers">
+            <i class="fas fa-store"></i> Καταστήματα
+          </button>
+          <button class="tab-btn ${this.activeTab === 'purchases' ? 'active' : ''}" data-inventory-tab="purchases">
+            <i class="fas fa-receipt"></i> Αγορές
+          </button>
+          <button class="tab-btn ${this.activeTab === 'payments' ? 'active' : ''}" data-inventory-tab="payments">
+            <i class="fas fa-credit-card"></i> Πληρωμές
+          </button>
+        </div>
+
+        <div style="margin-top: 20px;">
+          ${this.renderActiveTab(suppliers, purchases, payments, inventory)}
         </div>
       </div>
     `;
+
+    this.setupEventListeners(container);
+  },
+
+  calculateSummary(suppliers, purchases, payments, inventory) {
+    const totalPurchases = purchases.reduce((sum, p) => sum + this.toNumber(p.totalCost || p.total_cost), 0);
+    const totalPaid = payments.reduce((sum, p) => sum + this.toNumber(p.amount), 0);
+    const stockValue = inventory.reduce((sum, m) => {
+      return sum + (this.toNumber(m.stock) * this.toNumber(m.unitPrice || m.unit_price));
+    }, 0);
+
+    return {
+      suppliers: suppliers.length,
+      totalPurchases,
+      totalPaid,
+      balance: totalPurchases - totalPaid,
+      stockValue
+    };
+  },
+
+  renderActiveTab(suppliers, purchases, payments, inventory) {
+    if (this.activeTab === 'purchases') return this.renderPurchasesTab(suppliers, purchases, inventory);
+    if (this.activeTab === 'payments') return this.renderPaymentsTab(suppliers, purchases, payments);
+    return this.renderSuppliersTab(suppliers, purchases, payments);
+  },
+
+  renderSuppliersTab(suppliers, purchases, payments) {
+    return `
+      <div class="form-section">
+        <h3>${this.editingSupplierId ? 'Επεξεργασία Καταστήματος' : 'Νέο Κατάστημα'}</h3>
+        <form id="supplierForm" class="form-grid">
+          <div class="form-group">
+            <label>Όνομα Καταστήματος <span class="required">*</span></label>
+            <input type="text" id="supplierName" required placeholder="π.χ. Χρωματοπωλείο Παπαδόπουλος">
+          </div>
+          <div class="form-group">
+            <label>Τηλέφωνο</label>
+            <input type="tel" id="supplierPhone" placeholder="π.χ. 25510...">
+          </div>
+          <div class="form-group span-2">
+            <label>Διεύθυνση</label>
+            <input type="text" id="supplierAddress" placeholder="Διεύθυνση καταστήματος">
+          </div>
+          <div class="form-group span-2">
+            <label>Σημειώσεις</label>
+            <textarea id="supplierNotes" rows="2" placeholder="Π.χ. αγορά με πίστωση, υπεύθυνος κλπ."></textarea>
+          </div>
+          <div class="form-group span-2">
+            <button type="submit" class="btn btn-primary">
+              <i class="fas fa-save"></i> ${this.editingSupplierId ? 'Αποθήκευση' : 'Προσθήκη Καταστήματος'}
+            </button>
+            ${this.editingSupplierId ? '<button type="button" class="btn btn-secondary" id="cancelSupplierEditBtn">Ακύρωση</button>' : ''}
+          </div>
+        </form>
+      </div>
+
+      <div class="table-wrapper" style="margin-top: 20px;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Ενέργειες</th>
+              <th>Κατάστημα</th>
+              <th>Τηλέφωνο</th>
+              <th>Σύνολο Αγορών</th>
+              <th>Πληρωμένα</th>
+              <th>Υπόλοιπο</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${suppliers.length ? suppliers.map(supplier => {
+              const totals = this.getSupplierTotals(supplier.id, purchases, payments);
+              return `
+                <tr>
+                  <td class="actions">
+                    <button class="btn-icon edit-supplier-btn" data-id="${supplier.id}" title="Επεξεργασία"><i class="fas fa-edit"></i></button>
+                    <button class="btn-icon btn-danger delete-supplier-btn" data-id="${supplier.id}" title="Διαγραφή"><i class="fas fa-trash"></i></button>
+                  </td>
+                  <td><strong>${this.escape(supplier.name)}</strong><br><small>${this.escape(supplier.address || supplier.notes || '')}</small></td>
+                  <td>${supplier.phone ? `<a href="tel:${supplier.phone}">${this.escape(supplier.phone)}</a>` : '-'}</td>
+                  <td>${Utils.formatCurrency(totals.totalPurchases)}</td>
+                  <td>${Utils.formatCurrency(totals.totalPaid)}</td>
+                  <td><strong style="color: ${totals.balance > 0 ? 'var(--error)' : 'var(--success)'}">${Utils.formatCurrency(totals.balance)}</strong></td>
+                </tr>
+              `;
+            }).join('') : '<tr><td colspan="6" class="text-muted">Δεν υπάρχουν καταστήματα ακόμα.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    `;
+  },
+
+  renderPurchasesTab(suppliers, purchases, inventory) {
+    return `
+      <div class="form-section">
+        <h3>Νέα Αγορά Υλικών</h3>
+        <form id="purchaseForm">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Κατάστημα <span class="required">*</span></label>
+              <select id="purchaseSupplier" required>
+                <option value="">Επιλέξτε κατάστημα...</option>
+                ${suppliers.map(s => `<option value="${s.id}">${this.escape(s.name)}</option>`).join('')}
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Ημερομηνία</label>
+              <input type="date" id="purchaseDate" value="${this.today()}">
+            </div>
+            <div class="form-group">
+              <label>Αριθμός Παραστατικού</label>
+              <input type="text" id="purchaseReference" placeholder="π.χ. Απόδειξη #123">
+            </div>
+            <div class="form-group">
+              <label>Σύνολο Αγοράς</label>
+              <input type="text" id="purchaseTotalPreview" readonly value="0.00 €">
+            </div>
+            <div class="form-group span-2">
+              <label>Σημειώσεις</label>
+              <textarea id="purchaseNotes" rows="2"></textarea>
+            </div>
+          </div>
+
+          <h4 style="margin-top: 20px;">Υλικά Αγοράς</h4>
+          <div id="purchaseItemsContainer"></div>
+          <button type="button" class="btn btn-secondary" id="addPurchaseItemBtn" style="margin-top: 10px;">
+            <i class="fas fa-plus"></i> Προσθήκη Υλικού
+          </button>
+
+          <div class="form-section purchase-payment-section">
+            <h4><i class="fas fa-money-check-alt"></i> Πληρωμή Αγοράς</h4>
+            <p class="payment-helper-text">Διαλέξτε τι έγινε με την πληρωμή τη στιγμή της αγοράς.</p>
+            <div class="form-grid">
+              <div class="form-group span-2">
+                <div class="payment-option-list" role="radiogroup" aria-label="Κατάσταση πληρωμής αγοράς">
+                  <label class="payment-option is-active">
+                    <input type="radio" name="purchasePaymentStatus" value="none" checked>
+                    <span class="payment-option-content">
+                      <span class="payment-option-title">Δεν πληρώθηκε ακόμα</span>
+                      <span class="payment-option-description">Η αγορά θα εμφανιστεί ως οφειλή στο κατάστημα.</span>
+                    </span>
+                  </label>
+                  <label class="payment-option">
+                    <input type="radio" name="purchasePaymentStatus" value="full">
+                    <span class="payment-option-content">
+                      <span class="payment-option-title">Πληρώθηκε όλο τώρα</span>
+                      <span class="payment-option-description">Θα καταχωρηθεί αυτόματα πληρωμή για όλο το ποσό.</span>
+                    </span>
+                  </label>
+                  <label class="payment-option">
+                    <input type="radio" name="purchasePaymentStatus" value="partial">
+                    <span class="payment-option-content">
+                      <span class="payment-option-title">Πληρώθηκε μέρος τώρα</span>
+                      <span class="payment-option-description">Θα γράψετε πόσα δώσατε και το υπόλοιπο μένει ανοικτό.</span>
+                    </span>
+                  </label>
+                </div>
+              </div>
+              <div class="form-group" id="purchasePaymentAmountWrap" style="display: none;">
+                <label>Ποσό Πληρωμής (€)</label>
+                <input type="number" id="purchasePaymentAmount" min="0.01" step="0.01" value="0">
+              </div>
+              <div class="form-group" id="purchasePaymentMethodWrap" style="display: none;">
+                <label>Τρόπος Πληρωμής</label>
+                <select id="purchasePaymentMethod">
+                  <option value="">-</option>
+                  <option value="Μετρητά">Μετρητά</option>
+                  <option value="Κάρτα">Κάρτα</option>
+                  <option value="Τράπεζα">Τράπεζα</option>
+                  <option value="Άλλο">Άλλο</option>
+                </select>
+              </div>
+              <div class="form-group span-2" id="purchasePaymentNotesWrap" style="display: none;">
+                <label>Σημειώσεις Πληρωμής</label>
+                <input type="text" id="purchasePaymentNotes" placeholder="π.χ. πληρώθηκε μετρητά στο κατάστημα">
+              </div>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary" style="margin-top: 10px;">
+            <i class="fas fa-save"></i> Καταχώρηση Αγοράς
+          </button>
+        </form>
+      </div>
+
+      <div class="table-wrapper" style="margin-top: 25px;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Ενέργειες</th>
+              <th>Ημερομηνία</th>
+              <th>Κατάστημα</th>
+              <th>Παραστατικό</th>
+              <th>Υλικά</th>
+              <th>Σύνολο</th>
+              <th>Πληρωμένο στην αγορά</th>
+              <th>Υπόλοιπο αγοράς</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${purchases.length ? purchases.map(purchase => `
+              <tr>
+                <td class="actions">
+                  <button class="btn-icon view-purchase-btn" data-id="${purchase.id}" title="Προβολή"><i class="fas fa-eye"></i></button>
+                  <button class="btn-icon btn-danger delete-purchase-btn" data-id="${purchase.id}" title="Διαγραφή"><i class="fas fa-trash"></i></button>
+                </td>
+                <td>${Utils.formatDate(purchase.purchaseDate || purchase.purchase_date)}</td>
+                <td>${this.escape(purchase.supplierName || this.getSupplierName(purchase.supplierId || purchase.supplier_id, suppliers))}</td>
+                <td>${this.escape(purchase.referenceNumber || purchase.reference_number || '-')}</td>
+                <td>${(purchase.items || []).length}</td>
+                <td>${Utils.formatCurrency(purchase.totalCost || purchase.total_cost)}</td>
+                <td>${Utils.formatCurrency(purchase.paidAmount || purchase.paid_amount || 0)}</td>
+                <td><strong>${Utils.formatCurrency(purchase.balance || 0)}</strong></td>
+              </tr>
+            `).join('') : '<tr><td colspan="8" class="text-muted">Δεν υπάρχουν αγορές ακόμα.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+
+      <datalist id="inventoryMaterialsList">
+        ${inventory.map(m => `<option value="${this.escape(m.name)}">`).join('')}
+      </datalist>
+    `;
+  },
+
+  renderPaymentsTab(suppliers, purchases, payments) {
+    return `
+      <div class="form-section">
+        <h3>${this.editingPaymentId ? 'Επεξεργασία Πληρωμής' : 'Νέα Πληρωμή'}</h3>
+        <form id="supplierPaymentForm" class="form-grid">
+          <div class="form-group">
+            <label>Κατάστημα <span class="required">*</span></label>
+            <select id="paymentSupplier" required>
+              <option value="">Επιλέξτε κατάστημα...</option>
+              ${suppliers.map(s => `<option value="${s.id}">${this.escape(s.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Σύνδεση με αγορά</label>
+            <select id="paymentPurchase">
+              <option value="">Έναντι στο κατάστημα</option>
+              ${purchases.map(p => `<option value="${p.id}" data-supplier-id="${p.supplierId || p.supplier_id}">${Utils.formatDate(p.purchaseDate || p.purchase_date)} - ${this.escape(p.supplierName || '')} - ${Utils.formatCurrency(p.totalCost || p.total_cost)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Ημερομηνία</label>
+            <input type="date" id="paymentDate" value="${this.today()}">
+          </div>
+          <div class="form-group">
+            <label>Ποσό (€) <span class="required">*</span></label>
+            <input type="number" id="paymentAmount" min="0.01" step="0.01" required>
+          </div>
+          <div class="form-group">
+            <label>Τρόπος Πληρωμής</label>
+            <select id="paymentMethod">
+              <option value="">-</option>
+              <option value="Μετρητά">Μετρητά</option>
+              <option value="Κάρτα">Κάρτα</option>
+              <option value="Τράπεζα">Τράπεζα</option>
+              <option value="Άλλο">Άλλο</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Σημειώσεις</label>
+            <input type="text" id="paymentNotes" placeholder="π.χ. έναντι λογαριασμού">
+          </div>
+          <div class="form-group span-2">
+            <button type="submit" class="btn btn-primary">
+              <i class="fas fa-save"></i> ${this.editingPaymentId ? 'Αποθήκευση' : 'Καταχώρηση Πληρωμής'}
+            </button>
+            ${this.editingPaymentId ? '<button type="button" class="btn btn-secondary" id="cancelPaymentEditBtn">Ακύρωση</button>' : ''}
+          </div>
+        </form>
+      </div>
+
+      <div class="table-wrapper" style="margin-top: 25px;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Ενέργειες</th>
+              <th>Ημερομηνία</th>
+              <th>Κατάστημα</th>
+              <th>Αγορά</th>
+              <th>Ποσό</th>
+              <th>Τρόπος</th>
+              <th>Σημειώσεις</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${payments.length ? payments.map(payment => `
+              <tr>
+                <td class="actions">
+                  <button class="btn-icon edit-payment-btn" data-id="${payment.id}" title="Επεξεργασία"><i class="fas fa-edit"></i></button>
+                  <button class="btn-icon btn-danger delete-payment-btn" data-id="${payment.id}" title="Διαγραφή"><i class="fas fa-trash"></i></button>
+                </td>
+                <td>${Utils.formatDate(payment.paymentDate || payment.payment_date)}</td>
+                <td>${this.escape(payment.supplierName || this.getSupplierName(payment.supplierId || payment.supplier_id, suppliers))}</td>
+                <td>${payment.purchaseId || payment.purchase_id ? `#${payment.purchaseId || payment.purchase_id}` : 'Έναντι'}</td>
+                <td><strong>${Utils.formatCurrency(payment.amount)}</strong></td>
+                <td>${this.escape(payment.paymentMethod || payment.payment_method || '-')}</td>
+                <td>${this.escape(payment.notes || '-')}</td>
+              </tr>
+            `).join('') : '<tr><td colspan="7" class="text-muted">Δεν υπάρχουν πληρωμές ακόμα.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    `;
+  },
+
+  renderMaterialsTab(inventory) {
+    return `
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Υλικό</th>
+              <th>Μονάδα</th>
+              <th>Τελευταία Τιμή</th>
+              <th>Απόθεμα</th>
+              <th>Αξία</th>
+              <th>Κατηγορία</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${inventory.length ? inventory.map(material => {
+              const unitPrice = this.toNumber(material.unitPrice || material.unit_price);
+              const stock = this.toNumber(material.stock);
+              return `
+                <tr>
+                  <td><strong>${this.escape(material.name)}</strong></td>
+                  <td>${this.escape(material.unit || '-')}</td>
+                  <td>${Utils.formatCurrency(unitPrice)}</td>
+                  <td>${stock.toFixed(2)}</td>
+                  <td>${Utils.formatCurrency(unitPrice * stock)}</td>
+                  <td>${this.escape(material.category || '-')}</td>
+                </tr>
+              `;
+            }).join('') : '<tr><td colspan="6" class="text-muted">Δεν υπάρχουν υλικά ακόμα.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    `;
+  },
+
+  setupEventListeners(container) {
+    container.querySelectorAll('[data-inventory-tab]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.activeTab = btn.dataset.inventoryTab;
+        this.render(container);
+      });
+    });
+
+    this.setupSupplierForm(container);
+    this.setupPurchaseForm(container);
+    this.setupPaymentForm(container);
+    this.setupTableActions(container);
+  },
+
+  setupSupplierForm(container) {
+    const form = container.querySelector('#supplierForm');
+    if (!form) return;
+
+    if (this.editingSupplierId) {
+      const supplier = State.read('suppliers', this.editingSupplierId);
+      if (supplier) {
+        container.querySelector('#supplierName').value = supplier.name || '';
+        container.querySelector('#supplierPhone').value = supplier.phone || '';
+        container.querySelector('#supplierAddress').value = supplier.address || '';
+        container.querySelector('#supplierNotes').value = supplier.notes || '';
+      }
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const data = {
+        name: container.querySelector('#supplierName').value.trim(),
+        phone: container.querySelector('#supplierPhone').value.trim(),
+        address: container.querySelector('#supplierAddress').value.trim(),
+        notes: container.querySelector('#supplierNotes').value.trim()
+      };
+
+      if (!data.name) {
+        Toast.error('Συμπληρώστε όνομα καταστήματος');
+        return;
+      }
+
+      if (this.editingSupplierId) {
+        await State.update('suppliers', this.editingSupplierId, data);
+        this.editingSupplierId = null;
+        Toast.success('Το κατάστημα ενημερώθηκε');
+      } else {
+        await State.create('suppliers', data);
+        Toast.success('Το κατάστημα προστέθηκε');
+      }
+      await this.refreshWarehouseData();
+      this.render(container);
+    });
+
+    const cancelBtn = container.querySelector('#cancelSupplierEditBtn');
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', () => {
+        this.editingSupplierId = null;
+        this.render(container);
+      });
+    }
+  },
+
+  setupPurchaseForm(container) {
+    const form = container.querySelector('#purchaseForm');
+    if (!form) return;
+
+    const itemsContainer = container.querySelector('#purchaseItemsContainer');
+    const addBtn = container.querySelector('#addPurchaseItemBtn');
+    const addRow = () => {
+      const row = document.createElement('div');
+      row.className = 'purchase-item-row form-grid';
+      row.style.marginBottom = '10px';
+      row.innerHTML = `
+        <div class="form-group">
+          <label>Υλικό</label>
+          <input type="text" class="purchase-material-name" list="inventoryMaterialsList" required placeholder="Όνομα υλικού">
+        </div>
+        <div class="form-group">
+          <label>Ποσότητα</label>
+          <input type="number" class="purchase-quantity" min="0.01" step="0.01" value="1" required>
+        </div>
+        <div class="form-group">
+          <label>Μονάδα</label>
+          <input type="text" class="purchase-unit" placeholder="π.χ. λίτρα, τεμ.">
+        </div>
+        <div class="form-group">
+          <label>Τιμή/Μονάδα</label>
+          <input type="number" class="purchase-unit-price" min="0" step="0.01" value="0">
+        </div>
+        <div class="form-group">
+          <label>Σύνολο</label>
+          <input type="text" class="purchase-line-total" readonly value="0.00 €">
+        </div>
+        <div class="form-group">
+          <label>&nbsp;</label>
+          <button type="button" class="btn btn-danger remove-purchase-item-btn"><i class="fas fa-trash"></i></button>
+        </div>
+      `;
+      itemsContainer.appendChild(row);
+      row.querySelectorAll('input').forEach(input => input.addEventListener('input', () => this.updatePurchaseTotals(container)));
+      row.querySelector('.remove-purchase-item-btn').addEventListener('click', () => {
+        row.remove();
+        this.updatePurchaseTotals(container);
+      });
+      this.updatePurchaseTotals(container);
+    };
+
+    addBtn.addEventListener('click', addRow);
+    addRow();
+
+    const updatePaymentVisibility = () => {
+      const status = container.querySelector('input[name="purchasePaymentStatus"]:checked')?.value || 'none';
+      const showPaymentFields = status !== 'none';
+      const showAmountField = status === 'partial';
+      const amountWrap = container.querySelector('#purchasePaymentAmountWrap');
+      const methodWrap = container.querySelector('#purchasePaymentMethodWrap');
+      const notesWrap = container.querySelector('#purchasePaymentNotesWrap');
+      if (amountWrap) amountWrap.style.display = showAmountField ? '' : 'none';
+      if (methodWrap) methodWrap.style.display = showPaymentFields ? '' : 'none';
+      if (notesWrap) notesWrap.style.display = showPaymentFields ? '' : 'none';
+      container.querySelectorAll('.payment-option').forEach(option => {
+        const input = option.querySelector('input[name="purchasePaymentStatus"]');
+        option.classList.toggle('is-active', input?.checked === true);
+      });
+    };
+
+    container.querySelectorAll('input[name="purchasePaymentStatus"]').forEach(input => {
+      input.addEventListener('change', updatePaymentVisibility);
+    });
+    updatePaymentVisibility();
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const rows = [...container.querySelectorAll('.purchase-item-row')];
+      const inventory = State.read('inventory') || [];
+      const items = rows.map(row => {
+        const name = row.querySelector('.purchase-material-name').value.trim();
+        const material = inventory.find(m => (m.name || '').toLowerCase() === name.toLowerCase());
+        const quantity = this.toNumber(row.querySelector('.purchase-quantity').value);
+        const unitPrice = this.toNumber(row.querySelector('.purchase-unit-price').value);
+        return {
+          materialId: material ? material.id : null,
+          materialName: name,
+          quantity,
+          unit: row.querySelector('.purchase-unit').value.trim() || (material ? material.unit : ''),
+          unitPrice,
+          totalCost: quantity * unitPrice
+        };
+      });
+
+      if (!container.querySelector('#purchaseSupplier').value) {
+        Toast.error('Επιλέξτε κατάστημα');
+        return;
+      }
+      if (!items.length || items.some(item => !item.materialName || item.quantity <= 0)) {
+        Toast.error('Συμπληρώστε σωστά τα υλικά της αγοράς');
+        return;
+      }
+
+      const paymentStatus = container.querySelector('input[name="purchasePaymentStatus"]:checked')?.value || 'none';
+      const purchaseTotal = items.reduce((sum, item) => sum + this.toNumber(item.totalCost), 0);
+      const paymentAmount = paymentStatus === 'full'
+        ? purchaseTotal
+        : (paymentStatus === 'partial' ? this.toNumber(container.querySelector('#purchasePaymentAmount').value) : 0);
+
+      if (paymentStatus === 'partial' && paymentAmount <= 0) {
+        Toast.error('Συμπληρώστε ποσό μερικής πληρωμής');
+        return;
+      }
+      if (paymentAmount > purchaseTotal) {
+        Toast.error('Η πληρωμή δεν μπορεί να είναι μεγαλύτερη από το σύνολο της αγοράς');
+        return;
+      }
+
+      await State.create('materialPurchases', {
+        supplierId: parseInt(container.querySelector('#purchaseSupplier').value, 10),
+        purchaseDate: container.querySelector('#purchaseDate').value,
+        referenceNumber: container.querySelector('#purchaseReference').value.trim(),
+        notes: container.querySelector('#purchaseNotes').value.trim(),
+        initialPayment: {
+          status: paymentStatus,
+          amount: paymentAmount,
+          paymentMethod: container.querySelector('#purchasePaymentMethod')?.value || '',
+          notes: container.querySelector('#purchasePaymentNotes')?.value.trim() || ''
+        },
+        items
+      });
+      Toast.success('Η αγορά καταχωρήθηκε');
+      await this.refreshWarehouseData();
+      this.render(container);
+    });
+  },
+
+  setupPaymentForm(container) {
+    const form = container.querySelector('#supplierPaymentForm');
+    if (!form) return;
+
+    const supplierSelect = container.querySelector('#paymentSupplier');
+    const purchaseSelect = container.querySelector('#paymentPurchase');
+    const filterPurchases = () => {
+      const supplierId = supplierSelect.value;
+      [...purchaseSelect.options].forEach(option => {
+        if (!option.value) {
+          option.hidden = false;
+          return;
+        }
+        option.hidden = supplierId && option.dataset.supplierId !== supplierId;
+      });
+      if (purchaseSelect.selectedOptions[0]?.hidden) purchaseSelect.value = '';
+    };
+    supplierSelect.addEventListener('change', filterPurchases);
+
+    if (this.editingPaymentId) {
+      const payment = State.read('supplierPayments', this.editingPaymentId);
+      if (payment) {
+        supplierSelect.value = payment.supplierId || payment.supplier_id || '';
+        filterPurchases();
+        purchaseSelect.value = payment.purchaseId || payment.purchase_id || '';
+        container.querySelector('#paymentDate').value = payment.paymentDate || payment.payment_date || this.today();
+        container.querySelector('#paymentAmount').value = payment.amount || '';
+        container.querySelector('#paymentMethod').value = payment.paymentMethod || payment.payment_method || '';
+        container.querySelector('#paymentNotes').value = payment.notes || '';
+      }
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const data = {
+        supplierId: parseInt(supplierSelect.value, 10),
+        purchaseId: purchaseSelect.value ? parseInt(purchaseSelect.value, 10) : null,
+        paymentDate: container.querySelector('#paymentDate').value,
+        amount: this.toNumber(container.querySelector('#paymentAmount').value),
+        paymentMethod: container.querySelector('#paymentMethod').value,
+        notes: container.querySelector('#paymentNotes').value.trim()
+      };
+
+      if (!data.supplierId || data.amount <= 0) {
+        Toast.error('Συμπληρώστε κατάστημα και ποσό πληρωμής');
+        return;
+      }
+
+      if (this.editingPaymentId) {
+        await State.update('supplierPayments', this.editingPaymentId, data);
+        this.editingPaymentId = null;
+        Toast.success('Η πληρωμή ενημερώθηκε');
+      } else {
+        await State.create('supplierPayments', data);
+        Toast.success('Η πληρωμή καταχωρήθηκε');
+      }
+      await this.refreshWarehouseData();
+      this.render(container);
+    });
+
+    const cancelBtn = container.querySelector('#cancelPaymentEditBtn');
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', () => {
+        this.editingPaymentId = null;
+        this.render(container);
+      });
+    }
+  },
+
+  setupTableActions(container) {
+    container.querySelectorAll('.edit-supplier-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.editingSupplierId = btn.dataset.id;
+        this.render(container);
+      });
+    });
+
+    container.querySelectorAll('.delete-supplier-btn').forEach(btn => {
+      btn.addEventListener('click', () => this.confirmDeleteSupplier(container, btn.dataset.id));
+    });
+
+    container.querySelectorAll('.view-purchase-btn').forEach(btn => {
+      btn.addEventListener('click', () => this.viewPurchase(btn.dataset.id));
+    });
+
+    container.querySelectorAll('.delete-purchase-btn').forEach(btn => {
+      btn.addEventListener('click', () => this.confirmDeletePurchase(container, btn.dataset.id));
+    });
+
+    container.querySelectorAll('.edit-payment-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.editingPaymentId = btn.dataset.id;
+        this.activeTab = 'payments';
+        this.render(container);
+      });
+    });
+
+    container.querySelectorAll('.delete-payment-btn').forEach(btn => {
+      btn.addEventListener('click', () => this.confirmDeletePayment(container, btn.dataset.id));
+    });
+  },
+
+  async confirmDeleteSupplier(container, id) {
+    const supplier = State.read('suppliers', id);
+    Modal.confirm({
+      title: 'Διαγραφή Καταστήματος',
+      message: `Θέλετε σίγουρα να διαγράψετε το κατάστημα <strong>${this.escape(supplier?.name || '')}</strong>; Θα διαγραφούν και οι αγορές/πληρωμές του.`,
+      onConfirm: async () => {
+        await State.delete('suppliers', id);
+        await this.refreshWarehouseData();
+        this.render(container);
+        Toast.success('Το κατάστημα διαγράφηκε');
+      }
+    });
+  },
+
+  async confirmDeletePurchase(container, id) {
+    Modal.confirm({
+      title: 'Διαγραφή Αγοράς',
+      message: 'Θέλετε σίγουρα να διαγράψετε την αγορά; Το απόθεμα των υλικών θα μειωθεί αντίστοιχα.',
+      onConfirm: async () => {
+        await State.delete('materialPurchases', id);
+        await this.refreshWarehouseData();
+        this.render(container);
+        Toast.success('Η αγορά διαγράφηκε');
+      }
+    });
+  },
+
+  async confirmDeletePayment(container, id) {
+    Modal.confirm({
+      title: 'Διαγραφή Πληρωμής',
+      message: 'Θέλετε σίγουρα να διαγράψετε την πληρωμή;',
+      onConfirm: async () => {
+        await State.delete('supplierPayments', id);
+        await this.refreshWarehouseData();
+        this.render(container);
+        Toast.success('Η πληρωμή διαγράφηκε');
+      }
+    });
+  },
+
+  viewPurchase(id) {
+    const purchase = State.read('materialPurchases', id);
+    if (!purchase) return;
+
+    const items = purchase.items || [];
+    Modal.open({
+      title: `Αγορά #${purchase.id}`,
+      size: 'lg',
+      content: `
+        <div class="detail-grid">
+          <div class="detail-item"><label>Κατάστημα:</label><span>${this.escape(purchase.supplierName || '')}</span></div>
+          <div class="detail-item"><label>Ημερομηνία:</label><span>${Utils.formatDate(purchase.purchaseDate || purchase.purchase_date)}</span></div>
+          <div class="detail-item"><label>Παραστατικό:</label><span>${this.escape(purchase.referenceNumber || purchase.reference_number || '-')}</span></div>
+          <div class="detail-item"><label>Σύνολο:</label><span><strong>${Utils.formatCurrency(purchase.totalCost || purchase.total_cost)}</strong></span></div>
+        </div>
+        <div class="table-wrapper" style="margin-top: 15px;">
+          <table class="data-table">
+            <thead><tr><th>Υλικό</th><th>Ποσότητα</th><th>Μονάδα</th><th>Τιμή</th><th>Σύνολο</th></tr></thead>
+            <tbody>
+              ${items.map(item => `
+                <tr>
+                  <td>${this.escape(item.materialName || item.material_name)}</td>
+                  <td>${this.toNumber(item.quantity).toFixed(2)}</td>
+                  <td>${this.escape(item.unit || '-')}</td>
+                  <td>${Utils.formatCurrency(item.unitPrice || item.unit_price)}</td>
+                  <td>${Utils.formatCurrency(item.totalCost || item.total_cost)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `,
+      footer: '<button class="btn-primary" onclick="Modal.close()">Κλείσιμο</button>'
+    });
+  },
+
+  updatePurchaseTotals(container) {
+    let total = 0;
+    container.querySelectorAll('.purchase-item-row').forEach(row => {
+      const quantity = this.toNumber(row.querySelector('.purchase-quantity').value);
+      const unitPrice = this.toNumber(row.querySelector('.purchase-unit-price').value);
+      const lineTotal = quantity * unitPrice;
+      total += lineTotal;
+      row.querySelector('.purchase-line-total').value = Utils.formatCurrency(lineTotal);
+    });
+    const preview = container.querySelector('#purchaseTotalPreview');
+    if (preview) preview.value = Utils.formatCurrency(total);
+  },
+
+  async refreshWarehouseData() {
+    const [materials, suppliers, purchases, payments] = await Promise.all([
+      API.getMaterials(),
+      API.getSuppliers(),
+      API.getMaterialPurchases(),
+      API.getSupplierPayments()
+    ]);
+    State.data.inventory = materials || [];
+    State.data.suppliers = suppliers || [];
+    State.data.materialPurchases = purchases || [];
+    State.data.supplierPayments = payments || [];
+  },
+
+  getSupplierTotals(supplierId, purchases, payments) {
+    const totalPurchases = purchases
+      .filter(p => Number(p.supplierId || p.supplier_id) === Number(supplierId))
+      .reduce((sum, p) => sum + this.toNumber(p.totalCost || p.total_cost), 0);
+    const totalPaid = payments
+      .filter(p => Number(p.supplierId || p.supplier_id) === Number(supplierId))
+      .reduce((sum, p) => sum + this.toNumber(p.amount), 0);
+    return {
+      totalPurchases,
+      totalPaid,
+      balance: totalPurchases - totalPaid
+    };
+  },
+
+  getSupplierName(id, suppliers) {
+    return suppliers.find(s => Number(s.id) === Number(id))?.name || '-';
+  },
+
+  toNumber(value) {
+    const parsed = parseFloat(String(value ?? '').replace(',', '.'));
+    return Number.isFinite(parsed) ? parsed : 0;
+  },
+
+  today() {
+    return new Date().toISOString().slice(0, 10);
+  },
+
+  escape(value) {
+    if (window.Utils && typeof Utils.escapeHtml === 'function') return Utils.escapeHtml(value || '');
+    const div = document.createElement('div');
+    div.textContent = value || '';
+    return div.innerHTML;
   }
 };
 
@@ -99,10 +917,6 @@ const SettingsView = {
         <div class="form-group">
           <label>Όνομα Εταιρείας</label>
           <input type="text" value="Βαφές Επαγγελματικές" />
-        </div>
-        <div class="form-group">
-          <label>Προεπιλεγμένο ΦΠΑ (%)</label>
-          <input type="number" value="24" />
         </div>
         <div class="form-group">
           <label>Προεπιλεγμένο Ωρομίσθιο (€)</label>

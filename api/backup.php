@@ -16,6 +16,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 require_once '../config/database.php';
+require_once __DIR__ . '/warehouse_schema.php';
 
 $action = $_GET['action'] ?? '';
 
@@ -25,12 +26,18 @@ $action = $_GET['action'] ?? '';
 if ($action === 'export') {
     try {
         $db = getDBConnection();
+        ensure_warehouse_schema($db);
         
         // Λίστα όλων των πινάκων (με τη σειρά που υπάρχουν στη βάση)
         $tables = [
             'clients',
             'workers',
             'materials',
+            'material_stock_movements',
+            'suppliers',
+            'material_purchases',
+            'material_purchase_items',
+            'supplier_payments',
             'jobs',
             'job_workers',
             'job_materials',
@@ -161,6 +168,7 @@ if ($action === 'import') {
         }
         
         $db = getDBConnection();
+        ensure_warehouse_schema($db);
         
         // Απενεργοποίηση foreign key checks και autocommit
         $db->exec('SET FOREIGN_KEY_CHECKS = 0');
@@ -170,6 +178,11 @@ if ($action === 'import') {
         $deleteOrder = [
             'timesheets',
             'calendar_events',
+            'supplier_payments',
+            'material_purchase_items',
+            'material_purchases',
+            'suppliers',
+            'material_stock_movements',
             'job_materials',
             'job_workers',
             'invoices',
@@ -196,6 +209,11 @@ if ($action === 'import') {
             'clients',
             'workers',
             'materials',
+            'material_stock_movements',
+            'suppliers',
+            'material_purchases',
+            'material_purchase_items',
+            'supplier_payments',
             'jobs',
             'job_workers',
             'job_materials',

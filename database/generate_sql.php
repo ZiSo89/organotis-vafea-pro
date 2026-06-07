@@ -24,6 +24,9 @@ echo "Δημιουργία SQL για διαγραφή δεδομένων...\n";
 $sqlOutput .= "-- ΔΙΑΓΡΑΦΗ ΔΕΔΟΜΕΝΩΝ\n";
 $tables = [
     'timesheets',
+    'supplier_payments',
+    'material_purchase_items',
+    'material_purchases',
     'job_workers',
     'job_materials',
     'invoices',
@@ -32,6 +35,7 @@ $tables = [
     'jobs',
     'workers',
     'materials',
+    'suppliers',
     'clients',
     'templates',
     'settings'
@@ -144,6 +148,28 @@ foreach ($materials as $material) {
 }
 $sqlOutput .= "\n";
 
+// SUPPLIERS
+echo "Δημιουργία SQL για καταστήματα...\n";
+$suppliers = [
+    ['Χρωματοπωλείο Παπαδόπουλος', '2551012345', null, 'Δημοκρατίας 12, Αλεξανδρούπολη', 'Βασικός προμηθευτής χρωμάτων'],
+    ['Οικοδομικά Υλικά Θράκης', '2551056789', null, 'Βενιζέλου 45, Αλεξανδρούπολη', 'Υλικά προετοιμασίας και εργαλεία'],
+    ['Leroy Merlin', null, null, 'Αλεξανδρούπολη', 'Μεγάλες αγορές εργαλείων'],
+    ['Χρώματα Express', '2551098765', null, '14ης Μαΐου 20, Αλεξανδρούπολη', 'Γρήγορες μικρές αγορές']
+];
+
+$sqlOutput .= "-- SUPPLIERS\n";
+foreach ($suppliers as $supplier) {
+    $sqlOutput .= sprintf(
+        "INSERT INTO suppliers (name, phone, email, address, notes) VALUES ('%s', %s, %s, %s, %s);\n",
+        addslashes($supplier[0]),
+        $supplier[1] ? "'" . addslashes($supplier[1]) . "'" : 'NULL',
+        $supplier[2] ? "'" . addslashes($supplier[2]) . "'" : 'NULL',
+        $supplier[3] ? "'" . addslashes($supplier[3]) . "'" : 'NULL',
+        $supplier[4] ? "'" . addslashes($supplier[4]) . "'" : 'NULL'
+    );
+}
+$sqlOutput .= "\n";
+
 // JOBS - Δημιουργία 312 εργασιών (2 την εβδομάδα για 3 χρόνια)
 echo "Δημιουργία SQL για εργασίες...\n";
 
@@ -246,11 +272,10 @@ while ($currentDate <= $endDate) {
         $billingHours = round($area / rand(8, 15), 2); // 8-15 τμ ανά ώρα
         $billingRate = [45, 50, 55, 60][array_rand([45, 50, 55, 60])];
         
-        // Υπολογισμός συνολικού κόστους
+        // Υπολογισμός χρέωσης
         $laborCost = $billingHours * $billingRate;
         $kmCost = $kilometers * 0.50;
-        $subtotal = $materialsCost + $laborCost + $kmCost;
-        $totalCost = round($subtotal * 1.24, 2); // με ΦΠΑ 24%
+        $totalCost = round($laborCost, 2);
         
         // Status και πληρωμή
         $status = getRandomStatus($statuses);
@@ -367,7 +392,6 @@ while ($currentDate <= $endDate) {
             $kilometers,
             $billingHours,
             $billingRate,
-            24.00, // VAT
             0.50, // cost_per_km
             $notes,
             json_encode($assignedWorkers, JSON_UNESCAPED_UNICODE),
@@ -392,20 +416,20 @@ echo "  Δημιουργήθηκαν " . count($jobs) . " εργασίες\n";
 $sqlOutput .= "-- JOBS (όλες οι καταστάσεις)\n";
 foreach ($jobs as $job) {
     $sqlOutput .= sprintf(
-        "INSERT INTO jobs (client_id, title, type, date, next_visit, description, address, city, postal_code, rooms, area, substrate, materials_cost, kilometers, billing_hours, billing_rate, vat, cost_per_km, notes, assigned_workers, paints, start_date, end_date, status, total_cost, is_paid, coordinates) VALUES (%d, '%s', '%s', %s, %s, '%s', '%s', '%s', '%s', %s, %.2f, '%s', %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %s, %s, %s, '%s', %s, '%s', %.2f, %d, %s);\n",
+        "INSERT INTO jobs (client_id, title, type, date, next_visit, description, address, city, postal_code, rooms, area, substrate, materials_cost, kilometers, billing_hours, billing_rate, cost_per_km, notes, assigned_workers, paints, start_date, end_date, status, total_cost, is_paid, coordinates) VALUES (%d, '%s', '%s', %s, %s, '%s', '%s', '%s', '%s', %s, %.2f, '%s', %.2f, %.2f, %.2f, %.2f, %.2f, %s, %s, %s, '%s', %s, '%s', %.2f, %d, %s);\n",
         $job[0], addslashes($job[1]), addslashes($job[2]),
         $job[3] ? "'" . $job[3] . "'" : 'NULL',
         $job[4] ? "'" . $job[4] . "'" : 'NULL',
         addslashes($job[5]), addslashes($job[6]), addslashes($job[7]), addslashes($job[8]),
         $job[9] !== null ? $job[9] : 'NULL', $job[10], addslashes($job[11]),
-        $job[12], $job[13], $job[14], $job[15], $job[16], $job[17],
+        $job[12], $job[13], $job[14], $job[15], $job[16],
+        $job[17] ? "'" . addslashes($job[17]) . "'" : 'NULL',
         $job[18] ? "'" . addslashes($job[18]) . "'" : 'NULL',
         $job[19] ? "'" . addslashes($job[19]) . "'" : 'NULL',
-        $job[20] ? "'" . addslashes($job[20]) . "'" : 'NULL',
-        $job[21], 
-        $job[22] !== 'NULL' ? "'" . $job[22] . "'" : 'NULL',
-        addslashes($job[23]), $job[24], $job[25],
-        $job[26] ? "'" . addslashes($job[26]) . "'" : 'NULL'
+        $job[20],
+        $job[21] !== 'NULL' ? "'" . $job[21] . "'" : 'NULL',
+        addslashes($job[22]), $job[23], $job[24],
+        $job[25] ? "'" . addslashes($job[25]) . "'" : 'NULL'
     );
 }
 $sqlOutput .= "\n";
@@ -420,15 +444,15 @@ foreach ($jobs as $index => $job) {
     if (rand(1, 100) <= 70) {
         $clientName = $clients[$job[0] - 1][0];
         $title = $clientName . ' - ' . $job[1];
-        $startDate = $job[21] . ' 00:00:00';
-        $endDate = ($job[22] !== 'NULL' ? $job[22] : $job[21]) . ' 00:00:00';
+        $startDate = $job[20] . ' 00:00:00';
+        $endDate = ($job[21] !== 'NULL' ? $job[21] : $job[20]) . ' 00:00:00';
         
         $startTime = sprintf('%02d:00:00', rand(8, 10));
         $endTime = sprintf('%02d:00:00', rand(15, 18));
         
-        $eventStatus = ($job[23] == 'Ολοκληρώθηκε' || $job[23] == 'Εξοφλήθηκε') ? 'Ολοκληρώθηκε' : 
-                      (($job[23] == 'Σε εξέλιξη') ? 'Σε Εξέλιξη' : 
-                      (($job[23] == 'Προγραμματισμένη') ? 'Επιβεβαιωμένη' : 'Σε Αναμονή'));
+        $eventStatus = ($job[22] == 'Ολοκληρώθηκε' || $job[22] == 'Εξοφλήθηκε') ? 'Ολοκληρώθηκε' :
+                      (($job[22] == 'Σε εξέλιξη') ? 'Σε Εξέλιξη' :
+                      (($job[22] == 'Προγραμματισμένη') ? 'Επιβεβαιωμένη' : 'Σε Αναμονή'));
         
         $color = $eventColors[array_rand($eventColors)];
         
@@ -561,7 +585,6 @@ $settings = [
     ['company_address', 'Αλεξανδρούπολη', 'Διεύθυνση επιχείρησης'],
     ['company_phone', '6978799299', 'Τηλέφωνο επιχείρησης'],
     ['company_email', 'info@organotis-vafea.gr', 'Email επιχείρησης'],
-    ['default_vat', '24', 'Προεπιλεγμένος ΦΠΑ %'],
     ['default_billing_rate', '50', 'Προεπιλεγμένη τιμή ώρας (€)'],
     ['currency', 'EUR', 'Νόμισμα']
 ];
@@ -589,6 +612,7 @@ echo "Στατιστικά:\n";
 echo "  • " . count($clients) . " πελάτες\n";
 echo "  • " . count($workers) . " εργάτες\n";
 echo "  • " . count($materials) . " υλικά\n";
+echo "  • " . count($suppliers) . " καταστήματα\n";
 echo "  • " . count($jobs) . " εργασίες (2 την εβδομάδα για 3 χρόνια)\n";
 echo "  • " . count($events) . " calendar events\n";
 echo "  • " . count($templates) . " templates\n";
@@ -599,8 +623,8 @@ echo "  • " . count($settings) . " ρυθμίσεις\n";
 $totalRevenue = 0;
 $paidJobs = 0;
 foreach ($jobs as $job) {
-    if ($job[25] == 1) { // is_paid
-        $totalRevenue += $job[24]; // total_cost
+    if ($job[24] == 1) { // is_paid
+        $totalRevenue += $job[23]; // total_cost
         $paidJobs++;
     }
 }
@@ -706,6 +730,24 @@ foreach ($materials as $index => $material) {
     ];
 }
 
+// SUPPLIERS
+$jsonData['tables']['suppliers'] = [
+    'count' => count($suppliers),
+    'data' => []
+];
+foreach ($suppliers as $index => $supplier) {
+    $jsonData['tables']['suppliers']['data'][] = [
+        'id' => $index + 1,
+        'name' => $supplier[0],
+        'phone' => $supplier[1],
+        'email' => $supplier[2],
+        'address' => $supplier[3],
+        'notes' => $supplier[4],
+        'created_at' => date('Y-m-d H:i:s'),
+        'updated_at' => date('Y-m-d H:i:s')
+    ];
+}
+
 // JOBS
 $jsonData['tables']['jobs'] = [
     'count' => count($jobs),
@@ -730,17 +772,16 @@ foreach ($jobs as $index => $job) {
         'kilometers' => number_format($job[13], 2, '.', ''),
         'billing_hours' => number_format($job[14], 2, '.', ''),
         'billing_rate' => number_format($job[15], 2, '.', ''),
-        'vat' => number_format($job[16], 2, '.', ''),
-        'cost_per_km' => number_format($job[17], 2, '.', ''),
-        'notes' => $job[18],
-        'assigned_workers' => $job[19],
-        'paints' => $job[20],
-        'start_date' => $job[21],
-        'end_date' => $job[22] !== 'NULL' ? $job[22] : null,
-        'status' => $job[23],
-        'total_cost' => number_format($job[24], 2, '.', ''),
-        'is_paid' => $job[25],
-        'coordinates' => $job[26],
+        'cost_per_km' => number_format($job[16], 2, '.', ''),
+        'notes' => $job[17],
+        'assigned_workers' => $job[18],
+        'paints' => $job[19],
+        'start_date' => $job[20],
+        'end_date' => $job[21] !== 'NULL' ? $job[21] : null,
+        'status' => $job[22],
+        'total_cost' => number_format($job[23], 2, '.', ''),
+        'is_paid' => $job[24],
+        'coordinates' => $job[25],
         'created_at' => date('Y-m-d H:i:s'),
         'updated_at' => date('Y-m-d H:i:s')
     ];
@@ -834,6 +875,9 @@ foreach ($settings as $index => $setting) {
 // Empty tables
 $jsonData['tables']['job_workers'] = ['count' => 0, 'data' => []];
 $jsonData['tables']['job_materials'] = ['count' => 0, 'data' => []];
+$jsonData['tables']['material_purchases'] = ['count' => 0, 'data' => []];
+$jsonData['tables']['material_purchase_items'] = ['count' => 0, 'data' => []];
+$jsonData['tables']['supplier_payments'] = ['count' => 0, 'data' => []];
 $jsonData['tables']['timesheets'] = ['count' => 0, 'data' => []];
 $jsonData['tables']['invoices'] = ['count' => 0, 'data' => []];
 

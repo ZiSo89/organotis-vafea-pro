@@ -145,10 +145,6 @@ const Validation = {
       errors.push('Μη έγκυρο ωρομίσθιο');
     }
 
-    if (job.vat && !this.isValidNumber(job.vat, 0, 100)) {
-      errors.push('Το ΦΠΑ πρέπει να είναι 0-100%');
-    }
-
     return {
       valid: errors.length === 0,
       errors
@@ -169,10 +165,6 @@ const Validation = {
 
     if (!this.isValidNumber(offer.net, 0)) {
       errors.push('Μη έγκυρη καθαρή αξία');
-    }
-
-    if (offer.vat && !this.isValidNumber(offer.vat, 0, 100)) {
-      errors.push('Το ΦΠΑ πρέπει να είναι 0-100%');
     }
 
     if (offer.id && Utils.idExists('offers', offer.id)) {
@@ -202,10 +194,6 @@ const Validation = {
 
     if (!this.isValidNumber(invoice.net, 0)) {
       errors.push('Μη έγκυρη καθαρή αξία');
-    }
-
-    if (invoice.vat && !this.isValidNumber(invoice.vat, 0, 100)) {
-      errors.push('Το ΦΠΑ πρέπει να είναι 0-100%');
     }
 
     if (invoice.id && Utils.idExists('invoices', invoice.id)) {

@@ -63,17 +63,21 @@ const State = {
       console.log('📥 [State] Loading data from SQLite...');
       
       // Use OfflineService directly in Electron (already extracts data properly)
-      const [clients, workers, materials, jobs, offers, invoices, templates] = await Promise.all([
+      const [clients, workers, materials, materialStockMovements, suppliers, materialPurchases, supplierPayments, jobs, offers, invoices, templates] = await Promise.all([
         window.OfflineService.getClients(),
         window.OfflineService.getWorkers(),
         window.OfflineService.getMaterials(),
+        window.OfflineService.getMaterialStockMovements(),
+        window.OfflineService.getSuppliers(),
+        window.OfflineService.getMaterialPurchases(),
+        window.OfflineService.getSupplierPayments(),
         window.OfflineService.getJobs(),
         window.OfflineService.getOffers(),
         window.OfflineService.getInvoices(),
         window.OfflineService.getTemplates(),
       ]);
 
-      console.log('📦 [State] Raw responses:', { clients, workers, materials, jobs, offers, invoices, templates });
+      console.log('📦 [State] Raw responses:', { clients, workers, materials, materialStockMovements, suppliers, materialPurchases, supplierPayments, jobs, offers, invoices, templates });
       console.log('📦 [State] jobs response:', jobs);
       console.log('📦 [State] jobs.data type:', typeof jobs?.data, 'isArray:', Array.isArray(jobs?.data));
 
@@ -104,6 +108,10 @@ const State = {
         clients: extractData(clients, []),
         workers: extractData(workers, []),
         inventory: extractData(materials, []), // materials -> inventory
+        materialStockMovements: extractData(materialStockMovements, []),
+        suppliers: extractData(suppliers, []),
+        materialPurchases: extractData(materialPurchases, []),
+        supplierPayments: extractData(supplierPayments, []),
         jobs: extractData(jobs, []),
         offers: extractData(offers, []),
         invoices: extractData(invoices, []),
@@ -124,6 +132,10 @@ const State = {
         clients: [],
         workers: [],
         inventory: [],
+        materialStockMovements: [],
+        suppliers: [],
+        materialPurchases: [],
+        supplierPayments: [],
         jobs: [],
         offers: [],
         invoices: [],
@@ -138,10 +150,14 @@ const State = {
    */
   async loadFromAPI() {
     try {
-      const [clients, workers, materials, jobs, offers, invoices, templates] = await Promise.all([
+      const [clients, workers, materials, materialStockMovements, suppliers, materialPurchases, supplierPayments, jobs, offers, invoices, templates] = await Promise.all([
         API.getClients(),
         API.getWorkers(),
         API.getMaterials(),
+        API.getMaterialStockMovements(),
+        API.getSuppliers(),
+        API.getMaterialPurchases(),
+        API.getSupplierPayments(),
         API.getJobs(),
         API.getOffers(),
         API.getInvoices(),
@@ -152,6 +168,10 @@ const State = {
         clients: clients || [],
         workers: workers || [],
         inventory: materials || [], // materials -> inventory
+        materialStockMovements: materialStockMovements || [],
+        suppliers: suppliers || [],
+        materialPurchases: materialPurchases || [],
+        supplierPayments: supplierPayments || [],
         jobs: jobs || [],
         offers: offers || [],
         invoices: invoices || [],
@@ -277,6 +297,10 @@ const State = {
         clients: 'createClient',
         workers: 'createWorker',
         materials: 'createMaterial',
+        materialStockMovements: 'createMaterialStockMovement',
+        suppliers: 'createSupplier',
+        materialPurchases: 'createMaterialPurchase',
+        supplierPayments: 'createSupplierPayment',
         jobs: 'createJob',
         offers: 'createOffer',
         invoices: 'createInvoice',
@@ -312,7 +336,15 @@ const State = {
       console.log('[State] Created item:', createdItem);
       
       // Update local state
-      this.data[collection].push(createdItem);
+      if (collection === 'materialStockMovements' && createdItem?.movement) {
+        this.data.materialStockMovements.unshift(createdItem.movement);
+        const materialIndex = this.data.inventory.findIndex(item => Number(item.id) === Number(createdItem.material?.id));
+        if (materialIndex !== -1) {
+          this.data.inventory[materialIndex] = createdItem.material;
+        }
+      } else {
+        this.data[collection].push(createdItem);
+      }
       this.saveToHistory(`Προσθήκη ${collection}`, this.data);
       
       // Refresh Dashboard if needed
@@ -365,6 +397,9 @@ const State = {
         clients: 'updateClient',
         workers: 'updateWorker',
         materials: 'updateMaterial',
+        suppliers: 'updateSupplier',
+        materialPurchases: 'updateMaterialPurchase',
+        supplierPayments: 'updateSupplierPayment',
         jobs: 'updateJob',
         offers: 'updateOffer',
         invoices: 'updateInvoice',
@@ -433,6 +468,9 @@ const State = {
         clients: 'deleteClient',
         workers: 'deleteWorker',
         materials: 'deleteMaterial',
+        suppliers: 'deleteSupplier',
+        materialPurchases: 'deleteMaterialPurchase',
+        supplierPayments: 'deleteSupplierPayment',
         jobs: 'deleteJob',
         offers: 'deleteOffer',
         invoices: 'deleteInvoice',

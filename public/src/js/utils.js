@@ -178,18 +178,6 @@ const Utils = {
     return translations[status] || status;
   },
 
-  // Calculate Total με ΦΠΑ
-  calculateTotal(net, vat) {
-    const netAmount = parseFloat(net) || 0;
-    const vatRate = parseFloat(vat) || 0;
-    return netAmount * (1 + vatRate / 100);
-  },
-
-  // Format Total
-  formatTotal(net, vat) {
-    return this.formatCurrency(this.calculateTotal(net, vat));
-  },
-
   // Escape HTML
   escapeHtml(text) {
     const div = document.createElement('div');

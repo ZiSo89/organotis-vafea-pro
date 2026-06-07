@@ -27,7 +27,7 @@ window.JobsView = {
     return text;
   },
   assignedWorkers: [], // Array to hold workers assigned to current job
-  assignedPaints: [], // Array to hold paints assigned to current job
+  assignedPaints: [], // Legacy DB field: UI treats these rows as job materials
   tableClickHandler: null,
   // Store all event handlers to prevent duplicates
   formSubmitHandler: null,
@@ -47,7 +47,7 @@ window.JobsView = {
   render(container) {
     const jobs = State.read('jobs') || [];
     const clients = State.read('clients') || [];
-    const inventory = State.read('inventory') || []; // Changed from paints to inventory
+    const inventory = State.read('inventory') || [];
 
     // Reverse clients to show latest first
     const sortedClients = [...clients].reverse();
@@ -74,7 +74,7 @@ window.JobsView = {
             </button>
             <button type="button" class="tab-btn" data-tab="details">
               <i class="fas fa-paint-roller"></i>
-              <span>Εργασία & Χρώματα</span>
+              <span>Εργασία & Υλικά</span>
             </button>
             <button type="button" class="tab-btn" data-tab="costs">
               <i class="fas fa-euro-sign"></i>
@@ -155,12 +155,12 @@ window.JobsView = {
             <!-- Navigation Buttons -->
             <div class="form-actions" style="margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--border-color); gap: 12px;">
               <button type="button" class="btn btn-primary" id="nextToDetailsBtn">
-                Επόμενο: Εργασία & Χρώματα <i class="fas fa-arrow-right"></i>
+                Επόμενο: Εργασία & Υλικά <i class="fas fa-arrow-right"></i>
               </button>
             </div>
           </div>
 
-          <!-- Tab: Εργασία & Χρώματα -->
+          <!-- Tab: Εργασία & Υλικά -->
           <div class="tab-content" id="tab-details">
             <div class="form-grid">
               <div class="form-group span-2">
@@ -181,14 +181,21 @@ window.JobsView = {
                 <input type="number" id="jobArea" placeholder="π.χ. 80">
               </div>
 
-              <!-- Χρώματα -->
+              <!-- Υλικά -->
               <div class="form-group span-2" style="margin-top: 20px;">
-                <h4 style="margin-bottom: 10px;"><i class="fas fa-palette"></i> Χρώματα</h4>
+                <h4 style="margin-bottom: 10px;"><i class="fas fa-boxes"></i> Υλικά</h4>
                 <button type="button" class="btn btn-secondary" id="addPaintBtn">
-                  <i class="fas fa-plus"></i> Προσθήκη Χρώματος
+                  <i class="fas fa-plus"></i> Προσθήκη Υλικού
                 </button>
+                <label class="checkbox-inline" style="margin-top: 12px;">
+                  <input type="checkbox" id="deductMaterialsFromStock">
+                  Αφαίρεση από αποθήκη κατά την αποθήκευση
+                </label>
+                <small class="text-muted" style="display: block; margin-top: 4px;">
+                  Χρησιμοποιήστε το μόνο όταν τα υλικά πρέπει να αφαιρεθούν από τη φυσική αποθήκη.
+                </small>
                 <div id="paintsContainer" style="margin-top: 15px;">
-                  <!-- Paints will appear here -->
+                  <!-- Materials will appear here -->
                 </div>
               </div>
             </div>
@@ -226,11 +233,11 @@ window.JobsView = {
                 <h4 style="margin-bottom: 10px;"><i class="fas fa-euro-sign"></i> Κοστολόγηση</h4>
               </div>
               <div class="form-group">
-                <label title="Το κόστος των υλικών που χρησιμοποιήθηκαν">
+                <label title="Συμπληρώνεται αυτόματα από τα υλικά και μπορεί να αυξηθεί για έξτρα κόστος">
                   Κόστος Υλικών (€) <i class="fas fa-info-circle" style="font-size: 0.8em; color: var(--text-muted);"></i>
                 </label>
                 <input type="number" id="jobMaterialsCost" min="0" value="0" 
-                       title="Το κόστος των υλικών που χρησιμοποιήθηκαν (έξοδα)">
+                       title="Δεν μπορεί να είναι μικρότερο από το άθροισμα των υλικών">
               </div>
 
               <div class="form-group">
@@ -242,20 +249,19 @@ window.JobsView = {
               </div>
 
               <div class="form-group">
-                <label title="Οι ώρες που χρεώνεις τον πελάτη (δικές σου ώρες)">
+                <label title="Συμπληρώνεται αυτόματα από τις ώρες εργασίας και μπορεί να αυξηθεί">
                   Ώρες Χρέωσης <i class="fas fa-info-circle" style="font-size: 0.8em; color: var(--text-muted);"></i>
                 </label>
                 <input type="number" id="jobBillingHours" min="0" value="0"
-                       title="Οι ώρες που χρεώνεις τον πελάτη - δικές σου ώρες εργασίας (έσοδα)">
+                       title="Δεν μπορεί να είναι μικρότερο από τις συνολικές ώρες εργασίας">
               </div>
 
               <div class="form-group">
-                <label title="Η τιμή ανά ώρα που χρεώνεις τον πελάτη (από Ρυθμίσεις)">
+                <label title="Η τιμή ανά ώρα που χρεώνεις τον πελάτη για αυτή την εργασία">
                   Τιμή Χρέωσης/Ώρα (€) <i class="fas fa-info-circle" style="font-size: 0.8em; color: var(--text-muted);"></i>
                 </label>
-                <input type="number" id="jobBillingRate" min="0" value="50" readonly
-                       style="background-color: var(--bg-secondary); cursor: not-allowed;"
-                       title="Η τιμή ανά ώρα που χρεώνεις τον πελάτη (από Ρυθμίσεις > Ωριαία Αμοιβή)">
+                <input type="number" id="jobBillingRate" min="0" value="50"
+                       title="Προτείνεται από τις ρυθμίσεις, αλλά αλλάζει ανά εργασία">
               </div>
 
               <!-- Financial Summary -->
@@ -270,7 +276,7 @@ window.JobsView = {
                     </div>
                     <div class="financial-body">
                       <div class="financial-row">
-                        <span>Εργάτες</span>
+                        <span>Υπάλληλοι</span>
                         <strong id="laborCostDisplay">0.00 €</strong>
                       </div>
                       <div class="financial-row">
@@ -299,10 +305,6 @@ window.JobsView = {
                         <span>Χρέωση</span>
                         <strong id="billingAmountDisplay">0.00 €</strong>
                       </div>
-                      <div class="financial-row">
-                        <span id="vatLabelDisplay">ΦΠΑ (24%)</span>
-                        <strong id="vatCostDisplay">0.00 €</strong>
-                      </div>
                       <div class="financial-row total">
                         <span>Σύνολο</span>
                         <strong id="totalCostDisplay">0.00 €</strong>
@@ -329,7 +331,7 @@ window.JobsView = {
             <!-- Navigation Buttons -->
             <div class="form-actions" style="margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--border-color); gap: 12px;">
               <button type="button" class="btn btn-ghost" id="backToDetailsBtn">
-                <i class="fas fa-arrow-left"></i> Πίσω: Εργασία & Χρώματα
+                <i class="fas fa-arrow-left"></i> Πίσω: Εργασία & Υλικά
               </button>
               <button type="button" class="btn btn-primary" id="nextToNotesBtn">
                 Επόμενο: Σημειώσεις <i class="fas fa-arrow-right"></i>
@@ -534,8 +536,8 @@ window.JobsView = {
       addPaintBtn.addEventListener('click', this.addPaintBtnHandler);
     }
 
-    // Cost calculation fields - real-time updates (jobBillingRate removed as it's readonly)
-    const costFields = ['jobMaterialsCost', 'jobKilometers', 'jobBillingHours'];
+    // Cost calculation fields - real-time updates
+    const costFields = ['jobMaterialsCost', 'jobKilometers', 'jobBillingHours', 'jobBillingRate'];
     costFields.forEach(fieldId => {
       const field = document.getElementById(fieldId);
       if (field) {
@@ -707,12 +709,12 @@ window.JobsView = {
     Utils.initDatePicker('#jobVisitEndDate');
     
     // Load default billing rate from settings (use cached value)
-    const pricingSettings = SettingsService.cache.pricing_settings || { hourlyRate: 50, vat: 24, travelCost: 0.5 };
+    const pricingSettings = SettingsService.cache.pricing_settings || { hourlyRate: 50, travelCost: 0.5 };
     const defaultBillingRate = pricingSettings.hourlyRate || 50;
     console.log('[Jobs] Using pricing settings:', pricingSettings);
     document.getElementById('jobBillingRate').value = defaultBillingRate;
     
-    // Clear assigned workers and paints
+    // Clear assigned workers and job materials
     this.assignedWorkers = [];
     this.assignedPaints = [];
     this.renderAssignedWorkers();
@@ -739,12 +741,68 @@ window.JobsView = {
     this.updateProgressBar();
   },
 
+  parseCurrencyInput(value) {
+    const normalized = String(value || '')
+      .replace(/\./g, '')
+      .replace(',', '.')
+      .replace(/[^\d.-]/g, '');
+    const parsed = parseFloat(normalized);
+    return Number.isFinite(parsed) ? parsed : 0;
+  },
+
+  getMaterialCostTotal() {
+    return this.assignedPaints.reduce((sum, material) => {
+      return sum + this.parseCurrencyInput(material.cost ?? material.totalCost ?? 0);
+    }, 0);
+  },
+
+  getWorkerType(worker) {
+    return worker.workerType || worker.worker_type || 'employee';
+  },
+
+  getAssignedWorkerHoursTotal() {
+    return this.assignedWorkers.reduce((sum, worker) => {
+      return sum + (parseFloat(worker.hoursAllocated || worker.hours_allocated || 0) || 0);
+    }, 0);
+  },
+
+  getEmployeeLaborCost() {
+    return this.assignedWorkers.reduce((sum, worker) => {
+      if (this.getWorkerType(worker) === 'owner') return sum;
+      return sum + (parseFloat(worker.laborCost || worker.labor_cost || 0) || 0);
+    }, 0);
+  },
+
+  applyMinimumCostFields() {
+    const materialTotal = this.getMaterialCostTotal();
+    const workerHoursTotal = this.getAssignedWorkerHoursTotal();
+    const materialsInput = document.getElementById('jobMaterialsCost');
+    const billingHoursInput = document.getElementById('jobBillingHours');
+
+    if (materialsInput) {
+      materialsInput.min = String(materialTotal);
+      const currentMaterials = parseFloat(materialsInput.value || 0) || 0;
+      if (currentMaterials < materialTotal) {
+        materialsInput.value = materialTotal ? materialTotal.toFixed(2) : '0';
+      }
+    }
+
+    if (billingHoursInput) {
+      billingHoursInput.min = String(workerHoursTotal);
+      const currentHours = parseFloat(billingHoursInput.value || 0) || 0;
+      if (currentHours < workerHoursTotal) {
+        billingHoursInput.value = workerHoursTotal ? workerHoursTotal.toFixed(2) : '0';
+      }
+    }
+  },
+
   calculateCost() {
-    // Get pricing settings from cache
-    const pricingSettings = SettingsService.cache.pricing_settings || { vat: 24, travelCost: 0.5 };
-    const vatPercent = pricingSettings.vat || 24;
+    this.applyMinimumCostFields();
+
+    // Get travel settings from cache
+    const pricingSettings = SettingsService.cache.pricing_settings || { travelCost: 0.5 };
     const costPerKm = pricingSettings.travelCost || 0.5;
-    console.log('[Jobs] Calculate cost with settings:', { vatPercent, costPerKm });
+    console.log('[Jobs] Calculate cost with settings:', { costPerKm });
     
     const materials = parseFloat(document.getElementById('jobMaterialsCost')?.value || 0);
     const kilometers = parseFloat(document.getElementById('jobKilometers')?.value || 0);
@@ -752,17 +810,16 @@ window.JobsView = {
     const billingRate = parseFloat(document.getElementById('jobBillingRate')?.value || 50);
 
     // ΕΞΟΔΑ
-    const laborCost = this.assignedWorkers.reduce((sum, w) => sum + w.laborCost, 0); // Κόστος εργατών
+    const laborCost = this.getEmployeeLaborCost(); // Μόνο οι υπάλληλοι είναι έξοδο
     const travelCost = kilometers * costPerKm; // Κόστος μετακίνησης
     const totalExpenses = materials + laborCost + travelCost; // Συνολικά έξοδα
 
     // ΕΣΟΔΑ
-    const billingAmount = billingHours * billingRate; // Χρέωση εργασίας (δικές σου ώρες)
-    const vatAmount = billingAmount * (vatPercent / 100); // ΦΠΑ
-    const totalCharge = billingAmount + vatAmount; // Συνολική χρέωση
+    const billingAmount = billingHours * billingRate; // Χρέωση εργασίας
+    const totalCharge = billingAmount;
 
     // ΚΕΡΔΟΣ
-    const profit = billingAmount - totalExpenses; // Κέρδος (χωρίς ΦΠΑ)
+    const profit = billingAmount - totalExpenses;
 
     // Update displays
     const laborDisplay = document.getElementById('laborCostDisplay');
@@ -770,8 +827,6 @@ window.JobsView = {
     const travelDisplay = document.getElementById('travelCostDisplay');
     const totalExpensesDisplay = document.getElementById('totalExpensesDisplay');
     const billingAmountDisplay = document.getElementById('billingAmountDisplay');
-    const vatLabelDisplay = document.getElementById('vatLabelDisplay');
-    const vatDisplay = document.getElementById('vatCostDisplay');
     const totalDisplay = document.getElementById('totalCostDisplay');
     const profitDisplay = document.getElementById('profitDisplay');
     
@@ -780,8 +835,6 @@ window.JobsView = {
     if (travelDisplay) travelDisplay.textContent = Utils.formatCurrency(travelCost);
     if (totalExpensesDisplay) totalExpensesDisplay.textContent = Utils.formatCurrency(totalExpenses);
     if (billingAmountDisplay) billingAmountDisplay.textContent = Utils.formatCurrency(billingAmount);
-    if (vatLabelDisplay) vatLabelDisplay.textContent = `ΦΠΑ (${vatPercent}%)`;
-    if (vatDisplay) vatDisplay.textContent = Utils.formatCurrency(vatAmount);
     if (totalDisplay) totalDisplay.textContent = Utils.formatCurrency(totalCharge);
     
     if (profitDisplay) {
@@ -843,11 +896,12 @@ window.JobsView = {
       return;
     }
 
-    // Get pricing settings from cache
-    const pricingSettings = SettingsService.cache.pricing_settings || { vat: 24, travelCost: 0.5 };
-    const vatPercent = pricingSettings.vat || 24;
+    // Get travel settings from cache
+    const pricingSettings = SettingsService.cache.pricing_settings || { travelCost: 0.5 };
     const costPerKm = pricingSettings.travelCost || 0.5;
-    console.log('[Jobs] Pricing settings:', { vatPercent, costPerKm });
+    console.log('[Jobs] Pricing settings:', { costPerKm });
+
+    this.applyMinimumCostFields();
 
     const billingHours = parseFloat(document.getElementById('jobBillingHours').value) || 0;
     const billingRate = parseFloat(document.getElementById('jobBillingRate').value) || 50;
@@ -881,7 +935,6 @@ window.JobsView = {
       kilometers: parseFloat(document.getElementById('jobKilometers').value) || 0,
       billingHours: billingHours,
       billingRate: billingRate,
-      vat: vatPercent,
       costPerKm: costPerKm,
       notes: document.getElementById('jobNotes').value,
       assignedWorkers: JSON.stringify(this.assignedWorkers),
@@ -901,15 +954,13 @@ window.JobsView = {
     }
 
     // ΕΞΟΔΑ
-    const laborCost = this.assignedWorkers.reduce((sum, w) => sum + w.laborCost, 0); // Κόστος εργατών
-    const totalWorkerHours = this.assignedWorkers.reduce((sum, w) => sum + w.hoursAllocated, 0);
+    const laborCost = this.getEmployeeLaborCost(); // Κόστος υπαλλήλων μόνο
     const travelCost = jobData.kilometers * jobData.costPerKm;
     const totalExpenses = jobData.materialsCost + laborCost + travelCost;
 
     // ΕΣΟΔΑ
     const billingAmount = billingHours * billingRate; // Χρέωση εργασίας
-    const vatAmount = billingAmount * (jobData.vat / 100);
-    const totalCharge = billingAmount + vatAmount;
+    const totalCharge = billingAmount;
 
     // ΚΕΡΔΟΣ
     const profit = billingAmount - totalExpenses;
@@ -917,14 +968,14 @@ window.JobsView = {
     // Save only the fields that exist in the database schema
     jobData.billingHours = billingHours;
     jobData.billingRate = billingRate;
-    // materialsCost, kilometers, costPerKm, vat are already in jobData
+    // materialsCost, kilometers and costPerKm are already in jobData
     jobData.totalCost = totalCharge;
     
     // Update is_paid based on status
     jobData.isPaid = jobStatus === 'Εξοφλήθηκε' ? 1 : 0;
     
     // These are calculated values - don't save to DB:
-    // workerHours, laborCost, travelCost, totalExpenses, billingAmount, vatAmount, profit
+    // workerHours, laborCost, travelCost, totalExpenses, billingAmount, profit
 
     // Validate
     const validation = Validation.validateJob(jobData);
@@ -934,13 +985,29 @@ window.JobsView = {
       return;
     }
 
+    const shouldDeductStock = document.getElementById('deductMaterialsFromStock')?.checked === true;
+    if (shouldDeductStock && !this.validateStockDeduction()) {
+      return;
+    }
+
     try {
+      let savedJob = null;
       // Save or update
       if (this.currentEdit) {
-        await State.update('jobs', jobData.id, jobData);
+        savedJob = await State.update('jobs', jobData.id, jobData);
+        if (shouldDeductStock) {
+          await this.deductAssignedMaterialsFromStock(jobData.id);
+          jobData.paints = JSON.stringify(this.assignedPaints);
+          savedJob = await State.update('jobs', jobData.id, jobData);
+        }
         Toast.success('Η εργασία ενημερώθηκε!');
       } else {
-        await State.create('jobs', jobData);
+        savedJob = await State.create('jobs', jobData);
+        if (shouldDeductStock && savedJob?.id) {
+          await this.deductAssignedMaterialsFromStock(savedJob.id);
+          jobData.paints = JSON.stringify(this.assignedPaints);
+          savedJob = await State.update('jobs', savedJob.id, jobData);
+        }
         Toast.success('Η εργασία δημιουργήθηκε!');
       }
 
@@ -953,6 +1020,74 @@ window.JobsView = {
       console.error('❌ Error saving job:', error);
       Toast.error('Σφάλμα κατά την αποθήκευση: ' + error.message);
     }
+  },
+
+  validateStockDeduction() {
+    const pendingItems = this.assignedPaints.filter(item => !item.stockDeducted);
+    if (!pendingItems.length) {
+      Toast.info('Τα υλικά έχουν ήδη αφαιρεθεί από την αποθήκη');
+      return false;
+    }
+
+    const requiredByMaterial = new Map();
+    for (const item of pendingItems) {
+      const materialId = item.materialId || item.material_id;
+      const quantity = this.parseMaterialQuantity(item.quantity);
+      if (!materialId) {
+        Toast.error(`Το υλικό "${item.name}" δεν είναι συνδεδεμένο με την Αποθήκη`);
+        return false;
+      }
+      if (quantity <= 0) {
+        Toast.error(`Συμπληρώστε αριθμητική ποσότητα για το υλικό "${item.name}"`);
+        return false;
+      }
+      requiredByMaterial.set(Number(materialId), (requiredByMaterial.get(Number(materialId)) || 0) + quantity);
+    }
+
+    for (const [materialId, requiredQuantity] of requiredByMaterial.entries()) {
+      const material = State.read('inventory', materialId);
+      const available = parseFloat(material?.stock || 0) || 0;
+      if (requiredQuantity > available) {
+        Toast.error(`Δεν υπάρχει αρκετό απόθεμα για "${material?.name || 'υλικό'}" (${available} διαθέσιμο, ${requiredQuantity} ζητήθηκε)`);
+        return false;
+      }
+    }
+
+    return true;
+  },
+
+  async deductAssignedMaterialsFromStock(jobId) {
+    for (const item of this.assignedPaints) {
+      if (item.stockDeducted) continue;
+
+      const materialId = item.materialId || item.material_id;
+      const quantity = this.parseMaterialQuantity(item.quantity);
+      const material = State.read('inventory', materialId);
+      if (!materialId || quantity <= 0 || !material) continue;
+
+      const result = await State.create('materialStockMovements', {
+        materialId: Number(materialId),
+        movementType: 'remove',
+        quantity,
+        movementDate: new Date().toISOString().split('T')[0],
+        unit: item.unit || material.unit || 'λίτρα',
+        referenceType: 'job',
+        referenceId: jobId,
+        notes: `Χρήση στην εργασία #${jobId}`
+      });
+
+      item.stockDeducted = true;
+      item.stockDeductedAt = new Date().toISOString();
+      item.stockMovementId = result?.movement?.id || null;
+    }
+  },
+
+  parseMaterialQuantity(value) {
+    if (value === null || value === undefined) return 0;
+    if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+    const normalized = String(value).replace(',', '.');
+    const match = normalized.match(/-?\d+(\.\d+)?/);
+    return match ? parseFloat(match[0]) : 0;
   },
 
   refreshTable() {
@@ -1006,7 +1141,11 @@ window.JobsView = {
     }
     
     // Support both camelCase and snake_case from database
-    const laborCost = assignedWorkers.reduce((sum, w) => sum + (parseFloat(w.laborCost || w.labor_cost || 0)), 0);
+    const laborCost = assignedWorkers.reduce((sum, w) => {
+      const type = w.workerType || w.worker_type || 'employee';
+      if (type === 'owner') return sum;
+      return sum + (parseFloat(w.laborCost || w.labor_cost || 0) || 0);
+    }, 0);
     const materialsCost = parseFloat(job.materialsCost || job.materials_cost || 0);
     const kilometers = parseFloat(job.kilometers || 0);
     const costPerKm = parseFloat(job.costPerKm || job.cost_per_km || 0.5);
@@ -1016,9 +1155,7 @@ window.JobsView = {
     const billingHours = parseFloat(job.billingHours || job.billing_hours || 0);
     const billingRate = parseFloat(job.billingRate || job.billing_rate || 50);
     const billingAmount = billingHours * billingRate;
-    const vat = parseFloat(job.vat || 24);
-    const vatAmount = billingAmount * (vat / 100);
-    const totalCost = billingAmount + vatAmount;
+    const totalCost = billingAmount;
     const profit = billingAmount - totalExpenses;
     
     console.log('[Jobs] View calculations:', {
@@ -1031,8 +1168,6 @@ window.JobsView = {
       billingHours,
       billingRate,
       billingAmount,
-      vat,
-      vatAmount,
       totalCost,
       profit
     });
@@ -1115,16 +1250,19 @@ window.JobsView = {
           </div>
         </div>
 
-        <!-- Χρώματα -->
+        <!-- Υλικά -->
         ${assignedPaints && assignedPaints.length > 0 ? `
         <div class="detail-section">
-          <h4><i class="fas fa-palette"></i> Χρώματα</h4>
+          <h4><i class="fas fa-boxes"></i> Υλικά</h4>
           <div class="table-wrapper">
             <table class="data-table">
               <thead>
                 <tr>
-                  <th>Όνομα Χρώματος</th>
+                  <th>Όνομα</th>
                   <th>Κωδικός</th>
+                  <th>Ποσότητα</th>
+                  <th>Πληροφορίες</th>
+                  <th>Κόστος</th>
                 </tr>
               </thead>
               <tbody>
@@ -1132,6 +1270,9 @@ window.JobsView = {
                   <tr>
                     <td><strong>${paint.name}</strong></td>
                     <td>${paint.code || '-'}</td>
+                    <td>${paint.quantity || '-'}</td>
+                    <td>${paint.info || '-'}</td>
+                    <td><strong>${Utils.formatCurrency(this.parseCurrencyInput(paint.cost || 0))}</strong></td>
                   </tr>
                 `).join('')}
               </tbody>
@@ -1149,6 +1290,7 @@ window.JobsView = {
               <thead>
                 <tr>
                   <th>Εργάτης</th>
+                  <th>Τύπος</th>
                   <th>Ειδικότητα</th>
                   <th>Ωρομίσθιο</th>
                   <th>Ώρες</th>
@@ -1159,6 +1301,7 @@ window.JobsView = {
                 ${assignedWorkers.map(worker => `
                   <tr>
                     <td><strong>${worker.workerName}</strong></td>
+                    <td>${(worker.workerType || worker.worker_type) === 'owner' ? 'Ιδιοκτήτης' : 'Υπάλληλος'}</td>
                     <td>${worker.workerSpecialty || worker.specialty || ''}</td>
                     <td>${Utils.formatCurrency(worker.hourlyRate)}/ώρα</td>
                     <td>${worker.hoursAllocated}h</td>
@@ -1166,7 +1309,7 @@ window.JobsView = {
                   </tr>
                 `).join('')}
                 <tr style="background: var(--bg-secondary); font-weight: bold;">
-                  <td colspan="3" style="text-align: right;">ΣΥΝΟΛΟ:</td>
+                  <td colspan="4" style="text-align: right;">ΣΥΝΟΛΟ:</td>
                   <td>${assignedWorkers.reduce((sum, w) => sum + w.hoursAllocated, 0).toFixed(1)}h</td>
                   <td><strong style="color: var(--error);">${Utils.formatCurrency(assignedWorkers.reduce((sum, w) => sum + w.laborCost, 0))}</strong></td>
                 </tr>
@@ -1181,7 +1324,7 @@ window.JobsView = {
           <h4><i class="fas fa-euro-sign"></i> Κόστος</h4>
           <div class="detail-grid">
             <div class="detail-item">
-              <label>Κόστος Εργατών:</label>
+              <label>Κόστος Υπαλλήλων:</label>
               <span style="color: var(--error);">${Utils.formatCurrency(laborCost)}</span>
             </div>
             <div class="detail-item">
@@ -1205,11 +1348,7 @@ window.JobsView = {
               <span style="color: var(--success);">${Utils.formatCurrency(billingAmount)}</span>
             </div>
             <div class="detail-item">
-              <label>ΦΠΑ (${vat}%):</label>
-              <span>${Utils.formatCurrency(vatAmount)}</span>
-            </div>
-            <div class="detail-item">
-              <label>Τελικό Σύνολο:</label>
+              <label>Σύνολο Χρέωσης:</label>
               <span><strong style="color: var(--success); font-size: 1.2em;">${Utils.formatCurrency(totalCost)}</strong></span>
             </div>
             <div class="detail-item span-2" style="border-top: 2px solid var(--border-color); padding-top: 1rem; margin-top: 0.5rem;">
@@ -1320,7 +1459,7 @@ window.JobsView = {
     document.getElementById('jobBillingRate').value = job.billingRate ? Math.round(job.billingRate) : 50;
     document.getElementById('jobNotes').value = job.notes || '';
 
-    // Load assigned workers and paints - Parse JSON if stored as string
+    // Load assigned workers and job materials - Parse JSON if stored as string
     console.log('[Jobs] Raw assignedWorkers:', job.assignedWorkers, typeof job.assignedWorkers);
     console.log('[Jobs] Raw paints:', job.paints, typeof job.paints);
     
@@ -1332,6 +1471,13 @@ window.JobsView = {
       } else {
         this.assignedWorkers = [];
       }
+      this.assignedWorkers = this.assignedWorkers.map(worker => ({
+        ...worker,
+        workerType: worker.workerType || worker.worker_type || 'employee',
+        laborCost: (worker.workerType || worker.worker_type) === 'owner'
+          ? 0
+          : (parseFloat(worker.laborCost || worker.labor_cost || 0) || 0)
+      }));
       
       if (typeof job.paints === 'string') {
         this.assignedPaints = JSON.parse(job.paints);
@@ -1340,11 +1486,17 @@ window.JobsView = {
       } else {
         this.assignedPaints = [];
       }
+      this.assignedPaints = this.assignedPaints.map(material => ({
+        ...material,
+        quantity: material.quantity || '',
+        info: material.info || '',
+        cost: this.parseCurrencyInput(material.cost || material.totalCost || 0)
+      }));
       
       console.log('[Jobs] Parsed assignedWorkers:', this.assignedWorkers);
       console.log('[Jobs] Parsed assignedPaints:', this.assignedPaints);
     } catch (error) {
-      console.error('[Jobs] Error parsing workers/paints:', error);
+      console.error('[Jobs] Error parsing workers/materials:', error);
       this.assignedWorkers = [];
       this.assignedPaints = [];
     }
@@ -1379,7 +1531,7 @@ window.JobsView = {
     document.getElementById('jobFormElement').reset();
     this.currentEdit = null;
     this.assignedWorkers = []; // Clear assigned workers
-    this.assignedPaints = []; // Clear assigned paints
+    this.assignedPaints = []; // Clear assigned job materials
     this.renderAssignedWorkers();
     this.renderAssignedPaints();
     this.calculateCost();
@@ -1438,8 +1590,8 @@ window.JobsView = {
           <select id="modalWorkerSelect">
             <option value="">Επιλέξτε εργάτη...</option>
             ${activeWorkers.map(w => `
-              <option value="${w.id}" data-rate="${w.hourlyRate}">
-                ${w.name} - ${w.specialty} (${Utils.formatCurrency(w.hourlyRate)}/ώρα)
+              <option value="${w.id}" data-rate="${w.hourlyRate}" data-type="${w.workerType || w.worker_type || 'employee'}">
+                ${w.name} - ${w.specialty} - ${(w.workerType || w.worker_type) === 'owner' ? 'Ιδιοκτήτης' : 'Υπάλληλος'} (${Utils.formatCurrency(w.hourlyRate)}/ώρα)
               </option>
             `).join('')}
           </select>
@@ -1458,6 +1610,9 @@ window.JobsView = {
         <div class="form-group span-2">
           <label>Κόστος Εργασίας</label>
           <input type="text" id="modalWorkerCost" readonly value="0.00 €" style="font-weight: bold; color: var(--accent-primary);">
+          <small style="color: var(--text-muted); display: block; margin-top: 0.25rem;">
+            Οι ιδιοκτήτες δεν προστίθενται στα έξοδα. Οι ώρες τους μετράνε στη χρέωση.
+          </small>
         </div>
       </div>
     `;
@@ -1486,8 +1641,9 @@ window.JobsView = {
       const updateCost = () => {
         const selectedOption = workerSelect.options[workerSelect.selectedIndex];
         const rate = parseFloat(selectedOption.dataset.rate || 0);
+        const workerType = selectedOption.dataset.type || 'employee';
         const hours = parseFloat(hoursInput.value || 0);
-        const cost = rate * hours;
+        const cost = workerType === 'owner' ? 0 : rate * hours;
 
         rateInput.value = Utils.formatCurrency(rate);
         costInput.value = Utils.formatCurrency(cost);
@@ -1631,13 +1787,15 @@ window.JobsView = {
       return;
     }
 
-    const laborCost = hours * worker.hourlyRate;
+    const workerType = worker.workerType || worker.worker_type || 'employee';
+    const laborCost = workerType === 'owner' ? 0 : hours * worker.hourlyRate;
 
     this.assignedWorkers.push({
       workerId: worker.id,
       workerName: worker.name,
       workerSpecialty: worker.specialty,
       specialty: worker.specialty,
+      workerType,
       hourlyRate: worker.hourlyRate,
       hoursAllocated: hours,
       laborCost: laborCost
@@ -1666,10 +1824,11 @@ window.JobsView = {
             <tr>
               <th style="width: 100px;">Ενέργειες</th>
               <th>Εργάτης</th>
+              <th>Τύπος</th>
               <th>Ειδικότητα</th>
               <th>Ωρομίσθιο</th>
               <th>Ώρες</th>
-              <th>Κόστος</th>
+              <th>Κόστος Εξόδου</th>
             </tr>
           </thead>
           <tbody>
@@ -1684,6 +1843,7 @@ window.JobsView = {
                   </button>
                 </td>
                 <td><strong>${w.workerName}</strong></td>
+                <td>${this.getWorkerType(w) === 'owner' ? 'Ιδιοκτήτης' : 'Υπάλληλος'}</td>
                 <td>${w.workerSpecialty || w.specialty || ''}</td>
                 <td>${Utils.formatCurrency(w.hourlyRate)}/ώρα</td>
                 <td>${w.hoursAllocated}h</td>
@@ -1692,7 +1852,7 @@ window.JobsView = {
             `).join('')}
             <tr style="background: var(--bg-secondary); font-weight: bold;">
               <td></td>
-              <td colspan="3" style="text-align: right;">ΣΥΝΟΛΟ:</td>
+              <td colspan="4" style="text-align: right;">ΣΥΝΟΛΟ:</td>
               <td>${totalHours.toFixed(1)}h</td>
               <td><strong style="color: var(--accent-primary);">${Utils.formatCurrency(totalCost)}</strong></td>
             </tr>
@@ -1744,8 +1904,13 @@ window.JobsView = {
           <input type="text" value="${Utils.formatCurrency(worker.hourlyRate)}/ώρα" readonly>
         </div>
 
-        <div class="form-group span-2">
-          <label>Κόστος Εργασίας</label>
+        <div class="form-group">
+          <label>Τύπος</label>
+          <input type="text" value="${this.getWorkerType(worker) === 'owner' ? 'Ιδιοκτήτης' : 'Υπάλληλος'}" readonly>
+        </div>
+
+        <div class="form-group">
+          <label>Κόστος Εξόδου</label>
           <input type="text" id="editWorkerCost" readonly value="${Utils.formatCurrency(worker.laborCost)}" style="font-weight: bold; color: var(--accent-primary);">
         </div>
       </div>
@@ -1771,7 +1936,7 @@ window.JobsView = {
 
       hoursInput.addEventListener('input', () => {
         const hours = parseFloat(hoursInput.value || 0);
-        const cost = hours * worker.hourlyRate;
+        const cost = this.getWorkerType(worker) === 'owner' ? 0 : hours * worker.hourlyRate;
         costInput.value = Utils.formatCurrency(cost);
       });
 
@@ -1784,7 +1949,7 @@ window.JobsView = {
         }
 
         this.assignedWorkers[index].hoursAllocated = newHours;
-        this.assignedWorkers[index].laborCost = newHours * worker.hourlyRate;
+        this.assignedWorkers[index].laborCost = this.getWorkerType(worker) === 'owner' ? 0 : newHours * worker.hourlyRate;
 
         this.renderAssignedWorkers();
         this.calculateCost();
@@ -1809,21 +1974,36 @@ window.JobsView = {
     });
   },
 
-  // Paint Management Methods
+  // Material Management Methods (stored in legacy `paints` JSON field)
   addPaint() {
     const content = `
       <div class="form-grid">
         <div class="form-group span-2">
-          <label>Όνομα Χρώματος <span class="required">*</span></label>
+          <label>Όνομα <span class="required">*</span></label>
           <input type="text" id="newPaintName" list="paintNamesList" placeholder="π.χ. Λευκό Ματ Ακρυλικό">
           <datalist id="paintNamesList">
             ${(State.read('inventory') || []).map(p => `<option value="${p.name}">`).join('')}
           </datalist>
         </div>
 
-        <div class="form-group span-2">
-          <label>Κωδικός Χρώματος</label>
+        <div class="form-group">
+          <label>Κωδικός</label>
           <input type="text" id="newPaintCode" placeholder="π.χ. RAL 9010, NCS S0500-N">
+        </div>
+
+        <div class="form-group">
+          <label>Ποσότητα</label>
+          <input type="text" id="newMaterialQuantity" placeholder="π.χ. 10 λίτρα, 2 τεμάχια">
+        </div>
+
+        <div class="form-group">
+          <label>Κόστος (€)</label>
+          <input type="number" id="newMaterialCost" min="0" step="0.01" value="0">
+        </div>
+
+        <div class="form-group span-2">
+          <label>Πληροφορίες</label>
+          <textarea id="newMaterialInfo" rows="3" placeholder="π.χ. Υλικό για σαλόνι, δωμάτιο ή γενικές σημειώσεις"></textarea>
         </div>
       </div>
     `;
@@ -1836,7 +2016,7 @@ window.JobsView = {
     `;
 
     Modal.open({
-      title: '<i class="fas fa-paint-brush"></i> Προσθήκη Χρώματος',
+      title: '<i class="fas fa-boxes"></i> Προσθήκη Υλικού',
       content: content,
       footer: footer,
       size: 'md'
@@ -1846,29 +2026,45 @@ window.JobsView = {
       const confirmBtn = document.getElementById('confirmAddPaintBtn');
       const nameInput = document.getElementById('newPaintName');
       const codeInput = document.getElementById('newPaintCode');
+      const quantityInput = document.getElementById('newMaterialQuantity');
+      const costInput = document.getElementById('newMaterialCost');
+      const infoInput = document.getElementById('newMaterialInfo');
 
       if (confirmBtn && nameInput) {
         confirmBtn.addEventListener('click', () => {
           const paintName = nameInput.value.trim();
           const paintCode = codeInput.value.trim();
+          const quantity = quantityInput.value.trim();
+          const cost = this.parseCurrencyInput(costInput.value);
+          const info = infoInput.value.trim();
+          const stockMaterial = (State.read('inventory') || []).find(material => {
+            return String(material.name || '').toLowerCase() === paintName.toLowerCase();
+          });
 
           if (!paintName) {
-            Toast.error('Παρακαλώ εισάγετε όνομα χρώματος');
+            Toast.error('Παρακαλώ εισάγετε όνομα υλικού');
             return;
           }
 
           this.assignedPaints.push({
             name: paintName,
-            code: paintCode
+            code: paintCode,
+            quantity,
+            cost,
+            info,
+            materialId: stockMaterial ? stockMaterial.id : null,
+            unit: stockMaterial ? stockMaterial.unit : null,
+            stockDeducted: false
           });
 
           this.renderAssignedPaints();
-          Toast.success('Το χρώμα προστέθηκε');
+          this.calculateCost();
+          Toast.success('Το υλικό προστέθηκε');
           Modal.close();
         });
 
         // Enter key support
-        [nameInput, codeInput].forEach(input => {
+        [nameInput, codeInput, quantityInput, costInput, infoInput].forEach(input => {
           input.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
               e.preventDefault();
@@ -1890,9 +2086,12 @@ window.JobsView = {
     if (!container) return;
 
     if (this.assignedPaints.length === 0) {
-      container.innerHTML = '<p class="text-muted" style="font-style: italic; margin: 10px 0;">Δεν έχουν προστεθεί χρώματα ακόμα</p>';
+      container.innerHTML = '<p class="text-muted" style="font-style: italic; margin: 10px 0;">Δεν έχουν προστεθεί υλικά ακόμα</p>';
+      this.applyMinimumCostFields();
       return;
     }
+
+    const materialsTotal = this.getMaterialCostTotal();
 
     container.innerHTML = `
       <div class="table-wrapper">
@@ -1900,8 +2099,11 @@ window.JobsView = {
           <thead>
             <tr>
               <th style="width: 80px;">Ενέργειες</th>
-              <th>Όνομα Χρώματος</th>
+              <th>Όνομα</th>
               <th>Κωδικός</th>
+              <th>Ποσότητα</th>
+              <th>Πληροφορίες</th>
+              <th>Κόστος</th>
             </tr>
           </thead>
           <tbody>
@@ -1912,14 +2114,27 @@ window.JobsView = {
                     <i class="fas fa-trash"></i>
                   </button>
                 </td>
-                <td><strong>${paint.name}</strong></td>
+                <td>
+                  <strong>${paint.name}</strong>
+                  ${paint.materialId || paint.material_id ? '<br><small class="text-muted">Συνδεδεμένο με Αποθήκη</small>' : ''}
+                  ${paint.stockDeducted ? '<br><small style="color: var(--success);"><i class="fas fa-check"></i> Αφαιρέθηκε από αποθήκη</small>' : ''}
+                </td>
                 <td>${paint.code || '-'}</td>
+                <td>${paint.quantity || '-'}</td>
+                <td>${paint.info || '-'}</td>
+                <td><strong>${Utils.formatCurrency(this.parseCurrencyInput(paint.cost || 0))}</strong></td>
               </tr>
             `).join('')}
+            <tr style="background: var(--bg-secondary); font-weight: bold;">
+              <td colspan="5" style="text-align: right;">ΣΥΝΟΛΟ ΥΛΙΚΩΝ:</td>
+              <td><strong style="color: var(--accent-primary);">${Utils.formatCurrency(materialsTotal)}</strong></td>
+            </tr>
           </tbody>
         </table>
       </div>
     `;
+
+    this.applyMinimumCostFields();
 
     // Add event listeners for remove buttons
     setTimeout(() => {
@@ -1939,14 +2154,15 @@ window.JobsView = {
     const paint = this.assignedPaints[index];
     
     Modal.confirm({
-      title: 'Αφαίρεση Χρώματος',
-      message: `Θέλετε σίγουρα να αφαιρέσετε το χρώμα "${paint.name}";`,
+      title: 'Αφαίρεση Υλικού',
+      message: `Θέλετε σίγουρα να αφαιρέσετε το υλικό "${paint.name}";`,
       confirmText: 'Αφαίρεση',
       confirmClass: 'btn-danger',
       onConfirm: () => {
         this.assignedPaints.splice(index, 1);
         this.renderAssignedPaints();
-        Toast.success('Το χρώμα αφαιρέθηκε');
+        this.calculateCost();
+        Toast.success('Το υλικό αφαιρέθηκε');
       }
     });
   }

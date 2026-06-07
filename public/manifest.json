@@ -1,7 +1,7 @@
 {
-  "name": "Οργανωτής Βαφέα Pro",
-  "short_name": "Βαφέας Pro",
-  "description": "Επαγγελματικός οργανωτής για εργασίες βαφής",
+  "name": "Τέχνη και Χρώμα",
+  "short_name": "Τέχνη Χρώμα",
+  "description": "Επαγγελματική διαχείριση εργασιών βαφής",
   "start_url": "/public/index.html",
   "display": "standalone",
   "background_color": "#1a1a2e",

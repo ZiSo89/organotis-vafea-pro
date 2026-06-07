@@ -60,8 +60,8 @@ async function loadCompanyName() {
   
   // Default company data
   const defaultData = {
-    name: 'Νικολαΐδη',
-    vat: '123456789',
+    name: 'Τέχνη και Χρώμα',
+    taxId: '123456789',
     address: 'Θάσου 8',
     phone: '+306978093442'
   };
@@ -79,7 +79,7 @@ async function loadCompanyName() {
   // Update sidebar
   const sidebarName = document.getElementById('sidebarCompanyName');
   if (sidebarName && companyData.name) {
-    sidebarName.textContent = `Οργανωτής Βαφέα ${companyData.name}`;
+    sidebarName.textContent = companyData.name || 'Τέχνη και Χρώμα';
   }
 }
 
