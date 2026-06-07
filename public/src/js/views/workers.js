@@ -63,6 +63,14 @@ window.WorkersView = {
           </div>
 
           <div class="form-group">
+            <label>Τύπος Προσωπικού <span class="required">*</span></label>
+            <select id="w_workerType" required>
+              <option value="employee">Υπάλληλος</option>
+              <option value="owner">Ιδιοκτήτης</option>
+            </select>
+          </div>
+
+          <div class="form-group">
             <label>Κατάσταση <span class="required">*</span></label>
             <select id="w_status" required>
               <option value="active">Ενεργός</option>
@@ -252,6 +260,7 @@ window.WorkersView = {
             <tr>
               <th style="text-align: left;">Ενέργειες</th>
               <th>Όνομα</th>
+              <th>Τύπος</th>
               <th>Ειδικότητα</th>
               <th>Ωρομίσθιο</th>
               <th>Τηλέφωνο</th>
@@ -309,6 +318,7 @@ window.WorkersView = {
                 </button>
               </td>
               <td title="${worker.name}"><strong>${worker.name}</strong></td>
+              <td>${(worker.workerType || worker.worker_type) === 'owner' ? 'Ιδιοκτήτης' : 'Υπάλληλος'}</td>
               <td title="${worker.specialty}">${worker.specialty}</td>
               <td title="${Utils.formatCurrency(worker.hourlyRate)}">${Utils.formatCurrency(worker.hourlyRate)}/ώρα</td>
               <td title="${worker.phone || '-'}">${worker.phone ? `<a href="tel:${worker.phone}" style="color: var(--color-text); text-decoration: none;">${worker.phone}</a>` : '-'}</td>
@@ -359,6 +369,7 @@ window.WorkersView = {
       phone: document.getElementById('w_phone').value.trim(),
       specialty: document.getElementById('w_specialty').value,
       hourlyRate: parseFloat(document.getElementById('w_hourlyRate').value) || 0,
+      workerType: document.getElementById('w_workerType').value || 'employee',
       status: document.getElementById('w_status').value,
       hireDate: Utils.greekToDate(document.getElementById('w_hireDate').value),
       notes: document.getElementById('w_notes').value.trim(),
@@ -483,6 +494,10 @@ window.WorkersView = {
             <div class="detail-item">
               <label>Ειδικότητα:</label>
               <span>${worker.specialty}</span>
+            </div>
+            <div class="detail-item">
+              <label>Τύπος:</label>
+              <span>${(worker.workerType || worker.worker_type) === 'owner' ? 'Ιδιοκτήτης' : 'Υπάλληλος'}</span>
             </div>
             <div class="detail-item">
               <label>Ωρομίσθιο:</label>
@@ -611,6 +626,7 @@ window.WorkersView = {
     document.getElementById('w_phone').value = worker.phone || '';
     document.getElementById('w_specialty').value = worker.specialty || '';
     document.getElementById('w_hourlyRate').value = worker.hourlyRate || '';
+    document.getElementById('w_workerType').value = worker.workerType || worker.worker_type || 'employee';
     document.getElementById('w_status').value = worker.status || 'active';
     document.getElementById('w_hireDate').value = Utils.dateToGreek(worker.hireDate);
     document.getElementById('w_notes').value = worker.notes || '';
@@ -648,6 +664,7 @@ window.WorkersView = {
     const yyyy = today.getFullYear();
     document.getElementById('w_hireDate').value = `${dd}/${mm}/${yyyy}`;
     document.getElementById('w_status').value = 'active';
+    document.getElementById('w_workerType').value = 'employee';
     this.currentEdit = null;
     Toast.info('Η φόρμα καθαρίστηκε');
   },

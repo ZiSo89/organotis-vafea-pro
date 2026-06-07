@@ -13,7 +13,7 @@ window.SettingsView = {
     
     const companyData = {
       name: document.getElementById('companyName').value,
-      vat: document.getElementById('companyVat').value,
+      taxId: document.getElementById('companyTaxId').value,
       address: document.getElementById('companyAddress').value,
       phone: document.getElementById('companyPhone').value
     };
@@ -24,7 +24,7 @@ window.SettingsView = {
       // Update sidebar
       const sidebarName = document.getElementById('sidebarCompanyName');
       if (sidebarName) {
-        sidebarName.textContent = companyData.name ? `Οργανωτής Βαφέα ${companyData.name}` : 'Οργανωτής Βαφέα';
+        sidebarName.textContent = companyData.name || 'Τέχνη και Χρώμα';
       }
       
       Toast.success('Τα στοιχεία επιχείρησης αποθηκεύτηκαν');
@@ -39,7 +39,6 @@ window.SettingsView = {
     
     const pricingData = {
       hourlyRate: parseFloat(document.getElementById('defaultHourlyRate').value) || 25,
-      vat: parseFloat(document.getElementById('defaultVat').value) || 24,
       travelCost: parseFloat(document.getElementById('defaultTravelCost').value) || 0.5
     };
     
@@ -177,7 +176,7 @@ window.SettingsView = {
       Toast.info('Προετοιμασία δεδομένων για εξαγωγή...');
 
       const workbook = new ExcelJS.Workbook();
-      workbook.creator = 'Οργανωτής Βαφέα Pro';
+      workbook.creator = 'Τέχνη και Χρώμα';
       workbook.created = new Date();
       
       // Helper function για formatting ημερομηνιών
@@ -250,6 +249,10 @@ window.SettingsView = {
       const clients = State.read('clients') || [];
       const workers = State.read('workers') || [];
       const materials = State.read('inventory') || [];
+      const stockMovements = State.read('materialStockMovements') || [];
+      const suppliers = State.read('suppliers') || [];
+      const materialPurchases = State.read('materialPurchases') || [];
+      const supplierPayments = State.read('supplierPayments') || [];
       const jobs = State.read('jobs') || [];
       const offers = State.read('offers') || [];
       const invoices = State.read('invoices') || [];
@@ -289,7 +292,7 @@ window.SettingsView = {
       const metaSheet = workbook.addWorksheet('Πληροφορίες');
       
       // Τίτλος
-      const titleRow = metaSheet.addRow(['Οργανωτής Βαφέα - Αναφορά Δεδομένων']);
+      const titleRow = metaSheet.addRow(['Τέχνη και Χρώμα - Αναφορά Δεδομένων']);
       metaSheet.mergeCells('A1:B1');
       const titleCell = metaSheet.getCell('A1');
       titleCell.font = { bold: true, size: 16, color: { argb: 'FFFFFFFF' } };
@@ -333,6 +336,10 @@ window.SettingsView = {
       metaSheet.addRow(['Πελάτες', clients.length]);
       metaSheet.addRow(['Εργάτες', workers.length]);
       metaSheet.addRow(['Υλικά', materials.length]);
+      metaSheet.addRow(['Κινήσεις Αποθήκης', stockMovements.length]);
+      metaSheet.addRow(['Καταστήματα', suppliers.length]);
+      metaSheet.addRow(['Αγορές Υλικών', materialPurchases.length]);
+      metaSheet.addRow(['Πληρωμές Καταστημάτων', supplierPayments.length]);
       metaSheet.addRow(['Εργασίες', jobs.length]);
       metaSheet.addRow(['Προσφορές', offers.length]);
       metaSheet.addRow(['Τιμολόγια', invoices.length]);
@@ -647,7 +654,137 @@ window.SettingsView = {
         materialsSheet.views = [{ state: 'frozen', ySplit: 1 }];
       }
 
-      // 6. OFFERS
+      // 6. SUPPLIERS
+      if (suppliers.length > 0) {
+        const suppliersSheet = workbook.addWorksheet('Καταστήματα');
+        suppliersSheet.columns = [
+          { header: 'ID', key: 'id', width: 10 },
+          { header: 'Όνομα', key: 'name', width: 30 },
+          { header: 'Τηλέφωνο', key: 'phone', width: 18 },
+          { header: 'Διεύθυνση', key: 'address', width: 35 },
+          { header: 'Σύνολο Αγορών', key: 'totalPurchases', width: 18 },
+          { header: 'Πληρωμένα', key: 'totalPaid', width: 18 },
+          { header: 'Υπόλοιπο', key: 'balance', width: 18 },
+          { header: 'Σημειώσεις', key: 'notes', width: 30 }
+        ];
+
+        suppliers.forEach(s => {
+          suppliersSheet.addRow({
+            id: s.id,
+            name: s.name,
+            phone: s.phone || '',
+            address: s.address || '',
+            totalPurchases: `€${parseFloat(s.totalPurchases || s.total_purchases || 0).toFixed(2)}`,
+            totalPaid: `€${parseFloat(s.totalPaid || s.total_paid || 0).toFixed(2)}`,
+            balance: `€${parseFloat(s.balance || 0).toFixed(2)}`,
+            notes: s.notes || ''
+          });
+        });
+
+        styleHeaderRow(suppliersSheet);
+        styleDataRows(suppliersSheet, 1);
+        suppliersSheet.views = [{ state: 'frozen', ySplit: 1 }];
+      }
+
+      // 7. MATERIAL PURCHASES
+      if (materialPurchases.length > 0) {
+        const purchasesSheet = workbook.addWorksheet('Αγορές Υλικών');
+        purchasesSheet.columns = [
+          { header: 'ID', key: 'id', width: 10 },
+          { header: 'Ημερομηνία', key: 'purchaseDate', width: 15 },
+          { header: 'Κατάστημα', key: 'supplier', width: 30 },
+          { header: 'Παραστατικό', key: 'reference', width: 18 },
+          { header: 'Σύνολο', key: 'totalCost', width: 15 },
+          { header: 'Πληρωμένο στην αγορά', key: 'paidAmount', width: 22 },
+          { header: 'Υπόλοιπο αγοράς', key: 'balance', width: 18 },
+          { header: 'Σημειώσεις', key: 'notes', width: 30 }
+        ];
+
+        materialPurchases.forEach(p => {
+          purchasesSheet.addRow({
+            id: p.id,
+            purchaseDate: formatDate(p.purchaseDate || p.purchase_date),
+            supplier: p.supplierName || p.supplier_name || '',
+            reference: p.referenceNumber || p.reference_number || '',
+            totalCost: `€${parseFloat(p.totalCost || p.total_cost || 0).toFixed(2)}`,
+            paidAmount: `€${parseFloat(p.paidAmount || p.paid_amount || 0).toFixed(2)}`,
+            balance: `€${parseFloat(p.balance || 0).toFixed(2)}`,
+            notes: p.notes || ''
+          });
+        });
+
+        styleHeaderRow(purchasesSheet);
+        styleDataRows(purchasesSheet, 1);
+        purchasesSheet.views = [{ state: 'frozen', ySplit: 1 }];
+      }
+
+      // 8. SUPPLIER PAYMENTS
+      if (supplierPayments.length > 0) {
+        const paymentsSheet = workbook.addWorksheet('Πληρωμές Καταστημάτων');
+        paymentsSheet.columns = [
+          { header: 'ID', key: 'id', width: 10 },
+          { header: 'Ημερομηνία', key: 'paymentDate', width: 15 },
+          { header: 'Κατάστημα', key: 'supplier', width: 30 },
+          { header: 'Αγορά ID', key: 'purchaseId', width: 12 },
+          { header: 'Ποσό', key: 'amount', width: 15 },
+          { header: 'Τρόπος', key: 'paymentMethod', width: 18 },
+          { header: 'Σημειώσεις', key: 'notes', width: 30 }
+        ];
+
+        supplierPayments.forEach(p => {
+          paymentsSheet.addRow({
+            id: p.id,
+            paymentDate: formatDate(p.paymentDate || p.payment_date),
+            supplier: p.supplierName || p.supplier_name || '',
+            purchaseId: p.purchaseId || p.purchase_id || '',
+            amount: `€${parseFloat(p.amount || 0).toFixed(2)}`,
+            paymentMethod: p.paymentMethod || p.payment_method || '',
+            notes: p.notes || ''
+          });
+        });
+
+        styleHeaderRow(paymentsSheet);
+        styleDataRows(paymentsSheet, 1);
+        paymentsSheet.views = [{ state: 'frozen', ySplit: 1 }];
+      }
+
+      // 9. STOCK MOVEMENTS
+      if (stockMovements.length > 0) {
+        const movementsSheet = workbook.addWorksheet('Κινήσεις Αποθήκης');
+        movementsSheet.columns = [
+          { header: 'ID', key: 'id', width: 10 },
+          { header: 'Ημερομηνία', key: 'movementDate', width: 15 },
+          { header: 'Υλικό', key: 'material', width: 30 },
+          { header: 'Τύπος', key: 'movementType', width: 18 },
+          { header: 'Ποσότητα', key: 'quantity', width: 14 },
+          { header: 'Πριν', key: 'previousStock', width: 14 },
+          { header: 'Μετά', key: 'newStock', width: 14 },
+          { header: 'Μονάδα', key: 'unit', width: 12 },
+          { header: 'Αναφορά', key: 'reference', width: 18 },
+          { header: 'Σημειώσεις', key: 'notes', width: 30 }
+        ];
+
+        stockMovements.forEach(m => {
+          movementsSheet.addRow({
+            id: m.id,
+            movementDate: formatDate(m.movementDate || m.movement_date),
+            material: m.materialName || m.material_name || '',
+            movementType: m.movementType || m.movement_type || '',
+            quantity: parseFloat(m.quantity || 0).toFixed(2),
+            previousStock: parseFloat(m.previousStock || m.previous_stock || 0).toFixed(2),
+            newStock: parseFloat(m.newStock || m.new_stock || 0).toFixed(2),
+            unit: m.unit || '',
+            reference: `${m.referenceType || m.reference_type || ''} ${m.referenceId || m.reference_id || ''}`.trim(),
+            notes: m.notes || ''
+          });
+        });
+
+        styleHeaderRow(movementsSheet);
+        styleDataRows(movementsSheet, 1);
+        movementsSheet.views = [{ state: 'frozen', ySplit: 1 }];
+      }
+
+      // 10. OFFERS
       if (offers.length > 0) {
         const offersSheet = workbook.addWorksheet('Προσφορές');
         offersSheet.columns = [
@@ -657,7 +794,6 @@ window.SettingsView = {
           { header: 'Ημερομηνία', key: 'date', width: 15 },
           { header: 'Ισχύει έως', key: 'validUntil', width: 15 },
           { header: 'Υποσύνολο', key: 'subtotal', width: 15 },
-          { header: 'ΦΠΑ', key: 'tax', width: 12 },
           { header: 'Έκπτωση', key: 'discount', width: 12 },
           { header: 'Σύνολο', key: 'total', width: 15 },
           { header: 'Κατάσταση', key: 'status', width: 15 },
@@ -676,7 +812,6 @@ window.SettingsView = {
             date: formatDate(o.date),
             validUntil: formatDate(o.validUntil || o.valid_until),
             subtotal: `€${parseFloat(o.subtotal || 0).toFixed(2)}`,
-            tax: `€${parseFloat(o.tax || 0).toFixed(2)}`,
             discount: `€${parseFloat(o.discount || 0).toFixed(2)}`,
             total: `€${parseFloat(o.total || 0).toFixed(2)}`,
             status: statusText,
@@ -693,7 +828,6 @@ window.SettingsView = {
           date: '',
           validUntil: '',
           subtotal: '',
-          tax: '',
           discount: '',
           total: `€${totalOffers.toFixed(2)}`,
           status: '',
@@ -724,7 +858,6 @@ window.SettingsView = {
           { header: 'Εργασία ID', key: 'jobId', width: 12 },
           { header: 'Ημερομηνία', key: 'date', width: 15 },
           { header: 'Υποσύνολο', key: 'subtotal', width: 15 },
-          { header: 'ΦΠΑ', key: 'tax', width: 12 },
           { header: 'Έκπτωση', key: 'discount', width: 12 },
           { header: 'Σύνολο', key: 'total', width: 15 },
           { header: 'Εξοφλήθηκε', key: 'isPaid', width: 15 },
@@ -740,7 +873,6 @@ window.SettingsView = {
             jobId: i.jobId || i.job_id || '',
             date: formatDate(i.date),
             subtotal: `€${parseFloat(i.subtotal || 0).toFixed(2)}`,
-            tax: `€${parseFloat(i.tax || 0).toFixed(2)}`,
             discount: `€${parseFloat(i.discount || 0).toFixed(2)}`,
             total: `€${parseFloat(i.total || 0).toFixed(2)}`,
             isPaid: (i.isPaid || i.is_paid) ? 'Ναι' : 'Όχι',
@@ -761,7 +893,6 @@ window.SettingsView = {
           jobId: `${paidInvoices.length} εξοφλημένα`,
           date: '',
           subtotal: '',
-          tax: '',
           discount: '',
           total: `€${totalInvoices.toFixed(2)}`,
           isPaid: '',
@@ -830,7 +961,7 @@ window.SettingsView = {
     // Default company data
     const defaultData = {
       name: 'Νικολαΐδη',
-      vat: '123456789',
+      taxId: '123456789',
       address: 'Θάσου 8',
       phone: '+306978093442'
     };
@@ -847,7 +978,7 @@ window.SettingsView = {
       // Update sidebar immediately
       const sidebarName = document.getElementById('sidebarCompanyName');
       if (sidebarName) {
-        sidebarName.textContent = `Οργανωτής Βαφέα ${companyData.name}`;
+        sidebarName.textContent = companyData.name || 'Τέχνη και Χρώμα';
       }
     }
     
@@ -857,8 +988,8 @@ window.SettingsView = {
     if (companyData.name) {
       document.getElementById('companyName').value = companyData.name;
     }
-    if (companyData.vat) {
-      document.getElementById('companyVat').value = companyData.vat;
+    if (companyData.taxId) {
+      document.getElementById('companyTaxId').value = companyData.taxId;
     }
     if (companyData.address) {
       document.getElementById('companyAddress').value = companyData.address;
@@ -879,9 +1010,6 @@ window.SettingsView = {
     if (pricingData) {
       if (pricingData.hourlyRate !== undefined) {
         document.getElementById('defaultHourlyRate').value = pricingData.hourlyRate;
-      }
-      if (pricingData.vat !== undefined) {
-        document.getElementById('defaultVat').value = pricingData.vat;
       }
       if (pricingData.travelCost !== undefined) {
         document.getElementById('defaultTravelCost').value = pricingData.travelCost;
@@ -906,7 +1034,7 @@ window.SettingsView = {
             </div>
             <div class="form-group">
               <label>ΑΦΜ</label>
-              <input type="text" id="companyVat" placeholder="123456789" value="123456789">
+              <input type="text" id="companyTaxId" placeholder="123456789" value="123456789">
             </div>
             <div class="form-group">
               <label>Διεύθυνση</label>
@@ -930,10 +1058,6 @@ window.SettingsView = {
             <div class="form-group">
               <label>Ωριαία Αμοιβή (€)</label>
               <input type="number" id="defaultHourlyRate" value="25" min="0" step="1">
-            </div>
-            <div class="form-group">
-              <label>ΦΠΑ (%)</label>
-              <input type="number" id="defaultVat" value="24" min="0" max="100" step="1">
             </div>
             <div class="form-group">
               <label>Κόστος Μετακίνησης (€/km)</label>
@@ -1177,7 +1301,11 @@ window.SettingsView = {
           ? new Date(result.lastSync).toLocaleString('el-GR')
           : 'Ποτέ';
       }
-      if (connectBtn) connectBtn.style.display = connected ? 'none' : 'inline-flex';
+      if (connectBtn) {
+        connectBtn.disabled = false;
+        connectBtn.title = 'Σύνδεση με Google Calendar';
+        connectBtn.style.display = connected ? 'none' : 'inline-flex';
+      }
       if (syncBtn) syncBtn.style.display = connected ? 'inline-flex' : 'none';
       if (disconnectBtn) disconnectBtn.style.display = connected ? 'inline-flex' : 'none';
     } catch (error) {

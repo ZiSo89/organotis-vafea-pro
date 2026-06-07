@@ -23,8 +23,9 @@
 }
 
 .header-logo {
-  height: 55px;
+  height: 78px;
   width: auto;
+  max-width: 220px;
   object-fit: contain;
   margin-left: auto;
 }
@@ -456,6 +457,11 @@
 @media (max-width: 768px) {
   .main-content {
     margin-left: 0;
+  }
+
+  .header-logo {
+    height: 58px;
+    max-width: 160px;
   }
   
   .content-area {

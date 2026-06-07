@@ -331,6 +331,261 @@ window.OfflineService = {
     return await this.delete('materials', id);
   },
 
+  async getMaterialStockMovements() {
+    const movementsResult = await this.getAll('material_stock_movements');
+    if (!movementsResult.success) return movementsResult;
+
+    const materialsResult = await this.getAll('materials');
+    const materials = materialsResult.success ? materialsResult.data : [];
+
+    movementsResult.data = movementsResult.data
+      .map(movement => {
+        const material = materials.find(item => Number(item.id) === Number(movement.materialId));
+        return {
+          ...movement,
+          materialName: material?.name || '',
+          materialCategory: material?.category || ''
+        };
+      })
+      .sort((a, b) => String(b.movementDate || '').localeCompare(String(a.movementDate || '')) || Number(b.id || 0) - Number(a.id || 0));
+
+    return movementsResult;
+  },
+
+  async createMaterialStockMovement(data) {
+    const materialId = Number(data.materialId || data.material_id || 0);
+    const materialResult = await this.getById('materials', materialId);
+    if (!materialResult.success || !materialResult.data) {
+      return { success: false, message: 'Το υλικό δεν βρέθηκε' };
+    }
+
+    const material = materialResult.data;
+    const movementType = data.movementType || data.movement_type || 'add';
+    const quantity = parseFloat(data.quantity) || 0;
+    if (quantity <= 0) {
+      return { success: false, message: 'Η ποσότητα πρέπει να είναι μεγαλύτερη από 0' };
+    }
+
+    const previousStock = parseFloat(material.stock) || 0;
+    let quantityDelta = quantity;
+    if (movementType === 'remove') {
+      quantityDelta = -quantity;
+    } else if (movementType === 'adjust') {
+      quantityDelta = quantity - previousStock;
+    }
+    const newStock = Math.max(0, previousStock + quantityDelta);
+
+    await this.update('materials', materialId, {
+      ...material,
+      stock: newStock
+    });
+
+    const movementResult = await this.insert('material_stock_movements', {
+      materialId,
+      movementDate: data.movementDate || data.movement_date || new Date().toISOString().slice(0, 10),
+      movementType,
+      quantity: newStock - previousStock,
+      previousStock,
+      newStock,
+      unit: data.unit || material.unit || 'λίτρα',
+      referenceType: data.referenceType || data.reference_type || 'manual',
+      referenceId: data.referenceId || data.reference_id || null,
+      notes: data.notes || ''
+    });
+
+    if (!movementResult.success) return movementResult;
+
+    const refreshedMaterial = await this.getById('materials', materialId);
+    const movementId = movementResult.data?.record?.id || movementResult.data?.id;
+    const refreshedMovement = await this.getById('material_stock_movements', movementId);
+
+    return {
+      success: true,
+      data: {
+        movement: {
+          ...(refreshedMovement.data || {}),
+          materialName: refreshedMaterial.data?.name || material.name || '',
+          materialCategory: refreshedMaterial.data?.category || material.category || ''
+        },
+        material: refreshedMaterial.data
+      }
+    };
+  },
+
+  // Suppliers
+  async getSuppliers() {
+    return await this.getAll('suppliers');
+  },
+
+  async getSupplier(id) {
+    return await this.getById('suppliers', id);
+  },
+
+  async createSupplier(data) {
+    return await this.insert('suppliers', data);
+  },
+
+  async updateSupplier(id, data) {
+    return await this.update('suppliers', id, data);
+  },
+
+  async deleteSupplier(id) {
+    return await this.delete('suppliers', id);
+  },
+
+  // Material Purchases
+  async getMaterialPurchases() {
+    const purchasesResult = await this.getAll('material_purchases');
+    if (!purchasesResult.success) return purchasesResult;
+
+    const [itemsResult, paymentsResult, suppliersResult] = await Promise.all([
+      this.getAll('material_purchase_items'),
+      this.getAll('supplier_payments'),
+      this.getAll('suppliers')
+    ]);
+
+    const items = itemsResult.success ? itemsResult.data : [];
+    const payments = paymentsResult.success ? paymentsResult.data : [];
+    const suppliers = suppliersResult.success ? suppliersResult.data : [];
+
+    purchasesResult.data = purchasesResult.data.map(purchase => {
+      const purchaseItems = items.filter(item => Number(item.purchaseId) === Number(purchase.id));
+      const paidAmount = payments
+        .filter(payment => Number(payment.purchaseId) === Number(purchase.id))
+        .reduce((sum, payment) => sum + (parseFloat(payment.amount) || 0), 0);
+      const supplier = suppliers.find(s => Number(s.id) === Number(purchase.supplierId));
+      const totalCost = parseFloat(purchase.totalCost) || 0;
+      return {
+        ...purchase,
+        supplierName: supplier?.name || '',
+        items: purchaseItems,
+        paidAmount,
+        balance: totalCost - paidAmount
+      };
+    });
+
+    return purchasesResult;
+  },
+
+  async getMaterialPurchase(id) {
+    const purchaseResult = await this.getById('material_purchases', id);
+    if (!purchaseResult.success && !purchaseResult.data) return purchaseResult;
+
+    const purchase = purchaseResult.data || purchaseResult;
+    const [itemsResult, paymentsResult, suppliersResult] = await Promise.all([
+      this.getAll('material_purchase_items'),
+      this.getAll('supplier_payments'),
+      this.getAll('suppliers')
+    ]);
+
+    const items = itemsResult.success ? itemsResult.data.filter(item => Number(item.purchaseId) === Number(id)) : [];
+    const payments = paymentsResult.success ? paymentsResult.data : [];
+    const suppliers = suppliersResult.success ? suppliersResult.data : [];
+    const paidAmount = payments
+      .filter(payment => Number(payment.purchaseId) === Number(id))
+      .reduce((sum, payment) => sum + (parseFloat(payment.amount) || 0), 0);
+    const supplier = suppliers.find(s => Number(s.id) === Number(purchase.supplierId));
+    const totalCost = parseFloat(purchase.totalCost) || 0;
+
+    return {
+      success: true,
+      data: {
+        ...purchase,
+        supplierName: supplier?.name || '',
+        items,
+        paidAmount,
+        balance: totalCost - paidAmount
+      }
+    };
+  },
+
+  async createMaterialPurchase(data) {
+    const items = Array.isArray(data.items) ? data.items : [];
+    const totalCost = items.reduce((sum, item) => {
+      const quantity = parseFloat(item.quantity) || 0;
+      const unitPrice = parseFloat(item.unitPrice || item.unit_price) || 0;
+      return sum + (parseFloat(item.totalCost || item.total_cost) || (quantity * unitPrice));
+    }, 0);
+
+    const purchaseResult = await this.insert('material_purchases', {
+      supplierId: data.supplierId,
+      purchaseDate: data.purchaseDate,
+      referenceNumber: data.referenceNumber,
+      notes: data.notes,
+      totalCost
+    });
+
+    if (!purchaseResult.success) return purchaseResult;
+
+    const purchaseId = purchaseResult.data?.record?.id || purchaseResult.data?.id;
+    for (const item of items) {
+      await this.insert('material_purchase_items', {
+        purchaseId,
+        materialId: item.materialId || null,
+        materialName: item.materialName,
+        quantity: item.quantity,
+        unit: item.unit,
+        unitPrice: item.unitPrice,
+        totalCost: item.totalCost,
+        notes: item.notes || ''
+      });
+    }
+
+    const initialPayment = data.initialPayment || data.initial_payment || {};
+    const paymentStatus = initialPayment.status || 'none';
+    const paymentAmount = paymentStatus === 'full'
+      ? totalCost
+      : (paymentStatus === 'partial' ? parseFloat(initialPayment.amount || 0) || 0 : 0);
+
+    if (paymentAmount > 0 && paymentAmount <= totalCost) {
+      await this.insert('supplier_payments', {
+        supplierId: data.supplierId,
+        purchaseId,
+        paymentDate: data.purchaseDate,
+        amount: paymentAmount,
+        paymentMethod: initialPayment.paymentMethod || initialPayment.payment_method || '',
+        notes: initialPayment.notes || ''
+      });
+    }
+
+    const refreshed = await this.getMaterialPurchase(purchaseId);
+    return {
+      success: true,
+      data: {
+        record: refreshed.data || refreshed
+      }
+    };
+  },
+
+  async updateMaterialPurchase(id, data) {
+    return await this.update('material_purchases', id, data);
+  },
+
+  async deleteMaterialPurchase(id) {
+    return await this.delete('material_purchases', id);
+  },
+
+  // Supplier Payments
+  async getSupplierPayments() {
+    return await this.getAll('supplier_payments');
+  },
+
+  async getSupplierPayment(id) {
+    return await this.getById('supplier_payments', id);
+  },
+
+  async createSupplierPayment(data) {
+    return await this.insert('supplier_payments', data);
+  },
+
+  async updateSupplierPayment(id, data) {
+    return await this.update('supplier_payments', id, data);
+  },
+
+  async deleteSupplierPayment(id) {
+    return await this.delete('supplier_payments', id);
+  },
+
   // Invoices
   async getInvoices() {
     return await this.getAll('invoices');

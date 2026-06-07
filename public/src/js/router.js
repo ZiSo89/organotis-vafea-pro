@@ -29,6 +29,7 @@ const Router = {
       dashboard: window.DashboardView,
       clients: window.ClientsView,
       workers: window.WorkersView,
+      suppliers: window.SuppliersView,
       inventory: window.InventoryView,
       jobs: window.JobsView,
       calendar: window.CalendarView,

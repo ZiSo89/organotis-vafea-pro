@@ -360,6 +360,76 @@ class APIService {
         return await this.routeRequest('materials', 'delete', null, id);
     }
 
+    async getMaterialStockMovements() {
+        return await this.routeRequest('material_stock_movements', 'list');
+    }
+
+    async createMaterialStockMovement(movementData) {
+        return await this.routeRequest('material_stock_movements', 'create', movementData);
+    }
+
+    // ==================== WAREHOUSE / SUPPLIERS ====================
+
+    async getSuppliers() {
+        return await this.routeRequest('suppliers', 'list');
+    }
+
+    async getSupplier(id) {
+        return await this.routeRequest('suppliers', 'get', null, id);
+    }
+
+    async createSupplier(supplierData) {
+        return await this.routeRequest('suppliers', 'create', supplierData);
+    }
+
+    async updateSupplier(id, supplierData) {
+        return await this.routeRequest('suppliers', 'update', supplierData, id);
+    }
+
+    async deleteSupplier(id) {
+        return await this.routeRequest('suppliers', 'delete', null, id);
+    }
+
+    async getMaterialPurchases() {
+        return await this.routeRequest('material_purchases', 'list');
+    }
+
+    async getMaterialPurchase(id) {
+        return await this.routeRequest('material_purchases', 'get', null, id);
+    }
+
+    async createMaterialPurchase(purchaseData) {
+        return await this.routeRequest('material_purchases', 'create', purchaseData);
+    }
+
+    async updateMaterialPurchase(id, purchaseData) {
+        return await this.routeRequest('material_purchases', 'update', purchaseData, id);
+    }
+
+    async deleteMaterialPurchase(id) {
+        return await this.routeRequest('material_purchases', 'delete', null, id);
+    }
+
+    async getSupplierPayments() {
+        return await this.routeRequest('supplier_payments', 'list');
+    }
+
+    async getSupplierPayment(id) {
+        return await this.routeRequest('supplier_payments', 'get', null, id);
+    }
+
+    async createSupplierPayment(paymentData) {
+        return await this.routeRequest('supplier_payments', 'create', paymentData);
+    }
+
+    async updateSupplierPayment(id, paymentData) {
+        return await this.routeRequest('supplier_payments', 'update', paymentData, id);
+    }
+
+    async deleteSupplierPayment(id) {
+        return await this.routeRequest('supplier_payments', 'delete', null, id);
+    }
+
     // ==================== JOBS ====================
 
     async getJobs() {

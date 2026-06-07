@@ -21,7 +21,7 @@ $method = $_SERVER['REQUEST_METHOD'];
 // Εξασφάλισε τα πεδία ώρας επίσκεψης (ενοποίηση εργασίας ↔ ημερολογίου)
 ensure_job_visit_columns($db);
 
-// Helper: compute job-level financials (billing WITHOUT VAT, net profit)
+// Helper: compute job-level financials (billing, net profit)
 function compute_job_financials_job($job) {
     $toFloat = function($v) {
         if ($v === null || $v === '') return 0.0;
@@ -40,15 +40,8 @@ function compute_job_financials_job($job) {
 
     if ($billing == 0.0) {
         $total_cost = $toFloat($job['total_cost'] ?? $job['totalCost'] ?? 0);
-        $vat = $toFloat($job['vat'] ?? 0);
         if ($total_cost > 0) {
-            if ($vat > 0) {
-                $denom = 1 + ($vat/100.0);
-                if ($denom > 0) $billing = $total_cost / $denom;
-                else $billing = $total_cost;
-            } else {
-                $billing = $total_cost;
-            }
+            $billing = $total_cost;
         }
     }
 
@@ -74,6 +67,8 @@ function compute_job_financials_job($job) {
 
         if (is_array($decoded)) {
             foreach ($decoded as $w) {
+                $workerType = $w['worker_type'] ?? $w['workerType'] ?? 'employee';
+                if ($workerType === 'owner') continue;
                 $labor += $toFloat($w['labor_cost'] ?? $w['laborCost'] ?? $w['cost'] ?? 0);
             }
         }
@@ -100,7 +95,7 @@ try {
                     if (isset($job['paints'])) $job['paints'] = json_decode($job['paints'], true);
                     // Add computed financials
                     $fin = compute_job_financials_job($job);
-                    $job['billing_without_vat'] = (float)$fin['billing'];
+                    $job['billing_amount'] = (float)$fin['billing'];
                     $job['net_profit'] = (float)$fin['profit'];
                     sendSuccess($job);
                 } else {
@@ -123,7 +118,7 @@ try {
                     if (isset($job['paints'])) $job['paints'] = json_decode($job['paints'], true);
                     // Add computed financials
                     $fin = compute_job_financials_job($job);
-                    $job['billing_without_vat'] = (float)$fin['billing'];
+                    $job['billing_amount'] = (float)$fin['billing'];
                     $job['net_profit'] = (float)$fin['profit'];
                     return $job;
                 }, $stmt->fetchAll());
@@ -156,14 +151,14 @@ try {
                     client_id, title, type, date, next_visit, visit_end_date, visit_start_time, visit_end_time, visit_all_day,
                     description, address, city, postal_code,
                     rooms, area, substrate, materials_cost, kilometers, billing_hours, billing_rate,
-                    vat, cost_per_km, notes, assigned_workers, paints,
+                    cost_per_km, notes, assigned_workers, paints,
                     start_date, end_date, status, total_cost, is_paid, coordinates
                 )
                 VALUES (
                     :client_id, :title, :type, :date, :next_visit, :visit_end_date, :visit_start_time, :visit_end_time, :visit_all_day,
                     :description, :address, :city, :postal_code,
                     :rooms, :area, :substrate, :materials_cost, :kilometers, :billing_hours, :billing_rate,
-                    :vat, :cost_per_km, :notes, :assigned_workers, :paints,
+                    :cost_per_km, :notes, :assigned_workers, :paints,
                     :start_date, :end_date, :status, :total_cost, :is_paid, :coordinates
                 )
             ");
@@ -189,7 +184,6 @@ try {
                 ':kilometers' => $data['kilometers'] ?? 0,
                 ':billing_hours' => $data['billing_hours'] ?? 0,
                 ':billing_rate' => $data['billing_rate'] ?? 50,
-                ':vat' => $data['vat'] ?? 24,
                 ':cost_per_km' => $data['cost_per_km'] ?? 0.5,
                 ':notes' => $data['notes'] ?? null,
                 ':assigned_workers' => isset($input['assignedWorkers']) ? json_encode($input['assignedWorkers']) : null,
@@ -274,7 +268,7 @@ try {
                     rooms = :rooms, area = :area, substrate = :substrate,
                     materials_cost = :materials_cost, kilometers = :kilometers,
                     billing_hours = :billing_hours, billing_rate = :billing_rate,
-                    vat = :vat, cost_per_km = :cost_per_km, notes = :notes,
+                    cost_per_km = :cost_per_km, notes = :notes,
                     assigned_workers = :assigned_workers, paints = :paints,
                     start_date = :start_date, end_date = :end_date, status = :status,
                     total_cost = :total_cost, is_paid = :is_paid, coordinates = :coordinates
@@ -303,7 +297,6 @@ try {
                 ':kilometers' => $data['kilometers'] ?? 0,
                 ':billing_hours' => $data['billing_hours'] ?? 0,
                 ':billing_rate' => $data['billing_rate'] ?? 50,
-                ':vat' => $data['vat'] ?? 24,
                 ':cost_per_km' => $data['cost_per_km'] ?? 0.5,
                 ':notes' => $data['notes'] ?? null,
                 ':assigned_workers' => isset($input['assignedWorkers']) ? json_encode($input['assignedWorkers']) : null,

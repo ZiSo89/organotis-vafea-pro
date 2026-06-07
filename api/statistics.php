@@ -24,14 +24,14 @@ try {
     
     if ($method === 'GET') {
 
-        // Helper: compute financials for a job row (billing WITHOUT VAT, expenses, profit)
+        // Helper: compute financials for a job row (billing, expenses, profit)
         function compute_job_financials($job) {
             $toFloat = function($v) {
                 if ($v === null || $v === '') return 0.0;
                 return (float)$v;
             };
 
-            // billingAmount preference order: billing_amount, hours*rate, total_cost/(1+vat), total_cost
+            // billingAmount preference order: billing_amount, hours*rate, total_cost
             $billing = 0.0;
             if (isset($job['billing_amount'])) {
                 $billing = $toFloat($job['billing_amount']);
@@ -49,15 +49,8 @@ try {
 
             if ($billing == 0.0) {
                 $total_cost = $toFloat($job['total_cost'] ?? $job['totalCost'] ?? 0);
-                $vat = $toFloat($job['vat'] ?? 0);
                 if ($total_cost > 0) {
-                    if ($vat > 0) {
-                        $denom = 1 + ($vat / 100.0);
-                        if ($denom > 0) $billing = $total_cost / $denom;
-                        else $billing = $total_cost;
-                    } else {
-                        $billing = $total_cost;
-                    }
+                    $billing = $total_cost;
                 }
             }
 
@@ -87,13 +80,15 @@ try {
 
                 if (is_array($decoded)) {
                     foreach ($decoded as $w) {
+                        $workerType = $w['worker_type'] ?? $w['workerType'] ?? 'employee';
+                        if ($workerType === 'owner') continue;
                         $labor += $toFloat($w['labor_cost'] ?? $w['laborCost'] ?? $w['cost'] ?? 0);
                     }
                 }
             }
 
             $expenses = $materials + $labor + $travel;
-            $profit = $billing - $expenses; // WITHOUT VAT
+            $profit = $billing - $expenses;
 
             return [
                 'billing' => $billing,
@@ -246,9 +241,9 @@ try {
                     $row['materials_cost'] = (float)$row['materials_cost'];
                     $row['profit'] = (float)$row['profit'];
 
-                    // Backward-compatible: compute billing_without_vat and net_profit for this job row
+                    // Backward-compatible: compute normalized billing and net profit for this job row
                     $fin = compute_job_financials($row);
-                    $row['billing_without_vat'] = (float)$fin['billing'];
+                    $row['billing_amount'] = (float)$fin['billing'];
                     $row['net_profit'] = (float)$fin['profit'];
                 }
 
@@ -475,7 +470,7 @@ try {
                     $profitSum += $fin['profit'];
                 }
 
-                $summary['billing_without_vat'] = (float)$billingSum;
+                $summary['billing_amount'] = (float)$billingSum;
                 $summary['net_profit'] = (float)$profitSum;
 
                 echo json_encode([

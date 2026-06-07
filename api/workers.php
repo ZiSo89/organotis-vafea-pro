@@ -22,6 +22,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') exit(0);
 $db = getDBConnection();
 $method = $_SERVER['REQUEST_METHOD'];
 
+function ensure_worker_type_column($db) {
+    try {
+        $stmt = $db->query("SHOW COLUMNS FROM workers LIKE 'worker_type'");
+        if (!$stmt->fetch()) {
+            $db->exec("ALTER TABLE workers ADD COLUMN worker_type ENUM('employee','owner') DEFAULT 'employee' AFTER daily_rate");
+        }
+    } catch (Exception $e) {
+        error_log('Failed ensuring worker_type column: ' . $e->getMessage());
+    }
+}
+
+ensure_worker_type_column($db);
+
 try {
     switch ($method) {
         case 'GET':
@@ -42,8 +55,8 @@ try {
             
             $data = convertToSnakeCase($input);
             $stmt = $db->prepare("
-                INSERT INTO workers (name, phone, specialty, hourly_rate, daily_rate, status, hire_date, notes, total_hours, total_earnings)
-                VALUES (:name, :phone, :specialty, :hourly_rate, :daily_rate, :status, :hire_date, :notes, :total_hours, :total_earnings)
+                INSERT INTO workers (name, phone, specialty, hourly_rate, daily_rate, worker_type, status, hire_date, notes, total_hours, total_earnings)
+                VALUES (:name, :phone, :specialty, :hourly_rate, :daily_rate, :worker_type, :status, :hire_date, :notes, :total_hours, :total_earnings)
             ");
             $stmt->execute([
                 ':name' => $data['name'],
@@ -51,6 +64,7 @@ try {
                 ':specialty' => $data['specialty'] ?? null,
                 ':hourly_rate' => $data['hourly_rate'] ?? 0,
                 ':daily_rate' => $data['daily_rate'] ?? 0,
+                ':worker_type' => in_array(($data['worker_type'] ?? 'employee'), ['employee', 'owner'], true) ? $data['worker_type'] : 'employee',
                 ':status' => $data['status'] ?? 'active',
                 ':hire_date' => $data['hire_date'] ?? null,
                 ':notes' => $data['notes'] ?? null,
@@ -73,7 +87,7 @@ try {
                 UPDATE workers 
                 SET name = :name, phone = :phone, specialty = :specialty,
                     hourly_rate = :hourly_rate, daily_rate = :daily_rate,
-                    status = :status, hire_date = :hire_date, notes = :notes,
+                    worker_type = :worker_type, status = :status, hire_date = :hire_date, notes = :notes,
                     total_hours = :total_hours, total_earnings = :total_earnings
                 WHERE id = :id
             ");
@@ -84,6 +98,7 @@ try {
                 ':specialty' => $data['specialty'] ?? null,
                 ':hourly_rate' => $data['hourly_rate'] ?? 0,
                 ':daily_rate' => $data['daily_rate'] ?? 0,
+                ':worker_type' => in_array(($data['worker_type'] ?? 'employee'), ['employee', 'owner'], true) ? $data['worker_type'] : 'employee',
                 ':status' => $data['status'] ?? 'active',
                 ':hire_date' => $data['hire_date'] ?? null,
                 ':notes' => $data['notes'] ?? null,
