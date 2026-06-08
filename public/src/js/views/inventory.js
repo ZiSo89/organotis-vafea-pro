@@ -219,7 +219,7 @@ window.SuppliersView = {
               </div>
               <div class="form-group" id="purchasePaymentAmountWrap" style="display: none;">
                 <label>Ποσό Πληρωμής (€)</label>
-                <input type="number" id="purchasePaymentAmount" min="0.01" step="0.01" value="0">
+                <input type="number" id="purchasePaymentAmount" min="0.01" step="0.01" value="" disabled>
               </div>
               <div class="form-group" id="purchasePaymentMethodWrap" style="display: none;">
                 <label>Τρόπος Πληρωμής</label>
@@ -521,9 +521,17 @@ window.SuppliersView = {
       const amountWrap = container.querySelector('#purchasePaymentAmountWrap');
       const methodWrap = container.querySelector('#purchasePaymentMethodWrap');
       const notesWrap = container.querySelector('#purchasePaymentNotesWrap');
+      const amountInput = container.querySelector('#purchasePaymentAmount');
       if (amountWrap) amountWrap.style.display = showAmountField ? '' : 'none';
       if (methodWrap) methodWrap.style.display = showPaymentFields ? '' : 'none';
       if (notesWrap) notesWrap.style.display = showPaymentFields ? '' : 'none';
+      if (amountInput) {
+        amountInput.disabled = !showAmountField;
+        amountInput.required = showAmountField;
+        if (!showAmountField) {
+          amountInput.value = '';
+        }
+      }
       container.querySelectorAll('.payment-option').forEach(option => {
         const input = option.querySelector('input[name="purchasePaymentStatus"]');
         option.classList.toggle('is-active', input?.checked === true);
