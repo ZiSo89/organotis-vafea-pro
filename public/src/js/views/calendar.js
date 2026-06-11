@@ -258,7 +258,13 @@ window.CalendarView = {
           throw new Error('Failed to load calendar events');
         }
         
-        events = await response.json();
+        const payload = await response.json();
+        events = Array.isArray(payload)
+          ? payload
+          : (Array.isArray(payload.data) ? payload.data : []);
+
+        const recordedVisits = await this.loadRecordedVisitEventsFromApi(startStr, endStr);
+        events = this.mergeRecordedVisitEvents(events, recordedVisits);
       }
       
       // Προσθήκη ελληνικών αργιών
@@ -442,6 +448,42 @@ window.CalendarView = {
     };
   },
 
+  mergeRecordedVisitEvents(events, recordedVisits) {
+    const merged = [...events];
+    const existingIds = new Set(merged.map(event => String(event.id)));
+
+    recordedVisits.forEach(visitEvent => {
+      if (!existingIds.has(String(visitEvent.id))) {
+        merged.push(visitEvent);
+        existingIds.add(String(visitEvent.id));
+      }
+    });
+
+    return merged;
+  },
+
+  async loadRecordedVisitEventsFromApi(start, end) {
+    try {
+      const response = await fetch('/api/job_visits.php', { credentials: 'include' });
+      if (!response.ok) return [];
+
+      const payload = await response.json();
+      const visits = Array.isArray(payload)
+        ? payload
+        : (Array.isArray(payload.data) ? payload.data : []);
+
+      return visits
+        .filter(visit => {
+          const visitDate = String(visit.visitDate || visit.visit_date || '').substring(0, 10);
+          return visitDate && visitDate >= start && visitDate <= end;
+        })
+        .map(visit => this.transformRecordedVisitFromDB(visit));
+    } catch (error) {
+      console.error('Error loading recorded job visits:', error);
+      return [];
+    }
+  },
+
   async loadRecordedVisitEventsFromSQLite(start, end) {
     const sql = `
       SELECT
@@ -529,14 +571,21 @@ window.CalendarView = {
         // Transform database results
         events = result.map(event => this.transformEventFromDB(event));
         const recordedVisits = await this.loadRecordedVisitEventsFromSQLite(start, end);
-        events = [...events, ...recordedVisits]
+        events = this.mergeRecordedVisitEvents(events, recordedVisits)
           .sort((a, b) => new Date(a.start) - new Date(b.start))
           .slice(0, 10);
-        console.log('📅 Transformed events:', events);      } else {
+        console.log('📅 Transformed events:', events);
+      } else {
         // Web version - use API
         const url = `/api/calendar.php?start=${start}&end=${end}`;
         const response = await fetch(url, { credentials: 'include' });
-        events = await response.json();
+        const payload = await response.json();
+        events = Array.isArray(payload)
+          ? payload
+          : (Array.isArray(payload.data) ? payload.data : []);
+
+        const recordedVisits = await this.loadRecordedVisitEventsFromApi(start, end);
+        events = this.mergeRecordedVisitEvents(events, recordedVisits);
         
         // Filter future events and sort by date
         events = events
