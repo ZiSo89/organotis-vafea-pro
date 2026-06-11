@@ -1,5 +1,8 @@
 ﻿-- Οργανωτής Βαφέα Pro - Reset & Import Database
 -- Δημιουργήθηκε αυτόματα: 2026-06-07 16:39:16
+-- ΠΡΟΣΟΧΗ: Αυτό είναι παλιό generated seed για το legacy schema.
+-- Μετά το server cleanup, αναγέννησέ το με:
+-- php database/generate_sql.php
 
 SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
 SET CHARACTER SET utf8mb4;

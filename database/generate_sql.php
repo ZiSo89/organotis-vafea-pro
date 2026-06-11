@@ -23,12 +23,9 @@ $sqlOutput .= "SET time_zone = \"+00:00\";\n\n";
 echo "Δημιουργία SQL για διαγραφή δεδομένων...\n";
 $sqlOutput .= "-- ΔΙΑΓΡΑΦΗ ΔΕΔΟΜΕΝΩΝ\n";
 $tables = [
-    'timesheets',
     'supplier_payments',
     'material_purchase_items',
     'material_purchases',
-    'job_workers',
-    'job_materials',
     'invoices',
     'offers',
     'calendar_events',
@@ -183,7 +180,6 @@ $jobTypes = [
     ['Άλλο', ['Βαφή Ξύλινων Επίπλων', 'Λακάρισμα Ντουλαπών', 'Βαφή Παρκέ', 'Ειδική Εργασία']]
 ];
 
-$substrates = ['Γυψοσανίδα', 'Σοβάς', 'Τσιμέντο', 'Μέταλλο', 'Ξύλο'];
 $paintBrands = ['Vitex', 'Kraft', 'Dulux', 'Levis', 'MaxMeyer'];
 $paintColors = [
     ['Λευκό Ματ', 'WH-001'], ['Μπεζ Ανοιχτό', 'BG-002'], ['Γκρι Ανοιχτό', 'GR-003'],
@@ -261,8 +257,6 @@ while ($currentDate <= $endDate) {
         // Χαρακτηριστικά εργασίας
         $rooms = rand(1, 5);
         $area = rand(40, 300);
-        $substrate = $substrates[array_rand($substrates)];
-        
         // Κόστη με λογική
         $baseMaterialCost = $area * rand(15, 30) / 10; // €1.5-3 ανά τμ
         $materialsCost = round($baseMaterialCost, 2);
@@ -381,13 +375,9 @@ while ($currentDate <= $endDate) {
             $type,
             $dateStr,
             $nextVisit, // next_visit
-            $description,
             $clients[$currentClientId - 1][3], // address από client
-            'Αλεξανδρούπολη',
-            '68100',
             $rooms,
             $area,
-            $substrate,
             $materialsCost,
             $kilometers,
             $billingHours,
@@ -396,8 +386,6 @@ while ($currentDate <= $endDate) {
             $notes,
             json_encode($assignedWorkers, JSON_UNESCAPED_UNICODE),
             json_encode($paints, JSON_UNESCAPED_UNICODE),
-            $startDateStr,
-            ($status == 'Ολοκληρώθηκε' || $status == 'Εξοφλήθηκε' || $status == 'Σε εξέλιξη') ? $endDateStr : 'NULL',
             $status,
             $totalCost,
             $isPaid,
@@ -416,20 +404,17 @@ echo "  Δημιουργήθηκαν " . count($jobs) . " εργασίες\n";
 $sqlOutput .= "-- JOBS (όλες οι καταστάσεις)\n";
 foreach ($jobs as $job) {
     $sqlOutput .= sprintf(
-        "INSERT INTO jobs (client_id, title, type, date, next_visit, description, address, city, postal_code, rooms, area, substrate, materials_cost, kilometers, billing_hours, billing_rate, cost_per_km, notes, assigned_workers, paints, start_date, end_date, status, total_cost, is_paid, coordinates) VALUES (%d, '%s', '%s', %s, %s, '%s', '%s', '%s', '%s', %s, %.2f, '%s', %.2f, %.2f, %.2f, %.2f, %.2f, %s, %s, %s, '%s', %s, '%s', %.2f, %d, %s);\n",
+        "INSERT INTO jobs (client_id, title, type, date, next_visit, address, rooms, area, materials_cost, kilometers, billing_hours, billing_rate, cost_per_km, notes, assigned_workers, paints, status, total_cost, is_paid, coordinates) VALUES (%d, '%s', '%s', %s, %s, '%s', %s, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %s, %s, %s, '%s', %.2f, %d, %s);\n",
         $job[0], addslashes($job[1]), addslashes($job[2]),
         $job[3] ? "'" . $job[3] . "'" : 'NULL',
         $job[4] ? "'" . $job[4] . "'" : 'NULL',
-        addslashes($job[5]), addslashes($job[6]), addslashes($job[7]), addslashes($job[8]),
-        $job[9] !== null ? $job[9] : 'NULL', $job[10], addslashes($job[11]),
-        $job[12], $job[13], $job[14], $job[15], $job[16],
-        $job[17] ? "'" . addslashes($job[17]) . "'" : 'NULL',
-        $job[18] ? "'" . addslashes($job[18]) . "'" : 'NULL',
-        $job[19] ? "'" . addslashes($job[19]) . "'" : 'NULL',
-        $job[20],
-        $job[21] !== 'NULL' ? "'" . $job[21] . "'" : 'NULL',
-        addslashes($job[22]), $job[23], $job[24],
-        $job[25] ? "'" . addslashes($job[25]) . "'" : 'NULL'
+        addslashes($job[5]),
+        $job[6] !== null ? $job[6] : 'NULL', $job[7], $job[8], $job[9], $job[10], $job[11], $job[12],
+        $job[13] ? "'" . addslashes($job[13]) . "'" : 'NULL',
+        $job[14] ? "'" . addslashes($job[14]) . "'" : 'NULL',
+        $job[15] ? "'" . addslashes($job[15]) . "'" : 'NULL',
+        addslashes($job[16]), $job[17], $job[18],
+        $job[19] ? "'" . addslashes($job[19]) . "'" : 'NULL'
     );
 }
 $sqlOutput .= "\n";
@@ -444,15 +429,15 @@ foreach ($jobs as $index => $job) {
     if (rand(1, 100) <= 70) {
         $clientName = $clients[$job[0] - 1][0];
         $title = $clientName . ' - ' . $job[1];
-        $startDate = $job[20] . ' 00:00:00';
-        $endDate = ($job[21] !== 'NULL' ? $job[21] : $job[20]) . ' 00:00:00';
+        $startDate = $job[3] . ' 00:00:00';
+        $endDate = $job[3] . ' 00:00:00';
         
         $startTime = sprintf('%02d:00:00', rand(8, 10));
         $endTime = sprintf('%02d:00:00', rand(15, 18));
         
-        $eventStatus = ($job[22] == 'Ολοκληρώθηκε' || $job[22] == 'Εξοφλήθηκε') ? 'Ολοκληρώθηκε' :
-                      (($job[22] == 'Σε εξέλιξη') ? 'Σε Εξέλιξη' :
-                      (($job[22] == 'Προγραμματισμένη') ? 'Επιβεβαιωμένη' : 'Σε Αναμονή'));
+        $eventStatus = ($job[16] == 'Ολοκληρώθηκε' || $job[16] == 'Εξοφλήθηκε') ? 'Ολοκληρώθηκε' :
+                      (($job[16] == 'Σε εξέλιξη') ? 'Σε Εξέλιξη' :
+                      (($job[16] == 'Προγραμματισμένη') ? 'Επιβεβαιωμένη' : 'Σε Αναμονή'));
         
         $color = $eventColors[array_rand($eventColors)];
         
@@ -465,11 +450,10 @@ foreach ($jobs as $index => $job) {
             0, // all_day
             $job[0], // client_id
             $index + 1, // job_id
-            $job[6], // address
-            $job[5], // description
+            $job[5], // address
+            $job[13], // notes as description
             $eventStatus,
-            $color,
-            0 // reminder_sent
+            $color
         ];
     }
 }
@@ -498,11 +482,10 @@ foreach ($jobs as $index => $job) {
             0, // all_day
             $job[0], // client_id
             $index + 1, // job_id
-            $job[6], // address
+            $job[5], // address
             'Προγραμματισμένη επίσκεψη παρακολούθησης',
             'Σε Αναμονή',
-            $color,
-            0 // reminder_sent
+            $color
         ];
     }
 }
@@ -527,7 +510,7 @@ foreach ($generalEvents as $gEvent) {
 $sqlOutput .= "-- CALENDAR EVENTS\n";
 foreach ($events as $event) {
     $sqlOutput .= sprintf(
-        "INSERT INTO calendar_events (title, start_date, end_date, start_time, end_time, all_day, client_id, job_id, address, description, status, color, reminder_sent) VALUES ('%s', '%s', '%s', %s, %s, %d, %s, %s, '%s', '%s', '%s', '%s', %d);\n",
+        "INSERT INTO calendar_events (title, start_date, end_date, start_time, end_time, all_day, client_id, job_id, address, description, status, color) VALUES ('%s', '%s', '%s', %s, %s, %d, %s, %s, '%s', '%s', '%s', '%s');\n",
         addslashes($event[0]), $event[1], $event[2],
         $event[3] ? "'" . $event[3] . "'" : 'NULL',
         $event[4] ? "'" . $event[4] . "'" : 'NULL',
@@ -535,7 +518,7 @@ foreach ($events as $event) {
         $event[6] !== null ? $event[6] : 'NULL', 
         $event[7] !== null ? $event[7] : 'NULL',
         addslashes($event[8]), addslashes($event[9]), 
-        addslashes($event[10]), addslashes($event[11]), $event[12]
+        addslashes($event[10]), addslashes($event[11])
     );
 }
 $sqlOutput .= "\n";
@@ -761,27 +744,21 @@ foreach ($jobs as $index => $job) {
         'type' => $job[2],
         'date' => $job[3],
         'next_visit' => $job[4],
-        'description' => $job[5],
-        'address' => $job[6],
-        'city' => $job[7],
-        'postal_code' => $job[8],
-        'rooms' => $job[9],
-        'area' => number_format($job[10], 2, '.', ''),
-        'substrate' => $job[11],
-        'materials_cost' => number_format($job[12], 2, '.', ''),
-        'kilometers' => number_format($job[13], 2, '.', ''),
-        'billing_hours' => number_format($job[14], 2, '.', ''),
-        'billing_rate' => number_format($job[15], 2, '.', ''),
-        'cost_per_km' => number_format($job[16], 2, '.', ''),
-        'notes' => $job[17],
-        'assigned_workers' => $job[18],
-        'paints' => $job[19],
-        'start_date' => $job[20],
-        'end_date' => $job[21] !== 'NULL' ? $job[21] : null,
-        'status' => $job[22],
-        'total_cost' => number_format($job[23], 2, '.', ''),
-        'is_paid' => $job[24],
-        'coordinates' => $job[25],
+        'address' => $job[5],
+        'rooms' => $job[6],
+        'area' => number_format($job[7], 2, '.', ''),
+        'materials_cost' => number_format($job[8], 2, '.', ''),
+        'kilometers' => number_format($job[9], 2, '.', ''),
+        'billing_hours' => number_format($job[10], 2, '.', ''),
+        'billing_rate' => number_format($job[11], 2, '.', ''),
+        'cost_per_km' => number_format($job[12], 2, '.', ''),
+        'notes' => $job[13],
+        'assigned_workers' => $job[14],
+        'paints' => $job[15],
+        'status' => $job[16],
+        'total_cost' => number_format($job[17], 2, '.', ''),
+        'is_paid' => $job[18],
+        'coordinates' => $job[19],
         'created_at' => date('Y-m-d H:i:s'),
         'updated_at' => date('Y-m-d H:i:s')
     ];
@@ -807,7 +784,6 @@ foreach ($events as $index => $event) {
         'description' => $event[9],
         'status' => $event[10],
         'color' => $event[11],
-        'reminder_sent' => $event[12],
         'created_at' => date('Y-m-d H:i:s'),
         'updated_at' => date('Y-m-d H:i:s')
     ];
@@ -873,12 +849,9 @@ foreach ($settings as $index => $setting) {
 }
 
 // Empty tables
-$jsonData['tables']['job_workers'] = ['count' => 0, 'data' => []];
-$jsonData['tables']['job_materials'] = ['count' => 0, 'data' => []];
 $jsonData['tables']['material_purchases'] = ['count' => 0, 'data' => []];
 $jsonData['tables']['material_purchase_items'] = ['count' => 0, 'data' => []];
 $jsonData['tables']['supplier_payments'] = ['count' => 0, 'data' => []];
-$jsonData['tables']['timesheets'] = ['count' => 0, 'data' => []];
 $jsonData['tables']['invoices'] = ['count' => 0, 'data' => []];
 
 // Save JSON file

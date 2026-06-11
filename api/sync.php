@@ -80,7 +80,7 @@ try {
         'clients', 'jobs', 'workers', 'materials', 'material_stock_movements',
         'suppliers', 'material_purchases', 'material_purchase_items', 'supplier_payments',
         'job_visits', 'job_payments',
-        'job_materials', 'invoices', 'templates', 'offers', 'calendar_events', 'settings'
+        'invoices', 'templates', 'offers', 'calendar_events', 'settings'
     ];
     
     if (!in_array($table, $allowedTables)) {
@@ -91,6 +91,8 @@ try {
     $db = getDBConnection();
     ensure_warehouse_schema($db);
     ensure_job_visits_schema($db);
+    $columnStmt = $db->query("SHOW COLUMNS FROM `$table`");
+    $validTableColumns = array_flip($columnStmt->fetchAll(PDO::FETCH_COLUMN));
     $processed = 0;
     $errors = [];
     
@@ -166,6 +168,10 @@ try {
                         logMessage("⚠️ Skipping invalid field name: $key", 'WARNING');
                         continue;
                     }
+                    if (!isset($validTableColumns[$safeKey])) {
+                        logMessage("⚠️ Skipping unknown column for $table: $safeKey", 'WARNING');
+                        continue;
+                    }
                     // Don't let the Electron client wipe a server-side Google Calendar link
                     if ($table === 'calendar_events' && $safeKey === 'google_event_id'
                         && ($value === null || $value === '')) {
@@ -173,6 +179,11 @@ try {
                     }
                     $fields[] = "$safeKey = ?";
                     $values[] = $value;
+                }
+                if (empty($fields)) {
+                    logMessage("ℹ️ No valid fields to update for $table record $id", 'INFO');
+                    $processed++;
+                    continue;
                 }
                 $values[] = $id;
                 
@@ -205,8 +216,17 @@ try {
                         logMessage("⚠️ Skipping invalid field name: $field", 'WARNING');
                         continue;
                     }
+                    if (!isset($validTableColumns[$safeField])) {
+                        logMessage("⚠️ Skipping unknown column for $table: $safeField", 'WARNING');
+                        continue;
+                    }
                     $fields[] = $safeField;
                     $values[] = $change[$field];
+                }
+                if (empty($fields)) {
+                    logMessage("ℹ️ No valid fields to insert for $table", 'INFO');
+                    $processed++;
+                    continue;
                 }
                 
                 $placeholders = array_fill(0, count($fields), '?');

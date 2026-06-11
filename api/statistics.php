@@ -145,7 +145,7 @@ try {
             case 'revenue':
                 $year = $_GET['year'] ?? date('Y');
                 // Fetch jobs for the year and compute month aggregates in PHP
-                $stmt = $pdo->prepare("SELECT * FROM jobs WHERE start_date IS NOT NULL AND YEAR(start_date) = :year AND (status = 'Εξοφλήθηκε' OR status = 'Ολοκληρώθηκε' OR is_paid = 1)");
+                $stmt = $pdo->prepare("SELECT * FROM jobs WHERE date IS NOT NULL AND YEAR(date) = :year AND (status = 'Εξοφλήθηκε' OR status = 'Ολοκληρώθηκε' OR is_paid = 1)");
                 $stmt->execute(['year' => $year]);
                 $jobs = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -162,7 +162,7 @@ try {
                 }
 
                 foreach ($jobs as $job) {
-                    $dt = strtotime($job['start_date']);
+                    $dt = strtotime($job['date']);
                     if ($dt === false) continue;
                     $m = (int)date('n', $dt);
                     $fin = compute_job_financials($job);
@@ -178,13 +178,13 @@ try {
             
             // Έσοδα ανά έτος (σύνολο) - aggregate using job-level financials
             case 'revenue_by_year':
-                $stmt = $pdo->prepare("SELECT * FROM jobs WHERE start_date IS NOT NULL AND (status = 'Εξοφλήθηκε' OR status = 'Ολοκληρώθηκε' OR is_paid = 1) ORDER BY start_date DESC");
+                $stmt = $pdo->prepare("SELECT * FROM jobs WHERE date IS NOT NULL AND (status = 'Εξοφλήθηκε' OR status = 'Ολοκληρώθηκε' OR is_paid = 1) ORDER BY date DESC");
                 $stmt->execute();
                 $jobs = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
                 $years = [];
                 foreach ($jobs as $job) {
-                    $dt = strtotime($job['start_date']);
+                    $dt = strtotime($job['date']);
                     if ($dt === false) continue;
                     $y = (int)date('Y', $dt);
                     if (!isset($years[$y])) {
@@ -212,7 +212,7 @@ try {
                 $sql = "SELECT * FROM jobs WHERE (status = 'Εξοφλήθηκε' OR status = 'Ολοκληρώθηκε' OR is_paid = 1)";
                 $params = [];
                 if ($year) {
-                    $sql .= " AND YEAR(start_date) = :year";
+                    $sql .= " AND YEAR(date) = :year";
                     $params['year'] = $year;
                 }
                 $stmt = $pdo->prepare($sql);
@@ -253,8 +253,7 @@ try {
                         j.total_cost as revenue,
                         j.materials_cost,
                         (j.total_cost - j.materials_cost) as profit,
-                        j.start_date,
-                        j.end_date,
+                        j.date,
                         j.status
                     FROM jobs j
                     LEFT JOIN clients c ON j.client_id = c.id
@@ -263,7 +262,7 @@ try {
                 ";
                 
                 if ($year) {
-                    $sql .= " AND YEAR(j.start_date) = :year";
+                    $sql .= " AND YEAR(j.date) = :year";
                 }
                 
                 $sql .= " ORDER BY profit DESC LIMIT :limit";
@@ -298,26 +297,22 @@ try {
             case 'materials_usage':
                 $year = $_GET['year'] ?? null;
                 
-                // Πρώτα προσπαθούμε να πάρουμε από job_materials
+                // Το current UI αποθηκεύει υλικά εργασίας στο jobs.paints JSON.
                 $sql = "
                     SELECT 
-                        m.name,
-                        m.category,
-                        SUM(jm.quantity) as total_quantity,
-                        m.unit,
-                        SUM(jm.total_cost) as total_cost,
-                        COUNT(DISTINCT jm.job_id) as jobs_count
-                    FROM job_materials jm
-                    INNER JOIN materials m ON jm.material_id = m.id
-                    INNER JOIN jobs j ON jm.job_id = j.id
-                    WHERE (j.status = 'Εξοφλήθηκε' OR j.status = 'Ολοκληρώθηκε' OR j.is_paid = 1)
+                        j.id,
+                        j.paints,
+                        j.title
+                    FROM jobs j
+                    WHERE j.paints IS NOT NULL 
+                        AND j.paints != '[]'
+                        AND j.paints != ''
+                        AND (j.status = 'Εξοφλήθηκε' OR j.status = 'Ολοκληρώθηκε' OR j.is_paid = 1)
                 ";
                 
                 if ($year) {
-                    $sql .= " AND YEAR(j.start_date) = :year";
+                    $sql .= " AND YEAR(j.date) = :year";
                 }
-                
-                $sql .= " GROUP BY m.id ORDER BY total_cost DESC LIMIT 10";
                 
                 $stmt = $pdo->prepare($sql);
                 if ($year) {
@@ -325,80 +320,48 @@ try {
                 } else {
                     $stmt->execute();
                 }
+                $jobs = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 
-                $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                // Επεξεργασία JSON paints
+                $paintsCount = [];
+                $paintsJobs = [];
                 
-                // Αν δεν υπάρχουν δεδομένα στο job_materials, πάρε από paints
-                if (empty($data)) {
-                    $sql = "
-                        SELECT 
-                            j.id,
-                            j.paints,
-                            j.title
-                        FROM jobs j
-                        WHERE j.paints IS NOT NULL 
-                            AND j.paints != '[]'
-                            AND j.paints != ''
-                            AND (j.status = 'Εξοφλήθηκε' OR j.status = 'Ολοκληρώθηκε' OR j.is_paid = 1)
-                    ";
-                    
-                    if ($year) {
-                        $sql .= " AND YEAR(j.start_date) = :year";
-                    }
-                    
-                    $stmt = $pdo->prepare($sql);
-                    if ($year) {
-                        $stmt->execute(['year' => $year]);
-                    } else {
-                        $stmt->execute();
-                    }
-                    
-                    $jobs = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                    
-                    // Επεξεργασία JSON paints
-                    $paintsCount = [];
-                    $paintsJobs = [];
-                    
-                    foreach ($jobs as $job) {
-                        $paints = json_decode($job['paints'], true);
-                        if (is_array($paints)) {
-                            foreach ($paints as $paint) {
-                                $paintName = $paint['name'] ?? 'Άγνωστο';
-                                
-                                if (!isset($paintsCount[$paintName])) {
-                                    $paintsCount[$paintName] = 0;
-                                    $paintsJobs[$paintName] = [];
-                                }
-                                
-                                $paintsCount[$paintName]++;
-                                if (!in_array($job['id'], $paintsJobs[$paintName])) {
-                                    $paintsJobs[$paintName][] = $job['id'];
-                                }
+                foreach ($jobs as $job) {
+                    $paints = json_decode($job['paints'], true);
+                    if (is_array($paints)) {
+                        foreach ($paints as $paint) {
+                            $paintName = $paint['name'] ?? 'Άγνωστο';
+                            
+                            if (!isset($paintsCount[$paintName])) {
+                                $paintsCount[$paintName] = 0;
+                                $paintsJobs[$paintName] = [];
+                            }
+                            
+                            $paintsCount[$paintName]++;
+                            if (!in_array($job['id'], $paintsJobs[$paintName])) {
+                                $paintsJobs[$paintName][] = $job['id'];
                             }
                         }
                     }
-                    
-                    // Μετατροπή σε array για το response
-                    $data = [];
-                    foreach ($paintsCount as $name => $count) {
-                        $data[] = [
-                            'name' => $name,
-                            'category' => 'Χρώματα',
-                            'total_quantity' => $count,
-                            'unit' => 'χρήσεις',
-                            'total_cost' => 0, // Δεν έχουμε κόστος από paints
-                            'jobs_count' => count($paintsJobs[$name])
-                        ];
-                    }
-                    
-                    // Ταξινόμηση με βάση τις χρήσεις
-                    usort($data, function($a, $b) {
-                        return $b['total_quantity'] - $a['total_quantity'];
-                    });
-                    
-                    // Top 10
-                    $data = array_slice($data, 0, 10);
                 }
+                
+                $data = [];
+                foreach ($paintsCount as $name => $count) {
+                    $data[] = [
+                        'name' => $name,
+                        'category' => 'Χρώματα',
+                        'total_quantity' => $count,
+                        'unit' => 'χρήσεις',
+                        'total_cost' => 0,
+                        'jobs_count' => count($paintsJobs[$name])
+                    ];
+                }
+                
+                usort($data, function($a, $b) {
+                    return $b['total_quantity'] - $a['total_quantity'];
+                });
+                
+                $data = array_slice($data, 0, 10);
                 
                 foreach ($data as &$row) {
                     $row['total_quantity'] = (float)$row['total_quantity'];
@@ -419,7 +382,7 @@ try {
                 $sql = "SELECT * FROM jobs WHERE 1=1";
                 $params = [];
                 if ($year) {
-                    $sql .= " AND YEAR(start_date) = :year";
+                    $sql .= " AND YEAR(date) = :year";
                     $params['year'] = $year;
                 }
                 $stmt = $pdo->prepare($sql);
@@ -459,9 +422,9 @@ try {
             // Διαθέσιμα έτη για φιλτράρισμα
             case 'available_years':
                 $stmt = $pdo->query("
-                    SELECT DISTINCT YEAR(start_date) as year
+                    SELECT DISTINCT YEAR(date) as year
                     FROM jobs
-                    WHERE start_date IS NOT NULL
+                    WHERE date IS NOT NULL
                     ORDER BY year DESC
                 ");
                 $years = $stmt->fetchAll(PDO::FETCH_COLUMN);
@@ -488,7 +451,7 @@ try {
                         SUM(CASE WHEN status = 'Εξοφλήθηκε' OR status = 'Ολοκληρώθηκε' OR is_paid = 1 THEN (total_cost - materials_cost) ELSE 0 END) as total_profit,
                         AVG(CASE WHEN status = 'Εξοφλήθηκε' OR status = 'Ολοκληρώθηκε' OR is_paid = 1 THEN total_cost ELSE NULL END) as avg_job_cost
                     FROM jobs
-                    WHERE YEAR(start_date) = :year
+                    WHERE YEAR(date) = :year
                 ");
                 $stmt->execute(['year' => $year]);
                 $summary = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -502,7 +465,7 @@ try {
                 // Backward-compatible totals computed via job-level financials
                 $billingSum = 0.0;
                 $profitSum = 0.0;
-                $stmt2 = $pdo->prepare("SELECT * FROM jobs WHERE YEAR(start_date) = :year AND (status = 'Εξοφλήθηκε' OR status = 'Ολοκληρώθηκε' OR is_paid = 1)");
+                $stmt2 = $pdo->prepare("SELECT * FROM jobs WHERE YEAR(date) = :year AND (status = 'Εξοφλήθηκε' OR status = 'Ολοκληρώθηκε' OR is_paid = 1)");
                 $stmt2->execute(['year' => $year]);
                 $jobsYear = $stmt2->fetchAll(PDO::FETCH_ASSOC);
                 foreach ($jobsYear as $jr) {

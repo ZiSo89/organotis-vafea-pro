@@ -238,8 +238,8 @@ function upsert_calendar_event_for_job($db, $jobId) {
         return;
     }
 
-    $cleanTitle  = $job['client_name'] ?: ($job['title'] ?: ($job['type'] ?: 'Εργασία'));
-    $description = $job['notes'] ?: ($job['description'] ?? '');
+    $cleanTitle  = $job['client_name'] ?: ($job['title'] ?: 'Εργασία');
+    $description = $job['notes'] ?? '';
     $address     = $job['address'] ?? '';
     $status      = normalizeEventStatus($job['status'] ?? '');
     $color       = getEventColor($job['status'] ?? '');
@@ -253,18 +253,13 @@ function upsert_calendar_event_for_job($db, $jobId) {
         $allDay = $startTime ? 0 : 1;
     }
 
-    // visit_end_date = λήξη επίσκεψης· fallback σε παλιό end_date αν δεν έχει migrate-αριστεί ακόμα
+    // visit_end_date = λήξη επίσκεψης· calendar_events.end_date μένει πεδίο ημερολογίου.
     $endDate = $startDate;
     $visitEnd = $job['visit_end_date'] ?? null;
     if (!empty($visitEnd) && substr($visitEnd, 0, 10) !== '0000-00-00') {
         $ve = substr($visitEnd, 0, 10);
         if ($ve >= $startDate) {
             $endDate = $ve;
-        }
-    } elseif (!empty($job['end_date']) && substr($job['end_date'], 0, 10) !== '0000-00-00') {
-        $legacy = substr($job['end_date'], 0, 10);
-        if ($legacy >= $startDate) {
-            $endDate = $legacy;
         }
     } elseif ($existing && !empty($existing['end_date'])) {
         $evEnd = substr($existing['end_date'], 0, 10);

@@ -179,13 +179,9 @@ CREATE TABLE `jobs` (
   `visit_start_time` time DEFAULT NULL,
   `visit_end_time` time DEFAULT NULL,
   `visit_all_day` tinyint(1) NOT NULL DEFAULT 1,
-  `description` text DEFAULT NULL,
   `address` text DEFAULT NULL,
-  `city` varchar(100) DEFAULT NULL,
-  `postal_code` varchar(10) DEFAULT NULL,
   `rooms` int(11) DEFAULT NULL,
   `area` decimal(10,2) DEFAULT NULL,
-  `substrate` varchar(100) DEFAULT NULL,
   `materials_cost` decimal(10,2) DEFAULT 0.00,
   `kilometers` decimal(10,2) DEFAULT 0.00,
   `billing_hours` decimal(10,2) DEFAULT 0.00,
@@ -196,8 +192,6 @@ CREATE TABLE `jobs` (
   `notes` text DEFAULT NULL,
   `assigned_workers` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`assigned_workers`)),
   `paints` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`paints`)),
-  `start_date` date DEFAULT NULL,
-  `end_date` date DEFAULT NULL,
   `status` varchar(50) DEFAULT 'Υποψήφιος',
   `total_cost` decimal(10,2) DEFAULT 0.00,
   `is_paid` tinyint(1) DEFAULT 0,
@@ -213,38 +207,6 @@ CREATE TABLE `jobs` (
   KEY `idx_jobs_status_date` (`status`, `date`),
   KEY `idx_jobs_client_status` (`client_id`, `status`),
   CONSTRAINT `jobs_ibfk_1` FOREIGN KEY (`client_id`) REFERENCES `clients` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- JOB_WORKERS TABLE
-CREATE TABLE `job_workers` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `job_id` int(11) NOT NULL,
-  `worker_id` int(11) NOT NULL,
-  `hours_allocated` decimal(10,2) DEFAULT 0.00,
-  `hourly_rate` decimal(10,2) DEFAULT 0.00,
-  `labor_cost` decimal(10,2) DEFAULT 0.00,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  PRIMARY KEY (`id`),
-  KEY `job_id` (`job_id`),
-  KEY `worker_id` (`worker_id`),
-  CONSTRAINT `job_workers_ibfk_1` FOREIGN KEY (`job_id`) REFERENCES `jobs` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `job_workers_ibfk_2` FOREIGN KEY (`worker_id`) REFERENCES `workers` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- JOB_MATERIALS TABLE
-CREATE TABLE `job_materials` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `job_id` int(11) NOT NULL,
-  `material_id` int(11) NOT NULL,
-  `quantity` decimal(10,2) DEFAULT 0.00,
-  `unit_price` decimal(10,2) DEFAULT 0.00,
-  `total_cost` decimal(10,2) DEFAULT 0.00,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  PRIMARY KEY (`id`),
-  KEY `job_id` (`job_id`),
-  KEY `material_id` (`material_id`),
-  CONSTRAINT `job_materials_ibfk_1` FOREIGN KEY (`job_id`) REFERENCES `jobs` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `job_materials_ibfk_2` FOREIGN KEY (`material_id`) REFERENCES `materials` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- JOB_VISITS TABLE (επισκέψεις εργασίας με ώρες ανά εργάτη)
@@ -277,25 +239,6 @@ CREATE TABLE `job_payments` (
   CONSTRAINT `job_payments_ibfk_1` FOREIGN KEY (`job_id`) REFERENCES `jobs` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- TIMESHEETS TABLE
-CREATE TABLE `timesheets` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `worker_id` int(11) NOT NULL,
-  `job_id` int(11) DEFAULT NULL,
-  `date` date NOT NULL,
-  `hours_worked` decimal(10,2) DEFAULT 0.00,
-  `hourly_rate` decimal(10,2) DEFAULT 0.00,
-  `total_payment` decimal(10,2) DEFAULT 0.00,
-  `notes` text DEFAULT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  PRIMARY KEY (`id`),
-  KEY `worker_id` (`worker_id`),
-  KEY `job_id` (`job_id`),
-  KEY `idx_timesheets_date` (`date`),
-  CONSTRAINT `timesheets_ibfk_1` FOREIGN KEY (`worker_id`) REFERENCES `workers` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `timesheets_ibfk_2` FOREIGN KEY (`job_id`) REFERENCES `jobs` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 -- CALENDAR_EVENTS TABLE
 CREATE TABLE `calendar_events` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
@@ -312,7 +255,6 @@ CREATE TABLE `calendar_events` (
   `description` text DEFAULT NULL,
   `status` varchar(50) DEFAULT 'pending',
   `color` varchar(20) DEFAULT '#3b82f6',
-  `reminder_sent` tinyint(1) DEFAULT 0,
   `google_event_id` varchar(255) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
@@ -357,13 +299,13 @@ CREATE TABLE `invoices` (
   `client_id` int(11) DEFAULT NULL,
   `invoice_number` varchar(50) NOT NULL,
   `date` date NOT NULL,
-  `due_date` date DEFAULT NULL,
   `items` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`items`)),
   `subtotal` decimal(10,2) DEFAULT 0.00,
   `tax` decimal(10,2) DEFAULT 0.00,
   `discount` decimal(10,2) DEFAULT 0.00,
   `total` decimal(10,2) DEFAULT 0.00,
-  `status` varchar(50) DEFAULT 'unpaid',
+  `is_paid` tinyint(1) DEFAULT 0,
+  `paid_date` date DEFAULT NULL,
   `notes` text DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
@@ -372,7 +314,7 @@ CREATE TABLE `invoices` (
   KEY `job_id` (`job_id`),
   KEY `client_id` (`client_id`),
   KEY `idx_invoices_date` (`date`),
-  KEY `idx_invoices_status` (`status`),
+  KEY `idx_invoices_paid` (`is_paid`),
   CONSTRAINT `invoices_ibfk_1` FOREIGN KEY (`job_id`) REFERENCES `jobs` (`id`) ON DELETE SET NULL,
   CONSTRAINT `invoices_ibfk_2` FOREIGN KEY (`client_id`) REFERENCES `clients` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

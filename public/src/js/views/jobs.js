@@ -347,11 +347,11 @@ window.JobsView = {
               </div>
 
               <div class="form-group" id="jobBillingHoursGroup">
-                <label title="Συμπληρώνεται αυτόματα από τις ώρες εργασίας και μπορεί να αυξηθεί">
+                <label title="Συμπληρώνεται αυτόματα από τις ώρες εργασίας και τις ώρες επισκέψεων και μπορεί να αυξηθεί">
                   Ώρες Χρέωσης <i class="fas fa-info-circle" style="font-size: 0.8em; color: var(--text-muted);"></i>
                 </label>
                 <input type="number" id="jobBillingHours" min="0" value="0"
-                       title="Δεν μπορεί να είναι μικρότερο από τις συνολικές ώρες εργασίας">
+                       title="Δεν μπορεί να είναι μικρότερο από τις συνολικές δουλεμένες ώρες">
               </div>
 
               <div class="form-group" id="jobBillingRateGroup">
@@ -448,11 +448,11 @@ window.JobsView = {
                     </div>
                     <div class="financial-body">
                       <div class="financial-row">
-                        <span>Κρυφό κόστος ιδιοκτήτη</span>
+                        <span>Αξία χρόνου ιδιοκτήτη</span>
                         <strong id="ownerOpportunityCostDisplay">0.00 €</strong>
                       </div>
                       <div class="financial-row total">
-                        <span>Κέρδος με κόστος ιδιοκτήτη</span>
+                        <span>Κέρδος μετά την αξία χρόνου</span>
                         <strong id="economicProfitDisplay">0.00 €</strong>
                       </div>
                     </div>
@@ -1046,6 +1046,65 @@ window.JobsView = {
     return payments.filter(p => Number(p.jobId || p.job_id) === Number(jobId));
   },
 
+  async setJobPaymentState(jobId, status, isPaid) {
+    const job = State.read('jobs', jobId);
+    if (!job) return null;
+
+    const currentIsPaid = Number(job.isPaid ?? job.is_paid ?? 0);
+    if (job.status === status && currentIsPaid === Number(isPaid)) {
+      return job;
+    }
+
+    const updatedJob = await State.update('jobs', jobId, {
+      ...job,
+      status,
+      isPaid: Number(isPaid)
+    });
+
+    if (Number(this.currentEdit) === Number(jobId)) {
+      const statusEl = document.getElementById('jobStatus');
+      if (statusEl) statusEl.value = status;
+    }
+
+    return updatedJob;
+  },
+
+  async syncJobStatusFromPayments(jobId) {
+    const job = State.read('jobs', jobId);
+    if (!job) return null;
+
+    const fin = this.computeJobFinancials(job);
+    const isFullyPaid = fin.billingAmount > 0 && fin.balance <= 0.005;
+
+    if (isFullyPaid) {
+      return this.setJobPaymentState(jobId, 'Εξοφλήθηκε', 1);
+    }
+
+    if (job.status === 'Εξοφλήθηκε' || Number(job.isPaid ?? job.is_paid ?? 0) === 1) {
+      return this.setJobPaymentState(jobId, 'Ολοκληρώθηκε', 0);
+    }
+
+    return job;
+  },
+
+  async ensurePaymentForPaidStatus(jobId) {
+    const job = State.read('jobs', jobId);
+    if (!job || job.status !== 'Εξοφλήθηκε') return null;
+
+    const fin = this.computeJobFinancials(job);
+    if (fin.billingAmount <= 0 || fin.balance <= 0.005) return null;
+
+    const payment = await State.create('jobPayments', {
+      jobId: Number(jobId),
+      paymentDate: new Date().toISOString().split('T')[0],
+      amount: Number(fin.balance.toFixed(2)),
+      notes: 'Αυτόματη εξόφληση από την κατάσταση εργασίας'
+    });
+
+    Toast.info(`Προστέθηκε αυτόματη πληρωμή ${Utils.formatCurrency(fin.balance)} για εξόφληση.`);
+    return payment;
+  },
+
   /** Αθροίσματα ωρών/κόστους μιας επίσκεψης */
   getVisitTotals(visit) {
     let workers = visit.workers;
@@ -1119,6 +1178,47 @@ window.JobsView = {
       acc.ownerOpportunityCost += totals.ownerOpportunityCost;
       return acc;
     }, { visitCount: 0, totalHours: 0, laborCost: 0, ownerHours: 0, ownerOpportunityCost: 0 });
+  },
+
+  getWorkedTimeTotals(jobId, assignedWorkers = []) {
+    const actuals = jobId ? this.getVisitWorkerActuals(jobId) : new Map();
+    const assignedKeys = new Set();
+    const totals = { totalHours: 0, ownerHours: 0, ownerOpportunityCost: 0 };
+
+    assignedWorkers.forEach(worker => {
+      const workerId = worker.workerId ?? worker.worker_id;
+      const workerName = worker.workerName ?? worker.worker_name ?? worker.name ?? '';
+      const key = workerId ? `id:${workerId}` : `name:${workerName}`;
+      assignedKeys.add(key);
+
+      const assignedHours = parseFloat(worker.hoursAllocated ?? worker.hours_allocated ?? 0) || 0;
+      const actual = actuals.get(key);
+      const actualHours = parseFloat(actual?.actualHours || 0) || 0;
+      const workedHours = assignedHours + actualHours;
+      const hourlyRate = parseFloat(worker.hourlyRate ?? worker.hourly_rate ?? actual?.hourlyRate ?? 0) || 0;
+      const workerType = (worker.workerType || worker.worker_type || actual?.workerType) === 'owner' ? 'owner' : 'employee';
+
+      totals.totalHours += workedHours;
+      if (workerType === 'owner') {
+        totals.ownerHours += workedHours;
+        totals.ownerOpportunityCost += (assignedHours * hourlyRate) + (parseFloat(actual?.ownerOpportunityCost || 0) || 0);
+      }
+    });
+
+    actuals.forEach((actual, key) => {
+      if (assignedKeys.has(key)) return;
+      const actualHours = parseFloat(actual.actualHours || 0) || 0;
+      const hourlyRate = parseFloat(actual.hourlyRate || 0) || 0;
+      const workerType = actual.workerType === 'owner' ? 'owner' : 'employee';
+
+      totals.totalHours += actualHours;
+      if (workerType === 'owner') {
+        totals.ownerHours += actualHours;
+        totals.ownerOpportunityCost += actualHours * hourlyRate;
+      }
+    });
+
+    return totals;
   },
 
   renderVisitsSection(jobId, mode = 'edit') {
@@ -1214,7 +1314,8 @@ window.JobsView = {
     }
 
     const job = State.read('jobs', jobId);
-    const fin = financials || (job ? this.computeJobFinancials(job) : { billingAmount: 0, paidAmount: 0, balance: 0 });
+    const baseFinancials = financials || (job ? this.computeJobFinancials(job) : { billingAmount: 0, paidAmount: 0, balance: 0 });
+    const fin = isEdit ? this.getCurrentFormPaymentFinancials(jobId, baseFinancials) : baseFinancials;
     const payments = this.getPaymentsForJob(jobId)
       .slice()
       .sort((a, b) => String(b.paymentDate || b.payment_date || '').localeCompare(String(a.paymentDate || a.payment_date || '')));
@@ -1232,15 +1333,15 @@ window.JobsView = {
         <div class="detail-grid" style="margin-bottom: 10px;">
           <div class="detail-item">
             <label>Σύνολο Χρέωσης:</label>
-            <span><strong>${Utils.formatCurrency(fin.billingAmount || 0)}</strong></span>
+            <span><strong id="paymentsBillingAmountDisplay">${Utils.formatCurrency(fin.billingAmount || 0)}</strong></span>
           </div>
           <div class="detail-item">
             <label>Πληρωμένο:</label>
-            <span style="color: var(--success);"><strong>${Utils.formatCurrency(fin.paidAmount || 0)}</strong></span>
+            <span style="color: var(--success);"><strong id="paymentsPaidAmountDisplay">${Utils.formatCurrency(fin.paidAmount || 0)}</strong></span>
           </div>
           <div class="detail-item">
             <label>Υπόλοιπο:</label>
-            <span style="color: ${(fin.balance || 0) > 0.005 ? 'var(--error)' : 'var(--success)'};"><strong>${Utils.formatCurrency(fin.balance || 0)}</strong></span>
+            <span id="paymentsBalanceWrap" style="color: ${(fin.balance || 0) > 0.005 ? 'var(--error)' : 'var(--success)'};"><strong id="paymentsBalanceDisplay">${Utils.formatCurrency(fin.balance || 0)}</strong></span>
           </div>
         </div>
         ${payments.length > 0 ? `
@@ -1278,6 +1379,42 @@ window.JobsView = {
         ` : '<p class="text-muted" style="font-style: italic;">Δεν έχουν καταχωρηθεί πληρωμές ακόμα.</p>'}
       </div>
     `;
+  },
+
+  getCurrentFormPaymentFinancials(jobId, fallbackFinancials = {}) {
+    const payments = this.getPaymentsForJob(jobId);
+    const paidAmount = payments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+
+    let billingAmount = parseFloat(fallbackFinancials.billingAmount || 0) || 0;
+    if (Number(this.currentEdit) === Number(jobId) && document.getElementById('jobForm')?.style.display !== 'none') {
+      const billingType = this.getFormBillingType();
+      const billingHours = parseFloat(document.getElementById('jobBillingHours')?.value || 0) || 0;
+      const billingRate = parseFloat(document.getElementById('jobBillingRate')?.value || 0) || 0;
+      const agreedPrice = parseFloat(document.getElementById('jobAgreedPrice')?.value || 0) || 0;
+      billingAmount = billingType === 'fixed' ? agreedPrice : billingHours * billingRate;
+    }
+
+    return {
+      ...fallbackFinancials,
+      billingAmount,
+      paidAmount,
+      balance: billingAmount - paidAmount
+    };
+  },
+
+  updatePaymentsSummaryFromForm() {
+    if (!this.currentEdit) return;
+
+    const fin = this.getCurrentFormPaymentFinancials(this.currentEdit);
+    const billingEl = document.getElementById('paymentsBillingAmountDisplay');
+    const paidEl = document.getElementById('paymentsPaidAmountDisplay');
+    const balanceEl = document.getElementById('paymentsBalanceDisplay');
+    const balanceWrap = document.getElementById('paymentsBalanceWrap');
+
+    if (billingEl) billingEl.textContent = Utils.formatCurrency(fin.billingAmount || 0);
+    if (paidEl) paidEl.textContent = Utils.formatCurrency(fin.paidAmount || 0);
+    if (balanceEl) balanceEl.textContent = Utils.formatCurrency(fin.balance || 0);
+    if (balanceWrap) balanceWrap.style.color = (fin.balance || 0) > 0.005 ? 'var(--error)' : 'var(--success)';
   },
 
   renderFinancialSummary(job, options = {}) {
@@ -1320,11 +1457,11 @@ window.JobsView = {
           <span>${fin.ownerHours.toFixed(1)} ώρες</span>
         </div>
         <div class="detail-item">
-          <label>Κρυφό Κόστος Ιδιοκτήτη:</label>
+          <label>Αξία Χρόνου Ιδιοκτήτη:</label>
           <span style="color: ${fin.ownerOpportunityCost > 0 ? 'var(--warning, #f59e0b)' : 'var(--success)'};">${Utils.formatCurrency(fin.ownerOpportunityCost)}</span>
         </div>
         <div class="detail-item span-2">
-          <label>Κέρδος αν κοστολογηθεί ο ιδιοκτήτης:</label>
+          <label>Κέρδος μετά την αξία χρόνου:</label>
           <span><strong style="color: ${fin.economicProfit >= 0 ? 'var(--success)' : 'var(--error)'};">${fin.economicProfit >= 0 ? '+' : ''}${Utils.formatCurrency(fin.economicProfit)}</strong></span>
         </div>
         <div class="detail-item span-2" style="border-top: 2px solid var(--border-color); padding-top: 1rem; margin-top: 0.5rem;">
@@ -1369,6 +1506,10 @@ window.JobsView = {
         }
       });
     }
+    const workedTotals = this.getWorkedTimeTotals(job.id, assignedWorkers);
+    actualHours = workedTotals.totalHours;
+    ownerHours = workedTotals.ownerHours;
+    ownerOpportunityCost = workedTotals.ownerOpportunityCost;
 
     const materialsCost = parseFloat(job.materialsCost || job.materials_cost || 0);
     const kilometers = parseFloat(job.kilometers || 0);
@@ -1427,7 +1568,7 @@ window.JobsView = {
 
   applyMinimumCostFields(enforce = false) {
     const materialTotal = this.getMaterialCostTotal();
-    const workerHoursTotal = this.getAssignedWorkerHoursTotal();
+    const workerHoursTotal = this.getWorkedTimeTotals(this.currentEdit, this.assignedWorkers).totalHours;
     const materialsInput = document.getElementById('jobMaterialsCost');
     const billingHoursInput = document.getElementById('jobBillingHours');
 
@@ -1474,8 +1615,9 @@ window.JobsView = {
       const rate = parseFloat(worker.hourlyRate || worker.hourly_rate || 0) || 0;
       return sum + (hours * rate);
     }, 0);
-    const ownerOpportunityCost = visitTotals.visitCount > 0 ? visitTotals.ownerOpportunityCost : ownerFallback;
-    const actualHours = visitTotals.visitCount > 0 ? visitTotals.totalHours : this.getAssignedWorkerHoursTotal();
+    const workedTotals = this.getWorkedTimeTotals(this.currentEdit, this.assignedWorkers);
+    const ownerOpportunityCost = workedTotals.ownerOpportunityCost || ownerFallback;
+    const actualHours = workedTotals.totalHours;
     const travelCost = kilometers * costPerKm; // Κόστος μετακίνησης
     const totalExpenses = materials + laborCost + travelCost; // Συνολικά έξοδα
 
@@ -1518,6 +1660,7 @@ window.JobsView = {
       economicProfitDisplay.textContent = `${economicProfit >= 0 ? '+' : ''}${Utils.formatCurrency(economicProfit)}`;
       economicProfitDisplay.style.color = economicProfit >= 0 ? 'var(--success)' : 'var(--error)';
     }
+    this.updatePaymentsSummaryFromForm();
     
     if (profitDisplay) {
       // Format profit with sign
@@ -1754,6 +1897,10 @@ window.JobsView = {
         this.currentEdit = Number(savedJobId);
         const formTitle = document.getElementById('formTitle');
         if (formTitle) formTitle.textContent = 'Επεξεργασία Εργασίας';
+        if (jobStatus === 'Εξοφλήθηκε') {
+          await this.ensurePaymentForPaidStatus(savedJobId);
+        }
+        await this.syncJobStatusFromPayments(savedJobId);
         this.refreshJobFormLinkedSections(this.currentEdit);
       }
       this.refreshTable();
@@ -2244,7 +2391,8 @@ window.JobsView = {
 
   openPaymentModal(jobId, payment = null, context = 'view') {
     const job = State.read('jobs', jobId);
-    const fin = job ? this.computeJobFinancials(job) : null;
+    const baseFinancials = job ? this.computeJobFinancials(job) : null;
+    const fin = context === 'edit' ? this.getCurrentFormPaymentFinancials(jobId, baseFinancials || {}) : baseFinancials;
     const suggested = payment ? (payment.amount || '') : (fin && fin.balance > 0 ? fin.balance.toFixed(2) : '');
     const today = new Date().toISOString().split('T')[0];
     const paymentDate = payment ? String(payment.paymentDate || payment.payment_date || today).substring(0, 10) : today;
@@ -2333,6 +2481,7 @@ window.JobsView = {
               await State.create('jobPayments', payload);
               Toast.success('Η πληρωμή καταχωρήθηκε');
             }
+            await this.syncJobStatusFromPayments(jobId);
             Modal.close();
             this.refreshTable();
             returnToJob();
@@ -2351,6 +2500,7 @@ window.JobsView = {
       onConfirm: async () => {
         try {
           await State.delete('jobPayments', paymentId);
+          await this.syncJobStatusFromPayments(jobId);
           Toast.success('Η πληρωμή διαγράφηκε');
           this.refreshTable();
           setTimeout(() => {
@@ -2799,24 +2949,22 @@ window.JobsView = {
       }
 
       container.innerHTML = `
-        <p class="text-muted" style="font-style: italic;">Δεν έχουν ανατεθεί εργάτες, αλλά υπάρχουν πραγματικές ώρες από επισκέψεις.</p>
+        <p class="text-muted" style="font-style: italic;">Δεν έχουν ανατεθεί εργάτες, αλλά υπάρχουν ώρες από επισκέψεις.</p>
         <div class="table-wrapper">
           <table class="data-table" style="margin-top: 10px;">
             <thead>
               <tr>
                 <th>Εργάτης</th>
-                <th>Τύπος</th>
-                <th>Πραγματικές Ώρες</th>
-                <th>Πραγματικό Κόστος</th>
-                <th>Κρυφό Κόστος Ιδιοκτήτη</th>
+                <th>Ώρες Επισκ.</th>
+                <th>Κόστος Επισκ.</th>
+                <th>Αξία Χρόνου Ιδιοκτήτη</th>
               </tr>
             </thead>
             <tbody>
               ${actuals.map(actual => `
                 <tr>
-                  <td><strong>${actual.workerName}</strong><br><small class="text-muted">Μόνο από επισκέψεις</small></td>
-                  <td>${actual.workerType === 'owner' ? 'Ιδιοκτήτης' : 'Υπάλληλος'}</td>
-                  <td>${actual.actualHours.toFixed(1)}h</td>
+                  <td><strong>${actual.workerName}</strong><br><small class="text-muted">${actual.workerType === 'owner' ? 'Ιδιοκτήτης · ' : ''}Μόνο από επισκέψεις</small></td>
+                  <td><strong>${actual.actualHours.toFixed(1)}h</strong><br><small class="text-muted">${actual.actualHours.toFixed(1)}h × ${Utils.formatCurrency(actual.hourlyRate)}/ώρα = ${Utils.formatCurrency(actual.actualHours * actual.hourlyRate)}</small></td>
                   <td><strong style="color: var(--accent-primary);">${Utils.formatCurrency(actual.actualLaborCost)}</strong></td>
                   <td><strong style="color: ${(actual.ownerOpportunityCost || 0) > 0 ? 'var(--warning, #f59e0b)' : 'var(--text-muted)'};">${Utils.formatCurrency(actual.ownerOpportunityCost || 0)}</strong></td>
                 </tr>
@@ -2870,6 +3018,7 @@ window.JobsView = {
 
     const totalPlannedHours = rows.reduce((sum, w) => sum + w.plannedHours, 0);
     const totalActualHours = rows.reduce((sum, w) => sum + w.actualHours, 0);
+    const totalDisplayedHours = totalPlannedHours + totalActualHours;
     const totalActualCost = rows.reduce((sum, w) => sum + w.actualLaborCost, 0);
     const totalOwnerOpportunityCost = rows.reduce((sum, w) => sum + (w.ownerOpportunityCost || 0), 0);
     const fallbackCost = this.assignedWorkers.reduce((sum, w) => sum + (parseFloat(w.laborCost || w.labor_cost || 0) || 0), 0);
@@ -2882,14 +3031,10 @@ window.JobsView = {
             <tr>
               <th style="width: 100px;">Ενέργειες</th>
               <th>Εργάτης</th>
-              <th>Τύπος</th>
-              <th>Ειδικότητα</th>
-              <th>Ωρομίσθιο</th>
-              <th>Προβλ. Ώρες</th>
-              <th>Πραγμ. Ώρες</th>
-              <th>Διαφορά</th>
-              <th>Πραγμ. Κόστος</th>
-              <th>Κρυφό Κόστος Ιδιοκτήτη</th>
+              <th>Δουλ. Ώρες</th>
+              <th>Από Επισκ.</th>
+              <th>Κόστος Επισκ.</th>
+              <th>Αξία Χρόνου Ιδιοκτήτη</th>
             </tr>
           </thead>
           <tbody>
@@ -2905,23 +3050,18 @@ window.JobsView = {
                   </button>
                   ` : '<small class="text-muted">Από επίσκεψη</small>'}
                 </td>
-                <td><strong>${w.workerName}</strong>${!w.isAssigned ? '<br><small class="text-muted">Δεν είναι ανατεθειμένος</small>' : (w.actualHours === 0 && this.currentEdit ? '<br><small class="text-muted">Δεν έχει καταγεγραμμένες ώρες</small>' : '')}</td>
-                <td>${this.getWorkerType(w) === 'owner' ? 'Ιδιοκτήτης' : 'Υπάλληλος'}</td>
-                <td>${w.workerSpecialty || w.specialty || ''}</td>
-                <td>${Utils.formatCurrency(w.hourlyRate)}/ώρα</td>
-                <td>${w.plannedHours.toFixed(1)}h</td>
-                <td><strong>${w.actualHours.toFixed(1)}h</strong></td>
-                <td style="color: ${w.variance > 0 ? 'var(--warning, #f59e0b)' : 'var(--success)'};">${w.variance >= 0 ? '+' : ''}${w.variance.toFixed(1)}h</td>
+                <td><strong>${w.workerName}</strong>${this.getWorkerType(w) === 'owner' ? '<br><small class="text-muted">Ιδιοκτήτης</small>' : ''}${!w.isAssigned ? '<br><small class="text-muted">Δεν είναι ανατεθειμένος</small>' : (w.actualHours === 0 && this.currentEdit ? '<br><small class="text-muted">Χωρίς ώρες επίσκεψης</small>' : '')}</td>
+                <td><strong>${w.plannedHours.toFixed(1)}h</strong><br><small class="text-muted">${w.plannedHours.toFixed(1)}h × ${Utils.formatCurrency(w.hourlyRate)}/ώρα = ${Utils.formatCurrency(w.plannedHours * w.hourlyRate)}</small></td>
+                <td><strong>${w.actualHours.toFixed(1)}h</strong><br><small class="text-muted">${w.actualHours.toFixed(1)}h × ${Utils.formatCurrency(w.hourlyRate)}/ώρα = ${Utils.formatCurrency(w.actualHours * w.hourlyRate)}</small></td>
                 <td><strong style="color: var(--accent-primary);">${Utils.formatCurrency(hasActuals ? w.actualLaborCost : (parseFloat(w.laborCost || w.labor_cost || 0) || 0))}</strong></td>
                 <td><strong style="color: ${(w.ownerOpportunityCost || 0) > 0 ? 'var(--warning, #f59e0b)' : 'var(--text-muted)'};">${Utils.formatCurrency(w.ownerOpportunityCost || 0)}</strong></td>
               </tr>
             `).join('')}
             <tr style="background: var(--bg-secondary); font-weight: bold;">
               <td></td>
-              <td colspan="4" style="text-align: right;">ΣΥΝΟΛΟ:</td>
+              <td style="text-align: right;">ΣΥΝΟΛΟ:<br><small class="text-muted">Σύνολο ωρών: ${totalDisplayedHours.toFixed(1)}h</small></td>
               <td>${totalPlannedHours.toFixed(1)}h</td>
               <td>${totalActualHours.toFixed(1)}h</td>
-              <td>${(totalActualHours - totalPlannedHours) >= 0 ? '+' : ''}${(totalActualHours - totalPlannedHours).toFixed(1)}h</td>
               <td><strong style="color: var(--accent-primary);">${Utils.formatCurrency(hasActuals ? totalActualCost : fallbackCost)}</strong></td>
               <td><strong style="color: ${totalOwnerOpportunityCost > 0 ? 'var(--warning, #f59e0b)' : 'var(--text-muted)'};">${Utils.formatCurrency(totalOwnerOpportunityCost)}</strong></td>
             </tr>
@@ -2986,8 +3126,8 @@ window.JobsView = {
     `;
 
     const footer = `
-      <button class="btn-ghost" onclick="Modal.close()">Ακύρωση</button>
-      <button class="btn-primary" id="confirmEditWorkerBtn">
+      <button type="button" class="btn-ghost" onclick="Modal.close()">Ακύρωση</button>
+      <button type="button" class="btn-primary" id="confirmEditWorkerBtn">
         <i class="fas fa-save"></i> Αποθήκευση
       </button>
     `;
@@ -3002,6 +3142,7 @@ window.JobsView = {
     setTimeout(() => {
       const hoursInput = document.getElementById('editWorkerHours');
       const costInput = document.getElementById('editWorkerCost');
+      const confirmBtn = document.getElementById('confirmEditWorkerBtn');
 
       hoursInput.addEventListener('input', () => {
         const hours = parseFloat(hoursInput.value || 0);
@@ -3009,7 +3150,15 @@ window.JobsView = {
         costInput.value = Utils.formatCurrency(cost);
       });
 
-      document.getElementById('confirmEditWorkerBtn').addEventListener('click', () => {
+      hoursInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          e.stopPropagation();
+          confirmBtn.click();
+        }
+      });
+
+      confirmBtn.addEventListener('click', () => {
         const newHours = parseFloat(hoursInput.value);
 
         if (!newHours || newHours <= 0) {

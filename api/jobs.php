@@ -247,19 +247,17 @@ try {
             $stmt = $db->prepare("
                 INSERT INTO jobs (
                     client_id, title, type, date, next_visit, visit_end_date, visit_start_time, visit_end_time, visit_all_day,
-                    description, address, city, postal_code,
-                    rooms, area, substrate, materials_cost, kilometers, billing_hours, billing_rate,
+                    address, rooms, area, materials_cost, kilometers, billing_hours, billing_rate,
                     billing_type, agreed_price,
                     cost_per_km, notes, assigned_workers, paints,
-                    start_date, end_date, status, total_cost, is_paid, coordinates
+                    status, total_cost, is_paid, coordinates
                 )
                 VALUES (
                     :client_id, :title, :type, :date, :next_visit, :visit_end_date, :visit_start_time, :visit_end_time, :visit_all_day,
-                    :description, :address, :city, :postal_code,
-                    :rooms, :area, :substrate, :materials_cost, :kilometers, :billing_hours, :billing_rate,
+                    :address, :rooms, :area, :materials_cost, :kilometers, :billing_hours, :billing_rate,
                     :billing_type, :agreed_price,
                     :cost_per_km, :notes, :assigned_workers, :paints,
-                    :start_date, :end_date, :status, :total_cost, :is_paid, :coordinates
+                    :status, :total_cost, :is_paid, :coordinates
                 )
             ");
             
@@ -273,13 +271,9 @@ try {
                 ':visit_start_time' => !empty($data['visit_start_time']) ? $data['visit_start_time'] : null,
                 ':visit_end_time' => !empty($data['visit_end_time']) ? $data['visit_end_time'] : null,
                 ':visit_all_day' => isset($data['visit_all_day']) ? (int)$data['visit_all_day'] : 1,
-                ':description' => $data['description'] ?? null,
                 ':address' => $data['address'] ?? null,
-                ':city' => $data['city'] ?? null,
-                ':postal_code' => $data['postal_code'] ?? null,
                 ':rooms' => $data['rooms'] ?? null,
                 ':area' => $data['area'] ?? null,
-                ':substrate' => $data['substrate'] ?? null,
                 ':materials_cost' => $data['materials_cost'] ?? 0,
                 ':kilometers' => $data['kilometers'] ?? 0,
                 ':billing_hours' => $data['billing_hours'] ?? 0,
@@ -290,8 +284,6 @@ try {
                 ':notes' => $data['notes'] ?? null,
                 ':assigned_workers' => encode_job_json_field($input, 'assignedWorkers'),
                 ':paints' => encode_job_json_field($input, 'paints'),
-                ':start_date' => $data['start_date'] ?? $data['date'] ?? null,
-                ':end_date' => $data['end_date'] ?? null,
                 ':status' => $data['status'] ?? 'pending',
                 ':total_cost' => $data['total_cost'] ?? 0,
                 ':is_paid' => $data['is_paid'] ?? 0,
@@ -340,17 +332,13 @@ try {
             }
             
             // Check if job exists first + φόρτωσε υπάρχοντα πεδία προγραμματισμού
-            $checkStmt = $db->prepare("SELECT id, next_visit, visit_end_date, end_date, visit_start_time, visit_end_time, visit_all_day FROM jobs WHERE id = ?");
+            $checkStmt = $db->prepare("SELECT id, next_visit, visit_end_date, visit_start_time, visit_end_time, visit_all_day FROM jobs WHERE id = ?");
             $checkStmt->execute([$_GET['id']]);
             $existingJob = $checkStmt->fetch(PDO::FETCH_ASSOC);
             if (!$existingJob) {
                 sendError('Η εργασία δεν βρέθηκε', 404);
             }
 
-            // Η φόρμα εργασίας δεν στέλνει end_date — μην το μηδενίσεις όταν αλλάζεις άλλα πεδία
-            if (!array_key_exists('end_date', $data) || $data['end_date'] === '' || $data['end_date'] === null) {
-                $data['end_date'] = $existingJob['end_date'];
-            }
             if (!array_key_exists('visit_end_date', $data)) {
                 $data['visit_end_date'] = $existingJob['visit_end_date'] ?? null;
             } elseif ($data['visit_end_date'] === '' || $data['visit_end_date'] === null) {
@@ -366,16 +354,14 @@ try {
                 SET client_id = :client_id, title = :title, type = :type, date = :date, 
                     next_visit = :next_visit, visit_end_date = :visit_end_date, visit_start_time = :visit_start_time,
                     visit_end_time = :visit_end_time, visit_all_day = :visit_all_day,
-                    description = :description,
-                    address = :address, city = :city, postal_code = :postal_code,
-                    rooms = :rooms, area = :area, substrate = :substrate,
+                    address = :address, rooms = :rooms, area = :area,
                     materials_cost = :materials_cost, kilometers = :kilometers,
                     billing_hours = :billing_hours, billing_rate = :billing_rate,
                     billing_type = :billing_type, agreed_price = :agreed_price,
                     cost_per_km = :cost_per_km, notes = :notes,
                     assigned_workers = :assigned_workers, paints = :paints,
-                    start_date = :start_date, end_date = :end_date, status = :status,
-                    total_cost = :total_cost, is_paid = :is_paid, coordinates = :coordinates
+                    status = :status, total_cost = :total_cost, is_paid = :is_paid,
+                    coordinates = :coordinates
                 WHERE id = :id
             ");
             
@@ -390,13 +376,9 @@ try {
                 ':visit_start_time' => !empty($data['visit_start_time']) ? $data['visit_start_time'] : null,
                 ':visit_end_time' => !empty($data['visit_end_time']) ? $data['visit_end_time'] : null,
                 ':visit_all_day' => isset($data['visit_all_day']) ? (int)$data['visit_all_day'] : 1,
-                ':description' => $data['description'] ?? null,
                 ':address' => $data['address'] ?? null,
-                ':city' => $data['city'] ?? null,
-                ':postal_code' => $data['postal_code'] ?? null,
                 ':rooms' => $data['rooms'] ?? null,
                 ':area' => $data['area'] ?? null,
-                ':substrate' => $data['substrate'] ?? null,
                 ':materials_cost' => $data['materials_cost'] ?? 0,
                 ':kilometers' => $data['kilometers'] ?? 0,
                 ':billing_hours' => $data['billing_hours'] ?? 0,
@@ -407,8 +389,6 @@ try {
                 ':notes' => $data['notes'] ?? null,
                 ':assigned_workers' => encode_job_json_field($input, 'assignedWorkers'),
                 ':paints' => encode_job_json_field($input, 'paints'),
-                ':start_date' => $data['start_date'] ?? $data['date'] ?? null,
-                ':end_date' => $data['end_date'] ?? null,
                 ':status' => $data['status'] ?? 'pending',
                 ':total_cost' => $data['total_cost'] ?? 0,
                 ':is_paid' => $data['is_paid'] ?? 0,
