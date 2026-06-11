@@ -940,7 +940,11 @@ window.CalendarView = {
         await window.electronAPI.db.delete('calendar_events', eventId);
         if (jobId) {
           await window.electronAPI.db.update('jobs', jobId, {
-            next_visit: null, end_date: null, visit_start_time: null, visit_end_time: null
+            next_visit: null,
+            visit_end_date: null,
+            visit_start_time: null,
+            visit_end_time: null,
+            visit_all_day: 1
           });
         }
       } else {
@@ -1869,7 +1873,7 @@ window.CalendarView = {
           const existing = existingResponse.success ? existingResponse.data : [];
 
           const visitStart = String(visitDate).substring(0, 10);
-          const jobEndDate = job.endDate || job.end_date;
+          const jobEndDate = job.visitEndDate || job.visit_end_date;
           let eventEndDate = visitStart;
           if (jobEndDate && String(jobEndDate).substring(0, 10) >= visitStart) {
             eventEndDate = String(jobEndDate).substring(0, 10);

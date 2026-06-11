@@ -153,6 +153,24 @@ function encode_job_json_field($input, $key) {
     return null;
 }
 
+function normalize_job_schedule_fields(&$data, $input) {
+    $map = [
+        'nextVisit' => 'next_visit',
+        'visitEndDate' => 'visit_end_date',
+        'visitStartTime' => 'visit_start_time',
+        'visitEndTime' => 'visit_end_time',
+        'visitAllDay' => 'visit_all_day',
+    ];
+
+    foreach ($map as $camel => $snake) {
+        if (array_key_exists($camel, $input)) {
+            $data[$snake] = $input[$camel];
+        } elseif (array_key_exists($snake, $input)) {
+            $data[$snake] = $input[$snake];
+        }
+    }
+}
+
 try {
     switch ($method) {
         case 'GET':
@@ -212,6 +230,7 @@ try {
             }
             
             $data = convertToSnakeCase($input);
+            normalize_job_schedule_fields($data, $input);
             
             // Auto-set date to NOW if not provided
             if (!isset($data['date']) || empty($data['date'])) {
@@ -299,6 +318,7 @@ try {
             if (!$input) sendError('Δεν υπάρχουν δεδομένα');
             
             $data = convertToSnakeCase($input);
+            normalize_job_schedule_fields($data, $input);
             
             // When editing, preserve existing date if not provided
             if (!isset($data['date']) || empty($data['date'])) {

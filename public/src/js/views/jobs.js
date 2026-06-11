@@ -5,23 +5,93 @@
 window.JobsView = {
   currentEdit: null,
 
+  getJobField(job, ...keys) {
+    if (!job) return '';
+    for (const key of keys) {
+      const value = job[key];
+      if (value !== undefined && value !== null && value !== '') return value;
+    }
+    return '';
+  },
+
+  normalizeIsoDate(value) {
+    if (!value || value === 'null' || value === 'undefined') return '';
+    if (value instanceof Date && !Number.isNaN(value.getTime())) {
+      const year = value.getFullYear();
+      const month = String(value.getMonth() + 1).padStart(2, '0');
+      const day = String(value.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+    const match = String(value).match(/^\d{4}-\d{2}-\d{2}/);
+    return match ? match[0] : String(value);
+  },
+
+  normalizeJobSchedule(job, fallbackJob = null) {
+    if (!job && !fallbackJob) return null;
+    const source = job || {};
+    const fallback = fallbackJob || {};
+    const normalized = { ...source };
+    const nextVisit = this.normalizeIsoDate(
+      this.getJobField(source, 'nextVisit', 'next_visit') || this.getJobField(fallback, 'nextVisit', 'next_visit')
+    );
+    let visitEndDate = this.normalizeIsoDate(
+      this.getJobField(source, 'visitEndDate', 'visit_end_date') || this.getJobField(fallback, 'visitEndDate', 'visit_end_date')
+    );
+    const legacyEndDate = this.normalizeIsoDate(this.getJobField(source, 'endDate', 'end_date') || this.getJobField(fallback, 'endDate', 'end_date'));
+    if (!visitEndDate && legacyEndDate && (!nextVisit || legacyEndDate >= nextVisit)) {
+      visitEndDate = legacyEndDate;
+    }
+
+    const sourceAllDay = this.getJobField(source, 'visitAllDay', 'visit_all_day');
+    const sourceStartTime = this.getJobField(source, 'visitStartTime', 'visit_start_time');
+    const sourceEndTime = this.getJobField(source, 'visitEndTime', 'visit_end_time');
+
+    normalized.nextVisit = nextVisit;
+    normalized.visitEndDate = visitEndDate;
+    normalized.visitAllDay = sourceAllDay !== '' ? sourceAllDay : this.getJobField(fallback, 'visitAllDay', 'visit_all_day');
+    normalized.visitStartTime = sourceStartTime !== '' ? sourceStartTime : this.getJobField(fallback, 'visitStartTime', 'visit_start_time');
+    normalized.visitEndTime = sourceEndTime !== '' ? sourceEndTime : this.getJobField(fallback, 'visitEndTime', 'visit_end_time');
+
+    delete normalized.next_visit;
+    delete normalized.visit_end_date;
+    delete normalized.visit_all_day;
+    delete normalized.visit_start_time;
+    delete normalized.visit_end_time;
+
+    return normalized;
+  },
+
+  setDateInputValue(input, isoDate) {
+    if (!input) return;
+    const displayValue = Utils.dateToGreek(this.normalizeIsoDate(isoDate));
+    if (input._flatpickr) {
+      if (displayValue) {
+        input._flatpickr.setDate(displayValue, false, 'd/m/Y');
+      } else {
+        input._flatpickr.clear();
+      }
+    }
+    input.value = displayValue;
+  },
+
   /** Μορφοποίηση προγραμματισμού επίσκεψης για πίνακα/προβολή */
   formatVisitSchedule(job) {
-    const nv = job.nextVisit || job.next_visit;
+    const normalized = this.normalizeJobSchedule(job);
+    const nv = normalized.nextVisit;
     if (!nv) return '-';
     let text = Utils.formatDate(nv);
-    const ved = job.visitEndDate || job.visit_end_date;
+    const ved = normalized.visitEndDate;
     const nvDay = String(nv).substring(0, 10);
     const vedDay = ved ? String(ved).substring(0, 10) : null;
     if (vedDay && vedDay !== nvDay) {
       text += ' – ' + Utils.formatDate(ved);
     }
-    const allDay = job.visitAllDay ?? job.visit_all_day;
-    const isAllDay = allDay === undefined || allDay === null || Number(allDay) === 1;
-    const st = job.visitStartTime || job.visit_start_time;
+    const allDay = normalized.visitAllDay;
+    const isAllDay = allDay === '' || Number(allDay) === 1;
+    const st = normalized.visitStartTime;
     if (!isAllDay && st) {
       const start = String(st).substring(0, 5);
-      const et = job.visitEndTime || job.visit_end_time;
+      const et = normalized.visitEndTime;
       text += et ? ` (${start}–${String(et).substring(0, 5)})` : ` (${start})`;
     }
     return text;
@@ -1640,24 +1710,47 @@ window.JobsView = {
       // Save or update
       if (this.currentEdit) {
         savedJob = await State.update('jobs', jobData.id, jobData);
+        if (savedJob) {
+          savedJob.visitEndDate = visitEndConverted;
+        }
         if (shouldDeductStock) {
           await this.deductAssignedMaterialsFromStock(jobData.id);
           jobData.paints = JSON.stringify(this.assignedPaints);
           savedJob = await State.update('jobs', jobData.id, jobData);
+          if (savedJob) {
+            savedJob.visitEndDate = visitEndConverted;
+          }
         }
         Toast.success('Η εργασία ενημερώθηκε!');
       } else {
         savedJob = await State.create('jobs', jobData);
+        if (savedJob) {
+          savedJob.visitEndDate = visitEndConverted;
+        }
         if (shouldDeductStock && savedJob?.id) {
           await this.deductAssignedMaterialsFromStock(savedJob.id);
           jobData.paints = JSON.stringify(this.assignedPaints);
           savedJob = await State.update('jobs', savedJob.id, jobData);
+          if (savedJob) {
+            savedJob.visitEndDate = visitEndConverted;
+          }
         }
         Toast.success('Η εργασία δημιουργήθηκε!');
       }
 
       const savedJobId = savedJob?.id || jobData.id;
       if (savedJobId) {
+        const schedulePatch = {
+          nextVisit: nextVisitConverted,
+          visitEndDate: visitEndConverted,
+          visitStartTime: visitStartTime,
+          visitEndTime: visitEndTime,
+          visitAllDay: visitAllDay
+        };
+        if (savedJob) Object.assign(savedJob, schedulePatch);
+        const stateJob = State.data.jobs.find(j => Number(j.id) === Number(savedJobId));
+        if (stateJob) Object.assign(stateJob, schedulePatch);
+
         this.currentEdit = Number(savedJobId);
         const formTitle = document.getElementById('formTitle');
         if (formTitle) formTitle.textContent = 'Επεξεργασία Εργασίας';
@@ -2281,12 +2374,14 @@ window.JobsView = {
   async editJob(id) {
     console.log('[Jobs] Editing job:', id);
     let job = null;
+    const stateJob = State.data.jobs.find(j => Number(j.id) === Number(id));
     try {
       job = await API.getJob(id);
+      job = this.normalizeJobSchedule(job, stateJob);
       const idx = State.data.jobs.findIndex(j => Number(j.id) === Number(id));
       if (idx >= 0) State.data.jobs[idx] = job;
     } catch (e) {
-      job = State.data.jobs.find(j => Number(j.id) === Number(id));
+      job = this.normalizeJobSchedule(stateJob);
     }
     if (!job) {
       console.error('[Jobs] Job not found:', id);
@@ -2297,6 +2392,7 @@ window.JobsView = {
   },
 
   fillJobForm(job) {
+    job = this.normalizeJobSchedule(job);
     console.log('[Jobs] Job data:', job);
     this.currentEdit = Number(job.id);
     document.getElementById('formTitle').textContent = 'Επεξεργασία Εργασίας';
@@ -2313,17 +2409,17 @@ window.JobsView = {
     document.getElementById('jobStatus').value = job.status || '';
     document.getElementById('jobRooms').value = job.rooms ? Math.round(job.rooms) : '';
     document.getElementById('jobArea').value = job.area ? Math.round(job.area) : '';
-    document.getElementById('jobNextVisit').value = Utils.dateToGreek(job.nextVisit);
+    const nextVisitEl = document.getElementById('jobNextVisit');
     const visitEndEl = document.getElementById('jobVisitEndDate');
-    if (visitEndEl) {
-      visitEndEl.value = Utils.dateToGreek(job.visitEndDate || job.visit_end_date || '');
-    }
+    this.setDateInputValue(nextVisitEl, job.nextVisit);
+    this.setDateInputValue(visitEndEl, job.visitEndDate);
     this.setupVisitDateValidation();
+    this.setDateInputValue(visitEndEl, job.visitEndDate);
     document.getElementById('jobAddress').value = job.address || '';
     // Ωράριο επίσκεψης (ενοποιημένο με ημερολόγιο)
     const editAllDayEl = document.getElementById('jobVisitAllDay');
     if (editAllDayEl) {
-      const isAllDay = (job.visitAllDay === undefined || job.visitAllDay === null) ? true : !!Number(job.visitAllDay);
+      const isAllDay = job.visitAllDay === '' ? true : !!Number(job.visitAllDay);
       editAllDayEl.checked = isAllDay;
       const startEl = document.getElementById('jobVisitStartTime');
       const endEl = document.getElementById('jobVisitEndTime');

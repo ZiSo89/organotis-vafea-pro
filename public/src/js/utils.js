@@ -44,7 +44,14 @@ const Utils = {
   // Convert YYYY-MM-DD to DD/MM/YYYY for form display
   dateToGreek(isoDate) {
     if (!isoDate || isoDate === 'null' || isoDate === 'undefined') return '';
-    const parts = isoDate.split('-');
+    if (isoDate instanceof Date && !isNaN(isoDate.getTime())) {
+      const day = String(isoDate.getDate()).padStart(2, '0');
+      const month = String(isoDate.getMonth() + 1).padStart(2, '0');
+      const year = isoDate.getFullYear();
+      return `${day}/${month}/${year}`;
+    }
+    const normalizedDate = String(isoDate).trim().substring(0, 10);
+    const parts = normalizedDate.split('-');
     if (parts.length !== 3) return '';
     const [year, month, day] = parts;
     // Validate parts exist and are numbers
