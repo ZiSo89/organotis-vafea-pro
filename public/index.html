@@ -1,11 +1,11 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="el">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
-  <meta name="description" content="Î¤Î­Ï‡Î½Î· ÎºÎ±Î¹ Î§ÏÏŽÎ¼Î± - Î”Î¹Î±Ï‡ÎµÎ¯ÏÎ¹ÏƒÎ· ÎµÏÎ³Î±ÏƒÎ¹ÏŽÎ½, Ï€ÎµÎ»Î±Ï„ÏŽÎ½ ÎºÎ±Î¹ Î±Ï€Î¿Î¸Î®ÎºÎ·Ï‚ Î³Î¹Î± ÎµÏ€Î±Î³Î³ÎµÎ»Î¼Î±Ï„Î¯ÎµÏ‚ Î²Î±Ï†ÎµÎ¯Ï‚">
-  <meta name="keywords" content="Î²Î±Ï†ÎµÎ¯Ï‚, Î´Î¹Î±Ï‡ÎµÎ¯ÏÎ¹ÏƒÎ· ÎµÏÎ³Î±ÏƒÎ¹ÏŽÎ½, CRM, Î·Î¼ÎµÏÎ¿Î»ÏŒÎ³Î¹Î¿, Î±Ï€Î¿Î¸Î®ÎºÎ·">
-  <meta name="author" content="Î¤Î­Ï‡Î½Î· ÎºÎ±Î¹ Î§ÏÏŽÎ¼Î±">
+  <meta name="description" content="Τέχνη και Χρώμα - Διαχείριση εργασιών, πελατών και αποθήκης για επαγγελματίες βαφείς">
+  <meta name="keywords" content="βαφείς, διαχείριση εργασιών, CRM, ημερολόγιο, αποθήκη">
+  <meta name="author" content="Τέχνη και Χρώμα">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta name="referrer" content="strict-origin-when-cross-origin">
@@ -20,7 +20,7 @@
     connect-src 'self' https://maps.googleapis.com https://nominatim.openstreetmap.org https://*.googleapis.com https://*.tile.openstreetmap.org https://unpkg.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; 
     frame-src 'self' https://www.google.com;
   ">
-  <title>Î¤Î­Ï‡Î½Î· ÎºÎ±Î¹ Î§ÏÏŽÎ¼Î±</title>
+  <title>Τέχνη και Χρώμα</title>
   
   <!-- Performance: Preconnect to external domains -->
   <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
@@ -44,13 +44,13 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="Î¤Î­Ï‡Î½Î· ÎºÎ±Î¹ Î§ÏÏŽÎ¼Î±">
+  <meta name="apple-mobile-web-app-title" content="Τέχνη και Χρώμα">
 
   <!-- Font Awesome Icons -->
   <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
   <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></noscript>
   
-  <!-- Flatpickr Date Picker (Î³Î¹Î± Î·Î¼ÎµÏÎ¿Î¼Î·Î½Î¯ÎµÏ‚) - Async load -->
+  <!-- Flatpickr Date Picker (για ημερομηνίες) - Async load -->
   <link rel="preload" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
   <noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css"></noscript>
   <script src="https://cdn.jsdelivr.net/npm/flatpickr" defer></script>
@@ -112,7 +112,7 @@
     const Geocoding = {
       lastRequestTime: 0,
       
-      async getCoordinates(address, city = 'Î‘Î»ÎµÎ¾Î±Î½Î´ÏÎ¿ÏÏ€Î¿Î»Î·', country = 'Î•Î»Î»Î¬Î´Î±') {
+      async getCoordinates(address, city = 'Αλεξανδρούπολη', country = 'Ελλάδα') {
         try {
           const query = `${address}, ${city}, ${country}`;
           const isElectron = typeof window.electronAPI !== 'undefined';
@@ -176,17 +176,17 @@
     };
   </script>
   
-  <!-- Chart.js Î³Î¹Î± Î³ÏÎ±Ï†Î®Î¼Î±Ï„Î± - Deferred for performance -->
+  <!-- Chart.js για γραφήματα - Deferred for performance -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js" defer></script>
   
-  <!-- jsPDF Î³Î¹Î± PDF export - Deferred for performance -->
+  <!-- jsPDF για PDF export - Deferred for performance -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
   
-  <!-- SheetJS Î³Î¹Î± Excel export - Deferred for performance -->
+  <!-- SheetJS για Excel export - Deferred for performance -->
   <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js" defer></script>
   
-  <!-- ExcelJS Î³Î¹Î± Excel export Î¼Îµ styling - Deferred for performance -->
+  <!-- ExcelJS για Excel export με styling - Deferred for performance -->
   <script src="https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js" defer></script>
   
@@ -235,7 +235,7 @@
       <div class="logo">
         <i class="fas fa-paint-roller"></i>
         <div class="logo-text">
-          <span class="company-name" id="sidebarCompanyName">Î¤Î­Ï‡Î½Î· ÎºÎ±Î¹ Î§ÏÏŽÎ¼Î±</span>
+          <span class="company-name" id="sidebarCompanyName">Τέχνη και Χρώμα</span>
         </div>
       </div>
       <button id="sidebarToggle" class="sidebar-toggle" aria-label="Toggle Sidebar">
@@ -243,50 +243,50 @@
       </button>
     </div>
 
-    <nav class="sidebar-nav" role="navigation" aria-label="ÎšÏÏÎ¹Î± Ï€Î»Î¿Î®Î³Î·ÏƒÎ·">
-      <a href="#dashboard" class="nav-item active" data-section="dashboard" data-tooltip="Î‘ÏÏ‡Î¹ÎºÎ®" aria-current="page">
+    <nav class="sidebar-nav" role="navigation" aria-label="Κύρια πλοήγηση">
+      <a href="#dashboard" class="nav-item active" data-section="dashboard" data-tooltip="Αρχική" aria-current="page">
         <i class="fas fa-home" aria-hidden="true"></i>
-        <span data-translate="dashboard">Î‘ÏÏ‡Î¹ÎºÎ®</span>
+        <span data-translate="dashboard">Αρχική</span>
       </a>
-      <a href="#jobs" class="nav-item" data-section="jobs" data-tooltip="Î•ÏÎ³Î±ÏƒÎ¯ÎµÏ‚">
+      <a href="#jobs" class="nav-item" data-section="jobs" data-tooltip="Εργασίες">
         <i class="fas fa-briefcase" aria-hidden="true"></i>
-        <span data-translate="jobs">Î•ÏÎ³Î±ÏƒÎ¯ÎµÏ‚</span>
+        <span data-translate="jobs">Εργασίες</span>
       </a>
-      <a href="#clients" class="nav-item" data-section="clients" data-tooltip="Î ÎµÎ»Î¬Ï„ÎµÏ‚">
+      <a href="#clients" class="nav-item" data-section="clients" data-tooltip="Πελάτες">
         <i class="fas fa-users" aria-hidden="true"></i>
-        <span data-translate="clients">Î ÎµÎ»Î¬Ï„ÎµÏ‚</span>
+        <span data-translate="clients">Πελάτες</span>
       </a>
-      <a href="#workers" class="nav-item" data-section="workers" data-tooltip="Î ÏÎ¿ÏƒÏ‰Ï€Î¹ÎºÏŒ">
+      <a href="#workers" class="nav-item" data-section="workers" data-tooltip="Προσωπικό">
         <i class="fas fa-hard-hat" aria-hidden="true"></i>
-        <span>Î ÏÎ¿ÏƒÏ‰Ï€Î¹ÎºÏŒ</span>
+        <span>Προσωπικό</span>
       </a>
-      <a href="#suppliers" class="nav-item" data-section="suppliers" data-tooltip="Î ÏÎ¿Î¼Î·Î¸ÎµÏ…Ï„Î­Ï‚">
+      <a href="#suppliers" class="nav-item" data-section="suppliers" data-tooltip="Προμηθευτές">
         <i class="fas fa-store" aria-hidden="true"></i>
-        <span>Î ÏÎ¿Î¼Î·Î¸ÎµÏ…Ï„Î­Ï‚</span>
+        <span>Προμηθευτές</span>
       </a>
-      <a href="#inventory" class="nav-item" data-section="inventory" data-tooltip="Î‘Ï€Î¿Î¸Î®ÎºÎ·">
+      <a href="#inventory" class="nav-item" data-section="inventory" data-tooltip="Αποθήκη">
         <i class="fas fa-boxes" aria-hidden="true"></i>
-        <span data-translate="inventory">Î‘Ï€Î¿Î¸Î®ÎºÎ·</span>
+        <span data-translate="inventory">Αποθήκη</span>
       </a>
-      <a href="#calendar" class="nav-item" data-section="calendar" data-tooltip="Î—Î¼ÎµÏÎ¿Î»ÏŒÎ³Î¹Î¿">
+      <a href="#calendar" class="nav-item" data-section="calendar" data-tooltip="Ημερολόγιο">
         <i class="fas fa-calendar-alt" aria-hidden="true"></i>
-        <span data-translate="calendar">Î—Î¼ÎµÏÎ¿Î»ÏŒÎ³Î¹Î¿</span>
+        <span data-translate="calendar">Ημερολόγιο</span>
       </a>
-      <a href="#map" class="nav-item" data-section="map" data-tooltip="Î§Î¬ÏÏ„Î·Ï‚">
+      <a href="#map" class="nav-item" data-section="map" data-tooltip="Χάρτης">
         <i class="fas fa-map-marked-alt" aria-hidden="true"></i>
-        <span>Î§Î¬ÏÏ„Î·Ï‚</span>
+        <span>Χάρτης</span>
       </a>
-      <a href="#statistics" class="nav-item" data-section="statistics" data-tooltip="Î£Ï„Î±Ï„Î¹ÏƒÏ„Î¹ÎºÎ¬">
+      <a href="#statistics" class="nav-item" data-section="statistics" data-tooltip="Στατιστικά">
         <i class="fas fa-chart-bar" aria-hidden="true"></i>
-        <span>Î£Ï„Î±Ï„Î¹ÏƒÏ„Î¹ÎºÎ¬</span>
+        <span>Στατιστικά</span>
       </a>
-      <a href="#settings" class="nav-item" data-section="settings" data-tooltip="Î¡Ï…Î¸Î¼Î¯ÏƒÎµÎ¹Ï‚">
+      <a href="#settings" class="nav-item" data-section="settings" data-tooltip="Ρυθμίσεις">
         <i class="fas fa-cog" aria-hidden="true"></i>
-        <span data-translate="settings">Î¡Ï…Î¸Î¼Î¯ÏƒÎµÎ¹Ï‚</span>
+        <span data-translate="settings">Ρυθμίσεις</span>
       </a>
-      <a href="#help" class="nav-item" data-section="help" data-tooltip="Î’Î¿Î®Î¸ÎµÎ¹Î±">
+      <a href="#help" class="nav-item" data-section="help" data-tooltip="Βοήθεια">
         <i class="fas fa-question-circle" aria-hidden="true"></i>
-        <span>Î’Î¿Î®Î¸ÎµÎ¹Î±</span>
+        <span>Βοήθεια</span>
       </a>
     </nav>
   </aside>
@@ -296,15 +296,15 @@
     
     <!-- Header -->
     <header class="header" role="banner">
-      <button id="mobileMenuBtn" class="mobile-menu-btn" aria-label="Î†Î½Î¿Î¹Î³Î¼Î± Î¼ÎµÎ½Î¿Ï Ï€Î»Î¿Î®Î³Î·ÏƒÎ·Ï‚" aria-expanded="false">
+      <button id="mobileMenuBtn" class="mobile-menu-btn" aria-label="Άνοιγμα μενού πλοήγησης" aria-expanded="false">
         <i class="fas fa-bars" aria-hidden="true"></i>
       </button>
-      <img src="assets/icons/logo.png?v=techni-chroma-2" alt="Î¤Î­Ï‡Î½Î· ÎºÎ±Î¹ Î§ÏÏŽÎ¼Î± Î»Î¿Î³ÏŒÏ„Ï…Ï€Î¿" class="header-logo" width="160" height="90" loading="eager">
+      <img src="assets/icons/logo.png?v=techni-chroma-2" alt="Τέχνη και Χρώμα λογότυπο" class="header-logo" width="160" height="90" loading="eager">
     </header>
 
     <!-- Content Area -->
-    <div id="contentArea" class="content-area" role="region" aria-label="ÎšÏÏÎ¹Î¿ Ï€ÎµÏÎ¹ÎµÏ‡ÏŒÎ¼ÎµÎ½Î¿">
-      <!-- Î¤Î¿ Ï€ÎµÏÎ¹ÎµÏ‡ÏŒÎ¼ÎµÎ½Î¿ Î¸Î± Ï†Î¿ÏÏ„ÏŽÎ½ÎµÏ„Î±Î¹ Î´Ï…Î½Î±Î¼Î¹ÎºÎ¬ ÎµÎ´ÏŽ -->
+    <div id="contentArea" class="content-area" role="region" aria-label="Κύριο περιεχόμενο">
+      <!-- Το περιεχόμενο θα φορτώνεται δυναμικά εδώ -->
     </div>
   </main>
 
