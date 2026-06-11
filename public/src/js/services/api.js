@@ -430,6 +430,40 @@ class APIService {
         return await this.routeRequest('supplier_payments', 'delete', null, id);
     }
 
+    // ==================== JOB VISITS & PAYMENTS ====================
+
+    async getJobVisits() {
+        return await this.routeRequest('job_visits', 'list');
+    }
+
+    async createJobVisit(visitData) {
+        return await this.routeRequest('job_visits', 'create', visitData);
+    }
+
+    async updateJobVisit(id, visitData) {
+        return await this.routeRequest('job_visits', 'update', visitData, id);
+    }
+
+    async deleteJobVisit(id) {
+        return await this.routeRequest('job_visits', 'delete', null, id);
+    }
+
+    async getJobPayments() {
+        return await this.routeRequest('job_payments', 'list');
+    }
+
+    async createJobPayment(paymentData) {
+        return await this.routeRequest('job_payments', 'create', paymentData);
+    }
+
+    async updateJobPayment(id, paymentData) {
+        return await this.routeRequest('job_payments', 'update', paymentData, id);
+    }
+
+    async deleteJobPayment(id) {
+        return await this.routeRequest('job_payments', 'delete', null, id);
+    }
+
     // ==================== JOBS ====================
 
     async getJobs() {

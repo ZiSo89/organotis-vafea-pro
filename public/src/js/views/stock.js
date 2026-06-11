@@ -53,7 +53,9 @@ window.InventoryView = {
             </div>
             <div class="form-group">
               <label>Μονάδα</label>
-              <input type="text" id="stockMaterialUnit" value="λίτρα" placeholder="π.χ. λίτρα, τεμ., kg">
+              <select id="stockMaterialUnit">
+                ${this.renderUnitOptions()}
+              </select>
             </div>
             <div class="form-group">
               <label>Τιμή/μονάδα (€)</label>
@@ -102,7 +104,9 @@ window.InventoryView = {
             </div>
             <div class="form-group">
               <label>Μονάδα</label>
-              <input type="text" id="stockMovementUnit" placeholder="λίτρα">
+              <select id="stockMovementUnit">
+                ${this.renderUnitOptions()}
+              </select>
             </div>
             <div class="form-group span-2">
               <label>Σημειώσεις</label>
@@ -286,7 +290,7 @@ window.InventoryView = {
     const payload = {
       name: container.querySelector('#stockMaterialName').value.trim(),
       category: container.querySelector('#stockMaterialCategory').value.trim(),
-      unit: container.querySelector('#stockMaterialUnit').value.trim() || 'λίτρα',
+      unit: container.querySelector('#stockMaterialUnit').value || 'λίτρα',
       unitPrice: this.toNumber(container.querySelector('#stockMaterialUnitPrice').value),
       stock: 0,
       minStock: 0
@@ -351,7 +355,7 @@ window.InventoryView = {
       movementType,
       quantity,
       movementDate: container.querySelector('#stockMovementDate').value || this.today(),
-      unit: container.querySelector('#stockMovementUnit').value.trim() || material?.unit || 'λίτρα',
+      unit: container.querySelector('#stockMovementUnit').value || material?.unit || 'λίτρα',
       referenceType: 'manual',
       notes: container.querySelector('#stockMovementNotes').value.trim()
     });
@@ -400,5 +404,10 @@ window.InventoryView = {
     const div = document.createElement('div');
     div.textContent = value === null || value === undefined ? '' : String(value);
     return div.innerHTML;
+  },
+
+  renderUnitOptions(selected = 'λίτρα') {
+    const units = ['λίτρα', 'τεμ.', 'kg', 'm²', 'μέτρα', 'ρολά', 'κουβάδες', 'σακιά', 'άλλο'];
+    return units.map(unit => `<option value="${this.escape(unit)}" ${unit === selected ? 'selected' : ''}>${this.escape(unit)}</option>`).join('');
   }
 };

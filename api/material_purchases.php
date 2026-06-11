@@ -69,7 +69,7 @@ function get_purchase($db, $purchaseId) {
 
 function normalize_purchase_items($items) {
     if (!is_array($items) || count($items) === 0) {
-        sendError('Προσθέστε τουλάχιστον ένα υλικό στην αγορά');
+        return [];
     }
 
     $normalized = [];
@@ -159,8 +159,6 @@ function insert_purchase_items($db, $purchaseId, $items, $purchaseDate) {
         $total += $item['total_cost'];
     }
 
-    $update = $db->prepare("UPDATE material_purchases SET total_cost = ? WHERE id = ?");
-    $update->execute([round($total, 2), $purchaseId]);
     return round($total, 2);
 }
 
@@ -267,6 +265,10 @@ try {
 
             $items = normalize_purchase_items($input['items'] ?? []);
             $purchaseDate = !empty($data['purchase_date']) ? $data['purchase_date'] : date('Y-m-d');
+            $manualTotal = warehouse_to_float($data['total_cost'] ?? $data['purchase_total'] ?? 0);
+            if (count($items) === 0 && $manualTotal <= 0) {
+                sendError('Συμπληρώστε σύνολο αγοράς ή προσθέστε υλικά');
+            }
 
             $db->beginTransaction();
             $stmt = $db->prepare("
@@ -281,7 +283,9 @@ try {
             ]);
 
             $purchaseId = (int)$db->lastInsertId();
-            $purchaseTotal = insert_purchase_items($db, $purchaseId, $items, $purchaseDate);
+            $itemsTotal = insert_purchase_items($db, $purchaseId, $items, $purchaseDate);
+            $purchaseTotal = $manualTotal > 0 ? $manualTotal : $itemsTotal;
+            $db->prepare("UPDATE material_purchases SET total_cost = ? WHERE id = ?")->execute([round($purchaseTotal, 2), $purchaseId]);
             insert_initial_payment($db, $supplierId, $purchaseId, $purchaseDate, $purchaseTotal, $input);
             $db->commit();
 
@@ -304,6 +308,10 @@ try {
 
             $items = normalize_purchase_items($input['items'] ?? []);
             $purchaseDate = !empty($data['purchase_date']) ? $data['purchase_date'] : date('Y-m-d');
+            $manualTotal = warehouse_to_float($data['total_cost'] ?? $data['purchase_total'] ?? 0);
+            if (count($items) === 0 && $manualTotal <= 0) {
+                sendError('Συμπληρώστε σύνολο αγοράς ή προσθέστε υλικά');
+            }
 
             $db->beginTransaction();
             rollback_purchase_stock($db, $_GET['id']);
@@ -323,7 +331,9 @@ try {
                 ':notes' => $data['notes'] ?? null
             ]);
 
-            insert_purchase_items($db, $_GET['id'], $items, $purchaseDate);
+            $itemsTotal = insert_purchase_items($db, $_GET['id'], $items, $purchaseDate);
+            $purchaseTotal = $manualTotal > 0 ? $manualTotal : $itemsTotal;
+            $db->prepare("UPDATE material_purchases SET total_cost = ? WHERE id = ?")->execute([round($purchaseTotal, 2), $_GET['id']]);
             $db->prepare("UPDATE supplier_payments SET supplier_id = ? WHERE purchase_id = ?")->execute([$supplierId, $_GET['id']]);
             $db->commit();
 

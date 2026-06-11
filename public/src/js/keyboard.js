@@ -64,6 +64,10 @@ const Keyboard = {
 
   init() {
     document.addEventListener('keydown', (e) => {
+      if (this.isTypingTarget(e.target)) {
+        return;
+      }
+
       const key = this.getKeyCombo(e);
       const handler = this.shortcuts[key];
       
@@ -88,5 +92,14 @@ const Keyboard = {
     }
     
     return keys.join('+');
+  },
+
+  isTypingTarget(target) {
+    if (!target) return false;
+    const tagName = target.tagName ? target.tagName.toLowerCase() : '';
+    return tagName === 'input'
+      || tagName === 'textarea'
+      || tagName === 'select'
+      || target.isContentEditable;
   }
 };

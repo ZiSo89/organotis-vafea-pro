@@ -45,19 +45,6 @@ window.WorkersView = {
           </div>
 
           <div class="form-group">
-            <label>Ειδικότητα <span class="required">*</span></label>
-            <select id="w_specialty" required>
-              <option value="">Επιλέξτε ειδικότητα...</option>
-              <option value="Όλες οι ειδικότητες">Όλες οι ειδικότητες</option>
-              <option value="Ελαιοχρωματιστής">Ελαιοχρωματιστής</option>
-              <option value="Βοηθός">Βοηθός</option>
-              <option value="Γυψαδόρος">Γυψαδόρος</option>
-              <option value="Βαφέας">Βαφέας</option>
-              <option value="Ειδικός σε Ξύλο">Ειδικός σε Ξύλο</option>
-            </select>
-          </div>
-
-          <div class="form-group">
             <label>Ωρομίσθιο (€) <span class="required">*</span></label>
             <input type="number" id="w_hourlyRate" min="0" placeholder="π.χ. 15" required />
           </div>
@@ -235,6 +222,215 @@ window.WorkersView = {
     }
   },
 
+  parseJsonArray(value) {
+    if (Array.isArray(value)) return value;
+    if (typeof value === 'string' && value.trim()) {
+      try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (error) {
+        console.error('[Workers] Error parsing JSON array:', error);
+      }
+    }
+    return [];
+  },
+
+  getWorkerType(worker) {
+    return (worker.workerType || worker.worker_type) === 'owner' ? 'owner' : 'employee';
+  },
+
+  getVisitsForJob(jobId) {
+    const visits = State.read('jobVisits') || [];
+    return visits.filter(visit => Number(visit.jobId || visit.job_id) === Number(jobId));
+  },
+
+  getVisitTotals(visit) {
+    const workers = this.parseJsonArray(visit.workers);
+    return workers.reduce((totals, entry) => {
+      const hours = parseFloat(entry.hours ?? entry.hoursAllocated ?? entry.hours_allocated ?? 0) || 0;
+      const type = (entry.workerType || entry.worker_type) === 'owner' ? 'owner' : 'employee';
+      const rate = parseFloat(entry.hourlyRate ?? entry.hourly_rate ?? 0) || 0;
+      const laborCost = type === 'owner'
+        ? 0
+        : ((entry.laborCost !== undefined || entry.labor_cost !== undefined)
+          ? (parseFloat(entry.laborCost ?? entry.labor_cost) || 0)
+          : hours * rate);
+
+      totals.totalHours += hours;
+      totals.laborCost += laborCost;
+      return totals;
+    }, { totalHours: 0, laborCost: 0 });
+  },
+
+  computeJobProfit(job) {
+    const visits = this.getVisitsForJob(job.id);
+    const assignedWorkers = this.parseJsonArray(job.assignedWorkers ?? job.assigned_workers);
+    let actualHours = 0;
+    let laborCost = 0;
+
+    if (visits.length > 0) {
+      visits.forEach(visit => {
+        const totals = this.getVisitTotals(visit);
+        actualHours += totals.totalHours;
+        laborCost += totals.laborCost;
+      });
+    } else {
+      assignedWorkers.forEach(entry => {
+        const hours = parseFloat(entry.hoursAllocated ?? entry.hours_allocated ?? entry.hours ?? 0) || 0;
+        const type = (entry.workerType || entry.worker_type) === 'owner' ? 'owner' : 'employee';
+        actualHours += hours;
+        if (type !== 'owner') {
+          laborCost += (entry.laborCost !== undefined || entry.labor_cost !== undefined)
+            ? (parseFloat(entry.laborCost ?? entry.labor_cost) || 0)
+            : hours * (parseFloat(entry.hourlyRate ?? entry.hourly_rate ?? 0) || 0);
+        }
+      });
+    }
+
+    const materialsCost = parseFloat(job.materialsCost || job.materials_cost || 0) || 0;
+    const kilometers = parseFloat(job.kilometers || 0) || 0;
+    const costPerKm = parseFloat(job.costPerKm || job.cost_per_km || 0.5) || 0.5;
+    const totalExpenses = materialsCost + laborCost + (kilometers * costPerKm);
+    const billingType = job.billingType || job.billing_type || 'hourly';
+    const agreedPrice = parseFloat(job.agreedPrice || job.agreed_price || 0) || 0;
+    const billingHours = parseFloat(job.billingHours || job.billing_hours || 0) || 0;
+    const billingRate = parseFloat(job.billingRate || job.billing_rate || 50) || 50;
+    const billingAmount = (billingType === 'fixed' && agreedPrice > 0)
+      ? agreedPrice
+      : billingHours * billingRate;
+    const profit = billingAmount - totalExpenses;
+
+    return {
+      profit,
+      actualHours,
+      profitPerHour: actualHours > 0 ? profit / actualHours : null
+    };
+  },
+
+  getWorkerVisitStats(worker, options = {}) {
+    const visits = State.read('jobVisits') || [];
+    const workerId = String(worker.id);
+    const month = options.month;
+    const year = options.year;
+    const jobIdFilter = options.jobId ? String(options.jobId) : null;
+
+    return visits.reduce((stats, visit) => {
+      const visitJobId = String(visit.jobId || visit.job_id || '');
+      if (jobIdFilter && visitJobId !== jobIdFilter) return stats;
+
+      const visitDateValue = visit.visitDate || visit.visit_date;
+      if (!visitDateValue) return stats;
+      const visitDate = new Date(String(visitDateValue).substring(0, 10));
+      if (Number.isNaN(visitDate.getTime())) return stats;
+      if (month !== undefined && (visitDate.getMonth() !== month || visitDate.getFullYear() !== year)) return stats;
+
+      const workers = this.parseJsonArray(visit.workers);
+      workers.forEach(entry => {
+        const entryWorkerId = entry.workerId ?? entry.worker_id ?? entry.id;
+        if (String(entryWorkerId) !== workerId) return;
+
+        const hours = parseFloat(entry.hours ?? entry.hoursAllocated ?? entry.hours_allocated ?? 0) || 0;
+        const type = (entry.workerType || entry.worker_type || worker.workerType || worker.worker_type) === 'owner' ? 'owner' : 'employee';
+        const rate = parseFloat(entry.hourlyRate ?? entry.hourly_rate ?? worker.hourlyRate ?? worker.hourly_rate ?? 0) || 0;
+        const laborCost = type === 'owner'
+          ? 0
+          : ((entry.laborCost !== undefined || entry.labor_cost !== undefined)
+            ? (parseFloat(entry.laborCost ?? entry.labor_cost) || 0)
+            : hours * rate);
+
+        stats.hours += hours;
+        stats.earnings += laborCost;
+        stats.visits += 1;
+      });
+
+      return stats;
+    }, { hours: 0, earnings: 0, visits: 0, source: 'visits' });
+  },
+
+  getWorkerAssignedStats(worker, options = {}) {
+    const jobs = State.read('jobs') || [];
+    const visits = State.read('jobVisits') || [];
+    const jobsWithVisits = new Set(visits.map(visit => String(visit.jobId || visit.job_id || '')));
+    const workerId = String(worker.id);
+    const month = options.month;
+    const year = options.year;
+    const jobIdFilter = options.jobId ? String(options.jobId) : null;
+
+    return jobs.reduce((stats, job) => {
+      const jobId = String(job.id);
+      if (jobIdFilter && jobId !== jobIdFilter) return stats;
+      if (jobsWithVisits.has(jobId)) return stats;
+
+      const jobDateValue = job.date || job.createdAt || job.created_at;
+      if (!jobDateValue) return stats;
+      const jobDate = new Date(String(jobDateValue).substring(0, 10));
+      if (Number.isNaN(jobDate.getTime())) return stats;
+      if (month !== undefined && (jobDate.getMonth() !== month || jobDate.getFullYear() !== year)) return stats;
+
+      const assignedWorkers = this.parseJsonArray(job.assignedWorkers ?? job.assigned_workers);
+      const assignment = assignedWorkers.find(entry => String(entry.workerId ?? entry.worker_id ?? entry.id) === workerId);
+      if (!assignment) return stats;
+
+      const hours = parseFloat(assignment.hoursAllocated ?? assignment.hours_allocated ?? assignment.hours ?? 0) || 0;
+      const type = (assignment.workerType || assignment.worker_type || worker.workerType || worker.worker_type) === 'owner' ? 'owner' : 'employee';
+      const rate = parseFloat(assignment.hourlyRate ?? assignment.hourly_rate ?? worker.hourlyRate ?? worker.hourly_rate ?? 0) || 0;
+      const laborCost = type === 'owner'
+        ? 0
+        : ((assignment.laborCost !== undefined || assignment.labor_cost !== undefined)
+          ? (parseFloat(assignment.laborCost ?? assignment.labor_cost) || 0)
+          : hours * rate);
+
+      stats.hours += hours;
+      stats.earnings += laborCost;
+      stats.assignments += 1;
+      return stats;
+    }, { hours: 0, earnings: 0, assignments: 0, source: 'assignments' });
+  },
+
+  getOwnerPerformanceStats(worker, options = {}) {
+    const jobs = State.read('jobs') || [];
+    let performanceValue = 0;
+    let ownerHours = 0;
+
+    jobs.forEach(job => {
+      if (options.jobId && String(job.id) !== String(options.jobId)) return;
+
+      const workerStats = {
+        visits: this.getWorkerVisitStats(worker, { ...options, jobId: job.id }),
+        assignments: this.getWorkerAssignedStats(worker, { ...options, jobId: job.id })
+      };
+      const hours = workerStats.visits.hours + workerStats.assignments.hours;
+      if (hours <= 0) return;
+
+      const financials = this.computeJobProfit(job);
+      if (financials.profitPerHour === null) return;
+
+      performanceValue += financials.profitPerHour * hours;
+      ownerHours += hours;
+    });
+
+    return {
+      value: performanceValue,
+      rate: ownerHours > 0 ? performanceValue / ownerHours : null
+    };
+  },
+
+  getWorkerWorkStats(worker, options = {}) {
+    const visitStats = this.getWorkerVisitStats(worker, options);
+    const assignedStats = this.getWorkerAssignedStats(worker, options);
+    const ownerPerformance = this.getWorkerType(worker) === 'owner'
+      ? this.getOwnerPerformanceStats(worker, options)
+      : { value: 0, rate: null };
+    return {
+      hours: visitStats.hours + assignedStats.hours,
+      earnings: visitStats.earnings + assignedStats.earnings,
+      visits: visitStats.visits,
+      assignments: assignedStats.assignments,
+      ownerPerformanceValue: ownerPerformance.value,
+      ownerPerformanceRate: ownerPerformance.rate
+    };
+  },
+
   renderTable(workers) {
     if (workers.length === 0) {
       return Utils.renderEmptyState(
@@ -244,8 +440,6 @@ window.WorkersView = {
       );
     }
 
-    // Get jobs to calculate monthly stats
-    const jobs = State.read('jobs') || [];
     const now = new Date();
     const thisMonth = now.getMonth();
     const thisYear = now.getFullYear();
@@ -260,45 +454,22 @@ window.WorkersView = {
             <tr>
               <th style="text-align: left;">Ενέργειες</th>
               <th>Όνομα</th>
-              <th>Τύπος</th>
-              <th>Ειδικότητα</th>
               <th>Ωρομίσθιο</th>
               <th>Τηλέφωνο</th>
               <th>Ώρες Μήνα</th>
-              <th>Μισθός Μήνα</th>
+              <th>Μισθός / Απόδοση</th>
               <th>Κατάσταση</th>
             </tr>
           </thead>
           <tbody>
           ${sortedWorkers.map(worker => {
-            // Calculate monthly hours and earnings
-            let monthlyHours = 0;
-            let monthlyEarnings = 0;
-
-            jobs.forEach(job => {
-              // Parse assignedWorkers if it's a string
-              let assignedWorkers = job.assignedWorkers;
-              if (typeof assignedWorkers === 'string') {
-                try {
-                  assignedWorkers = JSON.parse(assignedWorkers);
-                } catch (e) {
-                  console.error('Error parsing assignedWorkers for job', job.id, e);
-                  assignedWorkers = [];
-                }
-              }
-              
-              if (Array.isArray(assignedWorkers) && job.date) {
-                const jobDate = new Date(job.date);
-                if (jobDate.getMonth() === thisMonth && jobDate.getFullYear() === thisYear) {
-                  const workerAssignment = assignedWorkers.find(w => w.workerId === worker.id);
-                  if (workerAssignment) {
-                    monthlyHours += workerAssignment.hoursAllocated || 0;
-                    // laborCost is what you PAY the worker (their hourlyRate × hours)
-                    monthlyEarnings += workerAssignment.laborCost || 0;
-                  }
-                }
-              }
-            });
+            const monthlyStats = this.getWorkerWorkStats(worker, { month: thisMonth, year: thisYear });
+            const isOwner = this.getWorkerType(worker) === 'owner';
+            const valueDisplay = isOwner
+              ? (monthlyStats.ownerPerformanceRate === null
+                ? '<strong>-</strong><br><small class="text-muted">Απόδοση/ώρα</small>'
+                : `<strong style="color: ${monthlyStats.ownerPerformanceRate >= 0 ? 'var(--success)' : 'var(--error)'};">${Utils.formatCurrency(monthlyStats.ownerPerformanceRate)}/ώρα</strong><br><small class="text-muted">Σύνολο: ${Utils.formatCurrency(monthlyStats.ownerPerformanceValue)}</small>`)
+              : `<strong>${Utils.formatCurrency(monthlyStats.earnings)}</strong>`;
 
             const statusBadge = worker.status === 'active' 
               ? '<span class="status-pill status-active">Ενεργός</span>'
@@ -318,12 +489,10 @@ window.WorkersView = {
                 </button>
               </td>
               <td title="${worker.name}"><strong>${worker.name}</strong></td>
-              <td>${(worker.workerType || worker.worker_type) === 'owner' ? 'Ιδιοκτήτης' : 'Υπάλληλος'}</td>
-              <td title="${worker.specialty}">${worker.specialty}</td>
               <td title="${Utils.formatCurrency(worker.hourlyRate)}">${Utils.formatCurrency(worker.hourlyRate)}/ώρα</td>
               <td title="${worker.phone || '-'}">${worker.phone ? `<a href="tel:${worker.phone}" style="color: var(--color-text); text-decoration: none;">${worker.phone}</a>` : '-'}</td>
-              <td><strong>${monthlyHours.toFixed(1)}h</strong></td>
-              <td><strong>${Utils.formatCurrency(monthlyEarnings)}</strong></td>
+              <td><strong>${monthlyStats.hours.toFixed(1)}h</strong></td>
+              <td>${valueDisplay}</td>
               <td>${statusBadge}</td>
             </tr>
             `;
@@ -367,7 +536,7 @@ window.WorkersView = {
     const workerData = {
       name: document.getElementById('w_name').value.trim(),
       phone: document.getElementById('w_phone').value.trim(),
-      specialty: document.getElementById('w_specialty').value,
+      specialty: null,
       hourlyRate: parseFloat(document.getElementById('w_hourlyRate').value) || 0,
       workerType: document.getElementById('w_workerType').value || 'employee',
       status: document.getElementById('w_status').value,
@@ -405,7 +574,7 @@ window.WorkersView = {
     }
 
     // Basic validation
-    if (!workerData.name || !workerData.phone || !workerData.specialty || !workerData.hourlyRate) {
+    if (!workerData.name || !workerData.phone || !workerData.hourlyRate) {
       console.warn('[Workers] Validation failed');
       Toast.error('Παρακαλώ συμπληρώστε όλα τα υποχρεωτικά πεδία');
       return;
@@ -447,31 +616,18 @@ window.WorkersView = {
 
     console.log('[Workers] Worker data:', worker);
 
-    // Get worker's work history from jobs
+    // Get worker's work history from recorded visits, with assignment fallback.
     const jobs = State.read('jobs') || [];
     console.log('[Workers] Total jobs in database:', jobs.length);
-    
-    const workerJobs = jobs.filter(job => {
-      // Parse assignedWorkers if it's a string
-      let assignedWorkers = job.assignedWorkers;
-      if (typeof assignedWorkers === 'string') {
-        try {
-          assignedWorkers = JSON.parse(assignedWorkers);
-        } catch (e) {
-          console.error('[Workers] Error parsing assignedWorkers for job', job.id, e);
-          return false;
-        }
-      }
-      
-      // Check if worker is in this job - compare as strings to avoid type issues
-      const hasWorker = Array.isArray(assignedWorkers) && assignedWorkers.some(w => String(w.workerId) === String(id));
-      if (hasWorker) {
-        console.log('[Workers] Job', job.id, 'includes worker', id);
-      }
-      return hasWorker;
-    });
 
-    console.log('[Workers] Found', workerJobs.length, 'jobs for worker', id);
+    const workerJobRows = jobs
+      .map(job => ({
+        job,
+        stats: this.getWorkerWorkStats(worker, { jobId: job.id })
+      }))
+      .filter(row => row.stats.hours > 0);
+
+    console.log('[Workers] Found', workerJobRows.length, 'jobs for worker', id);
 
     const statusBadge = worker.status === 'active' 
       ? '<span class="status-pill status-active">Ενεργός</span>'
@@ -493,7 +649,7 @@ window.WorkersView = {
             </div>
             <div class="detail-item">
               <label>Ειδικότητα:</label>
-              <span>${worker.specialty}</span>
+              <span>${worker.specialty || '-'}</span>
             </div>
             <div class="detail-item">
               <label>Τύπος:</label>
@@ -526,9 +682,9 @@ window.WorkersView = {
         </div>
 
         <!-- Εργασίες -->
-        ${workerJobs.length > 0 ? `
+        ${workerJobRows.length > 0 ? `
         <div class="detail-section">
-          <h4><i class="fas fa-briefcase"></i> Εργασίες (${workerJobs.length})</h4>
+          <h4><i class="fas fa-briefcase"></i> Εργασίες (${workerJobRows.length})</h4>
           <div class="table-wrapper">
             <table class="data-table">
               <thead>
@@ -536,35 +692,24 @@ window.WorkersView = {
                   <th>Εργασία</th>
                   <th>Πελάτης</th>
                   <th>Ώρες</th>
-                  <th>Κόστος</th>
+                  <th>Κόστος / Απόδοση</th>
                 </tr>
               </thead>
               <tbody>
-                ${workerJobs.map(job => {
-                  const client = State.data.clients.find(c => c.id === job.clientId);
-                  
-                  // Parse assignedWorkers if it's a string
-                  let assignedWorkers = job.assignedWorkers;
-                  if (typeof assignedWorkers === 'string') {
-                    try {
-                      assignedWorkers = JSON.parse(assignedWorkers);
-                    } catch (e) {
-                      console.error('[Workers] Error parsing assignedWorkers for job', job.id, e);
-                      assignedWorkers = [];
-                    }
-                  }
-                  
-                  // Compare as strings to avoid type mismatch
-                  const workerAssignment = Array.isArray(assignedWorkers) 
-                    ? assignedWorkers.find(w => String(w.workerId) === String(id))
-                    : null;
-                    
+                ${workerJobRows.map(({ job, stats }) => {
+                  const client = State.data.clients.find(c => Number(c.id) === Number(job.clientId || job.client_id));
+                  const isOwner = this.getWorkerType(worker) === 'owner';
+                  const valueDisplay = isOwner
+                    ? (stats.ownerPerformanceRate === null
+                      ? '-'
+                      : `${Utils.formatCurrency(stats.ownerPerformanceRate)}/ώρα<br><small class="text-muted">Σύνολο: ${Utils.formatCurrency(stats.ownerPerformanceValue)}</small>`)
+                    : Utils.formatCurrency(stats.earnings);
                   return `
                     <tr>
                       <td><strong>${job.id}</strong></td>
                       <td>${client?.name || 'Άγνωστος'}</td>
-                      <td>${workerAssignment?.hoursAllocated || 0}h</td>
-                      <td><strong style="color: var(--accent-primary);">${Utils.formatCurrency(workerAssignment?.laborCost || 0)}</strong></td>
+                      <td>${stats.hours.toFixed(1)}h</td>
+                      <td><strong style="color: var(--accent-primary);">${valueDisplay}</strong></td>
                     </tr>
                   `;
                 }).join('')}
@@ -624,7 +769,6 @@ window.WorkersView = {
     // Fill form
     document.getElementById('w_name').value = worker.name || '';
     document.getElementById('w_phone').value = worker.phone || '';
-    document.getElementById('w_specialty').value = worker.specialty || '';
     document.getElementById('w_hourlyRate').value = worker.hourlyRate || '';
     document.getElementById('w_workerType').value = worker.workerType || worker.worker_type || 'employee';
     document.getElementById('w_status').value = worker.status || 'active';
@@ -681,7 +825,7 @@ window.WorkersView = {
       workers = workers.filter(worker =>
         worker.name.toLowerCase().includes(searchTerm) ||
         (worker.phone || '').includes(searchTerm) ||
-        worker.specialty.toLowerCase().includes(searchTerm)
+        (worker.specialty || '').toLowerCase().includes(searchTerm)
       );
     }
 
@@ -778,29 +922,23 @@ window.WorkersView = {
 
   showReports() {
     const workers = State.read('workers') || [];
-    const timesheets = State.read('timesheets') || [];
-    
+
     const now = new Date();
     const thisMonth = now.getMonth();
     const thisYear = now.getFullYear();
 
     // Calculate monthly stats per worker
     const workerStats = workers.map(worker => {
-      const monthlyTimesheets = timesheets.filter(t => {
-        if (t.workerId !== worker.id || !t.checkOut) return false;
-        const date = new Date(t.checkIn);
-        return date.getMonth() === thisMonth && date.getFullYear() === thisYear;
-      });
-
-      const monthlyHours = monthlyTimesheets.reduce((sum, t) => sum + (t.hoursWorked || 0), 0);
-      const monthlyEarnings = monthlyHours * worker.hourlyRate;
+      const stats = this.getWorkerWorkStats(worker, { month: thisMonth, year: thisYear });
 
       return {
         name: worker.name,
-        specialty: worker.specialty,
-        hours: monthlyHours,
-        earnings: monthlyEarnings,
-        shifts: monthlyTimesheets.length
+        workerType: this.getWorkerType(worker),
+        hours: stats.hours,
+        earnings: stats.earnings,
+        ownerPerformanceValue: stats.ownerPerformanceValue,
+        ownerPerformanceRate: stats.ownerPerformanceRate,
+        shifts: stats.visits + stats.assignments
       };
     }).filter(s => s.hours > 0); // Only show workers with hours
 
@@ -817,27 +955,25 @@ window.WorkersView = {
                 <thead>
                   <tr>
                     <th>Όνομα</th>
-                    <th>Ειδικότητα</th>
                     <th>Βάρδιες</th>
                     <th>Ώρες</th>
-                    <th>Έσοδα</th>
+                    <th>Μισθός / Απόδοση</th>
                   </tr>
                 </thead>
                 <tbody>
                   ${workerStats.map(stat => `
                     <tr>
                       <td><strong>${stat.name}</strong></td>
-                      <td>${stat.specialty}</td>
                       <td>${stat.shifts}</td>
                       <td><strong>${stat.hours.toFixed(1)}h</strong></td>
-                      <td><strong style="color: var(--accent-primary);">${Utils.formatCurrency(stat.earnings)}</strong></td>
+                      <td><strong style="color: var(--accent-primary);">${stat.workerType === 'owner' ? (stat.ownerPerformanceRate === null ? '-' : Utils.formatCurrency(stat.ownerPerformanceRate) + '/ώρα<br><small class="text-muted">Σύνολο: ' + Utils.formatCurrency(stat.ownerPerformanceValue) + '</small>') : Utils.formatCurrency(stat.earnings)}</strong></td>
                     </tr>
                   `).join('')}
                   <tr style="background: var(--bg-secondary); font-weight: bold;">
-                    <td colspan="2">ΣΥΝΟΛΟ</td>
+                    <td>ΣΥΝΟΛΟ</td>
                     <td>${workerStats.reduce((sum, s) => sum + s.shifts, 0)}</td>
                     <td>${workerStats.reduce((sum, s) => sum + s.hours, 0).toFixed(1)}h</td>
-                    <td style="color: var(--accent-primary);">${Utils.formatCurrency(workerStats.reduce((sum, s) => sum + s.earnings, 0))}</td>
+                    <td style="color: var(--accent-primary);">${Utils.formatCurrency(workerStats.reduce((sum, s) => sum + (s.workerType === 'owner' ? s.ownerPerformanceValue : s.earnings), 0))}</td>
                   </tr>
                 </tbody>
               </table>

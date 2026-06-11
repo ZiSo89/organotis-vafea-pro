@@ -142,8 +142,7 @@ function showQuickAddModal() {
       title = 'Νέα Εργασία';
       fields = [
         { name: 'id', label: 'ID Εργασίας', required: true, value: Utils.generateNextId('jobs', 'Ε') },
-        { name: 'client', label: 'Πελάτης', type: 'select', options: State.data.clients.map(c => c.name), required: true },
-        { name: 'type', label: 'Τύπος', type: 'select', options: CONFIG.JOB_TYPES, required: true }
+        { name: 'client', label: 'Πελάτης', type: 'select', options: State.data.clients.map(c => c.name), required: true }
       ];
       break;
 

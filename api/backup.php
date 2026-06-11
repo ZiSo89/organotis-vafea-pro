@@ -17,6 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 require_once '../config/database.php';
 require_once __DIR__ . '/warehouse_schema.php';
+require_once __DIR__ . '/job_visits_schema.php';
 
 $action = $_GET['action'] ?? '';
 
@@ -27,6 +28,7 @@ if ($action === 'export') {
     try {
         $db = getDBConnection();
         ensure_warehouse_schema($db);
+        ensure_job_visits_schema($db);
         
         // Λίστα όλων των πινάκων (με τη σειρά που υπάρχουν στη βάση)
         $tables = [
@@ -39,9 +41,8 @@ if ($action === 'export') {
             'material_purchase_items',
             'supplier_payments',
             'jobs',
-            'job_workers',
-            'job_materials',
-            'timesheets',
+            'job_visits',
+            'job_payments',
             'calendar_events',
             'offers',
             'invoices',
@@ -169,6 +170,7 @@ if ($action === 'import') {
         
         $db = getDBConnection();
         ensure_warehouse_schema($db);
+        ensure_job_visits_schema($db);
         
         // Απενεργοποίηση foreign key checks και autocommit
         $db->exec('SET FOREIGN_KEY_CHECKS = 0');
@@ -176,15 +178,14 @@ if ($action === 'import') {
         
         // Σειρά διαγραφής (ανάποδη από τις foreign keys)
         $deleteOrder = [
-            'timesheets',
             'calendar_events',
             'supplier_payments',
             'material_purchase_items',
             'material_purchases',
             'suppliers',
             'material_stock_movements',
-            'job_materials',
-            'job_workers',
+            'job_payments',
+            'job_visits',
             'invoices',
             'offers',
             'jobs',
@@ -215,9 +216,8 @@ if ($action === 'import') {
             'material_purchase_items',
             'supplier_payments',
             'jobs',
-            'job_workers',
-            'job_materials',
-            'timesheets',
+            'job_visits',
+            'job_payments',
             'calendar_events',
             'offers',
             'invoices',

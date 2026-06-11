@@ -403,7 +403,6 @@ window.SettingsView = {
           { header: 'ID', key: 'id', width: 10 },
           { header: 'Πελάτης', key: 'client', width: 25 },
           { header: 'Τίτλος', key: 'title', width: 25 },
-          { header: 'Τύπος', key: 'type', width: 20 },
           { header: 'Ημερομηνία', key: 'date', width: 15 },
           { header: 'Δωμάτια', key: 'rooms', width: 12 },
           { header: 'Εμβαδόν', key: 'area', width: 12 },
@@ -484,7 +483,6 @@ window.SettingsView = {
             id: j.id,
             client: getClientName(j.clientId || j.client_id),
             title: j.title,
-            type: j.type || '',
             date: formatDate(j.date),
             rooms: j.rooms || '',
             area: j.area || '',
@@ -693,7 +691,6 @@ window.SettingsView = {
           { header: 'ID', key: 'id', width: 10 },
           { header: 'Ημερομηνία', key: 'purchaseDate', width: 15 },
           { header: 'Κατάστημα', key: 'supplier', width: 30 },
-          { header: 'Παραστατικό', key: 'reference', width: 18 },
           { header: 'Σύνολο', key: 'totalCost', width: 15 },
           { header: 'Πληρωμένο στην αγορά', key: 'paidAmount', width: 22 },
           { header: 'Υπόλοιπο αγοράς', key: 'balance', width: 18 },
@@ -705,7 +702,6 @@ window.SettingsView = {
             id: p.id,
             purchaseDate: formatDate(p.purchaseDate || p.purchase_date),
             supplier: p.supplierName || p.supplier_name || '',
-            reference: p.referenceNumber || p.reference_number || '',
             totalCost: `€${parseFloat(p.totalCost || p.total_cost || 0).toFixed(2)}`,
             paidAmount: `€${parseFloat(p.paidAmount || p.paid_amount || 0).toFixed(2)}`,
             balance: `€${parseFloat(p.balance || 0).toFixed(2)}`,
@@ -727,7 +723,6 @@ window.SettingsView = {
           { header: 'Κατάστημα', key: 'supplier', width: 30 },
           { header: 'Αγορά ID', key: 'purchaseId', width: 12 },
           { header: 'Ποσό', key: 'amount', width: 15 },
-          { header: 'Τρόπος', key: 'paymentMethod', width: 18 },
           { header: 'Σημειώσεις', key: 'notes', width: 30 }
         ];
 
@@ -738,7 +733,6 @@ window.SettingsView = {
             supplier: p.supplierName || p.supplier_name || '',
             purchaseId: p.purchaseId || p.purchase_id || '',
             amount: `€${parseFloat(p.amount || 0).toFixed(2)}`,
-            paymentMethod: p.paymentMethod || p.payment_method || '',
             notes: p.notes || ''
           });
         });

@@ -289,6 +289,168 @@ window.OfflineService = {
     return await this.delete('jobs', id);
   },
 
+  // Job Visits (επισκέψεις εργασίας)
+  _computeVisitTotals(workers) {
+    const list = Array.isArray(workers) ? workers : [];
+    const totals = { totalHours: 0, employeeHours: 0, ownerHours: 0, laborCost: 0 };
+    list.forEach(w => {
+      const hours = parseFloat(w.hours || w.hoursAllocated || 0) || 0;
+      const rate = parseFloat(w.hourlyRate || w.hourly_rate || 0) || 0;
+      const type = (w.workerType || w.worker_type) === 'owner' ? 'owner' : 'employee';
+      totals.totalHours += hours;
+      if (type === 'owner') {
+        totals.ownerHours += hours;
+      } else {
+        totals.employeeHours += hours;
+        totals.laborCost += (w.laborCost !== undefined || w.labor_cost !== undefined)
+          ? (parseFloat(w.laborCost ?? w.labor_cost) || 0)
+          : hours * rate;
+      }
+    });
+    return totals;
+  },
+
+  _enrichJobVisit(visit, jobs, clients) {
+    let workers = visit.workers;
+    if (typeof workers === 'string') {
+      try { workers = JSON.parse(workers); } catch (e) { workers = []; }
+    }
+    if (!Array.isArray(workers)) workers = [];
+    const job = jobs.find(j => Number(j.id) === Number(visit.jobId));
+    const client = job ? clients.find(c => Number(c.id) === Number(job.clientId)) : null;
+    return {
+      ...visit,
+      workers,
+      jobTitle: job?.title || '',
+      clientId: job?.clientId || null,
+      clientName: client?.name || '',
+      ...this._computeVisitTotals(workers)
+    };
+  },
+
+  async _getJobContext() {
+    const [jobsResult, clientsResult] = await Promise.all([
+      this.getAll('jobs'),
+      this.getAll('clients')
+    ]);
+    return {
+      jobs: jobsResult.success ? jobsResult.data : [],
+      clients: clientsResult.success ? clientsResult.data : []
+    };
+  },
+
+  _enrichJobPayment(payment, jobs, clients) {
+    const job = jobs.find(j => Number(j.id) === Number(payment.jobId));
+    const client = job ? clients.find(c => Number(c.id) === Number(job.clientId)) : null;
+    return {
+      ...payment,
+      jobTitle: job?.title || '',
+      clientId: job?.clientId || null,
+      clientName: client?.name || ''
+    };
+  },
+
+  async getJobVisits() {
+    const visitsResult = await this.getAll('job_visits');
+    if (!visitsResult.success) return visitsResult;
+
+    const { jobs, clients } = await this._getJobContext();
+
+    visitsResult.data = visitsResult.data
+      .map(visit => this._enrichJobVisit(visit, jobs, clients))
+      .sort((a, b) => String(b.visitDate || '').localeCompare(String(a.visitDate || '')) || Number(b.id || 0) - Number(a.id || 0));
+
+    return visitsResult;
+  },
+
+  async createJobVisit(data) {
+    const payload = { ...data };
+    if (Array.isArray(payload.workers)) {
+      payload.workers = JSON.stringify(payload.workers);
+    }
+    const result = await this.insert('job_visits', payload);
+    if (!result.success) return result;
+
+    const visitId = result.data?.record?.id || result.data?.id;
+    const refreshed = await this.getById('job_visits', visitId);
+    const { jobs, clients } = await this._getJobContext();
+    return {
+      success: true,
+      data: {
+        record: this._enrichJobVisit(refreshed.data || {}, jobs, clients)
+      }
+    };
+  },
+
+  async updateJobVisit(id, data) {
+    const payload = { ...data };
+    if (Array.isArray(payload.workers)) {
+      payload.workers = JSON.stringify(payload.workers);
+    }
+    const result = await this.update('job_visits', id, payload);
+    if (!result.success) return result;
+
+    const refreshed = await this.getById('job_visits', id);
+    const { jobs, clients } = await this._getJobContext();
+    return {
+      success: true,
+      data: {
+        record: this._enrichJobVisit(refreshed.data || {}, jobs, clients)
+      }
+    };
+  },
+
+  async deleteJobVisit(id) {
+    return await this.delete('job_visits', id);
+  },
+
+  // Job Payments (πληρωμές πελάτη)
+  async getJobPayments() {
+    const paymentsResult = await this.getAll('job_payments');
+    if (!paymentsResult.success) return paymentsResult;
+
+    const { jobs, clients } = await this._getJobContext();
+
+    paymentsResult.data = paymentsResult.data
+      .map(payment => this._enrichJobPayment(payment, jobs, clients))
+      .sort((a, b) => String(b.paymentDate || '').localeCompare(String(a.paymentDate || '')) || Number(b.id || 0) - Number(a.id || 0));
+
+    return paymentsResult;
+  },
+
+  async createJobPayment(data) {
+    const result = await this.insert('job_payments', data);
+    if (!result.success) return result;
+
+    const paymentId = result.data?.record?.id || result.data?.id;
+    const refreshed = await this.getById('job_payments', paymentId);
+    const { jobs, clients } = await this._getJobContext();
+    return {
+      success: true,
+      data: {
+        record: this._enrichJobPayment(refreshed.data || {}, jobs, clients)
+      }
+    };
+  },
+
+  async updateJobPayment(id, data) {
+    const result = await this.update('job_payments', id, data);
+    if (!result.success) return result;
+
+    const refreshed = await this.getById('job_payments', id);
+    const { jobs, clients } = await this._getJobContext();
+    return {
+      success: true,
+      data: {
+        record: this._enrichJobPayment(refreshed.data || {}, jobs, clients)
+      }
+    };
+  },
+
+  async deleteJobPayment(id) {
+    return await this.delete('job_payments', id);
+  },
+
   // Workers
   async getWorkers() {
     return await this.getAll('workers');
@@ -501,16 +663,17 @@ window.OfflineService = {
 
   async createMaterialPurchase(data) {
     const items = Array.isArray(data.items) ? data.items : [];
-    const totalCost = items.reduce((sum, item) => {
+    const itemsTotal = items.reduce((sum, item) => {
       const quantity = parseFloat(item.quantity) || 0;
       const unitPrice = parseFloat(item.unitPrice || item.unit_price) || 0;
       return sum + (parseFloat(item.totalCost || item.total_cost) || (quantity * unitPrice));
     }, 0);
+    const totalCost = parseFloat(data.totalCost || data.total_cost || 0) || itemsTotal;
 
     const purchaseResult = await this.insert('material_purchases', {
       supplierId: data.supplierId,
       purchaseDate: data.purchaseDate,
-      referenceNumber: data.referenceNumber,
+      referenceNumber: data.referenceNumber || '',
       notes: data.notes,
       totalCost
     });

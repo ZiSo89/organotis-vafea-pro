@@ -1,13 +1,13 @@
 {
   "name": "Τέχνη και Χρώμα",
-  "short_name": "Τέχνη Χρώμα",
+  "short_name": "Τέχνη και Χρώμα",
   "description": "Επαγγελματική διαχείριση εργασιών βαφής",
   "id": "/public/?v=20260607b",
   "scope": "/public/",
   "start_url": "/public/index.html?v=20260607b",
   "display": "standalone",
-  "background_color": "#1a1a2e",
-  "theme_color": "#1a1a2e",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
   "orientation": "any",
   "icons": [
     {
