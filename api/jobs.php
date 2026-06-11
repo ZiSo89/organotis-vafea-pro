@@ -6,6 +6,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/auth_check.php';
 require_once __DIR__ . '/calendar_helpers.php';
 require_once __DIR__ . '/job_visits_schema.php';
+require_once __DIR__ . '/job_financials.php';
 checkAuthentication();
 
 logApiRequest('/api/jobs.php', $_SERVER['REQUEST_METHOD'], $_GET);
@@ -31,110 +32,13 @@ ensure_job_visits_schema($db);
 function fetch_all_job_visit_totals($db) {
     static $cache = null;
     if ($cache !== null) return $cache;
-    $cache = [];
-    try {
-        $stmt = $db->query("SELECT job_id, workers FROM job_visits");
-        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            $jid = (int)$row['job_id'];
-            $t = job_visit_totals($row['workers']);
-            if (!isset($cache[$jid])) {
-                $cache[$jid] = ['total_hours' => 0.0, 'employee_hours' => 0.0, 'owner_hours' => 0.0, 'labor_cost' => 0.0, 'visit_count' => 0];
-            }
-            $cache[$jid]['total_hours'] += $t['total_hours'];
-            $cache[$jid]['employee_hours'] += $t['employee_hours'];
-            $cache[$jid]['owner_hours'] += $t['owner_hours'];
-            $cache[$jid]['labor_cost'] += $t['labor_cost'];
-            $cache[$jid]['visit_count'] += 1;
-        }
-    } catch (Exception $e) {
-        error_log('fetch_all_job_visit_totals: ' . $e->getMessage());
-    }
+    $cache = job_financial_fetch_visit_totals($db);
     return $cache;
 }
 
 // Helper: compute job-level financials (billing, net profit)
 function compute_job_financials_job($job, $visitTotals = null) {
-    $toFloat = function($v) {
-        if ($v === null || $v === '') return 0.0;
-        return (float)$v;
-    };
-
-    $billing = 0.0;
-
-    // Συμφωνημένη τιμή (κατ' αποκοπή): τα έσοδα είναι σταθερά, ανεξάρτητα από ώρες
-    $billingType = $job['billing_type'] ?? $job['billingType'] ?? 'hourly';
-    $agreedPrice = $toFloat($job['agreed_price'] ?? $job['agreedPrice'] ?? 0);
-    if ($billingType === 'fixed' && $agreedPrice > 0) {
-        $billing = $agreedPrice;
-    }
-
-    if ($billing == 0.0 && isset($job['billing_amount'])) $billing = $toFloat($job['billing_amount']);
-    if ($billing == 0.0 && isset($job['billingAmount'])) $billing = $toFloat($job['billingAmount']);
-
-    if ($billing == 0.0) {
-        $hours = $toFloat($job['billing_hours'] ?? $job['billingHours'] ?? 0);
-        $rate = $toFloat($job['billing_rate'] ?? $job['billingRate'] ?? 0);
-        if ($hours > 0 && $rate > 0) $billing = $hours * $rate;
-    }
-
-    if ($billing == 0.0) {
-        $total_cost = $toFloat($job['total_cost'] ?? $job['totalCost'] ?? 0);
-        if ($total_cost > 0) {
-            $billing = $total_cost;
-        }
-    }
-
-    $materials = $toFloat($job['materials_cost'] ?? $job['materialsCost'] ?? 0);
-    $kilometers = $toFloat($job['kilometers'] ?? $job['km'] ?? 0);
-    $cost_per_km = $toFloat($job['cost_per_km'] ?? $job['costPerKm'] ?? $job['travel_cost'] ?? 0.5);
-    $travel = $kilometers * $cost_per_km;
-
-    // Εργατικό κόστος: αν υπάρχουν καταγεγραμμένες επισκέψεις, αυτές είναι η πηγή
-    // αλήθειας. Αλλιώς, από τους ανατεθειμένους εργάτες της εργασίας.
-    $labor = 0.0;
-    $actualHours = 0.0;
-    $hasVisits = is_array($visitTotals) && ($visitTotals['visit_count'] ?? 0) > 0;
-    if ($hasVisits) {
-        $labor = $toFloat($visitTotals['labor_cost']);
-        $actualHours = $toFloat($visitTotals['total_hours']);
-    } else {
-        $assigned = $job['assigned_workers'] ?? $job['assignedWorkers'] ?? $job['workers'] ?? null;
-        $decoded = null;
-        if ($assigned) {
-            if (is_string($assigned)) {
-                $decoded = json_decode($assigned, true);
-                if ($decoded !== null && !is_array($decoded) && is_string($decoded)) {
-                    $decoded2 = json_decode($decoded, true);
-                    if (is_array($decoded2)) $decoded = $decoded2;
-                }
-            } elseif (is_array($assigned)) {
-                $decoded = $assigned;
-            }
-
-            if (is_array($decoded)) {
-                foreach ($decoded as $w) {
-                    $workerType = $w['worker_type'] ?? $w['workerType'] ?? 'employee';
-                    $actualHours += $toFloat($w['hours_allocated'] ?? $w['hoursAllocated'] ?? 0);
-                    if ($workerType === 'owner') continue;
-                    $labor += $toFloat($w['labor_cost'] ?? $w['laborCost'] ?? $w['cost'] ?? 0);
-                }
-            }
-        }
-    }
-
-    $expenses = $materials + $labor + $travel;
-    $profit = $billing - $expenses;
-
-    return [
-        'billing' => $billing,
-        'materials' => $materials,
-        'labor' => $labor,
-        'travel' => $travel,
-        'expenses' => $expenses,
-        'profit' => $profit,
-        'actual_hours' => $actualHours,
-        'visit_count' => $hasVisits ? (int)$visitTotals['visit_count'] : 0
-    ];
+    return job_financial_compute($job, $visitTotals);
 }
 
 function encode_job_json_field($input, $key) {
