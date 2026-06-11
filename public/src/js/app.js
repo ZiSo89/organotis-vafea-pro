@@ -179,10 +179,22 @@ function showQuickAddModal() {
   });
 }
 
-// Service Worker για PWA (optional)
+// Service Worker για PWA updates
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    // Uncomment όταν έχεις service worker
-    // navigator.serviceWorker.register('/sw.js');
+  let refreshing = false;
+
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (refreshing) return;
+    refreshing = true;
+    window.location.reload();
+  });
+
+  window.addEventListener('load', async () => {
+    try {
+      const registration = await navigator.serviceWorker.register('sw.js?v=20260611b', { scope: './' });
+      registration.update();
+    } catch (error) {
+      console.warn('[PWA] Service worker registration failed:', error);
+    }
   });
 }
