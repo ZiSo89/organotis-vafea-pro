@@ -38,18 +38,29 @@ window.DashboardView = {
             </div>
           </div>
 
-          <div class="widget-compact clickable" onclick="Router.navigate('workers')">
+          <div class="widget-compact clickable" onclick="Router.navigate('suppliers')">
             <div class="widget-content">
-              <div class="widget-title">Προσωπικό</div>
-              <div class="widget-value">${stats.totalWorkers}</div>
-              <div class="widget-footer">${stats.totalWorkers} εργάτες</div>
+              <div class="widget-title">Προμηθευτές</div>
+              <div class="widget-value">${stats.totalSuppliers}</div>
+              <div class="widget-footer">Υπόλοιπο: ${Utils.formatCurrency(stats.supplierBalance)}</div>
             </div>
-            <div class="widget-icon success">
-              <i class="fas fa-hard-hat"></i>
+            <div class="widget-icon warning">
+              <i class="fas fa-store"></i>
             </div>
           </div>
 
-          <div class="widget-compact">
+          <div class="widget-compact clickable" onclick="Router.navigate('inventory')">
+            <div class="widget-content">
+              <div class="widget-title">Αποθήκη</div>
+              <div class="widget-value">${stats.totalMaterials}</div>
+              <div class="widget-footer">Αξία: ${Utils.formatCurrency(stats.stockValue)}</div>
+            </div>
+            <div class="widget-icon info">
+              <i class="fas fa-boxes"></i>
+            </div>
+          </div>
+
+          <div class="widget-compact clickable" onclick="Router.navigate('statistics')">
             <div class="widget-content">
               <div class="widget-title">Καθαρά Κέρδη Μήνα</div>
               <div id="monthlyProfitValue" class="widget-value" style="color: ${stats.monthlyProfit >= 0 ? 'var(--success)' : 'var(--error)'}">
@@ -59,17 +70,6 @@ window.DashboardView = {
             </div>
             <div class="widget-icon ${stats.monthlyProfit >= 0 ? 'success' : 'error'}">
               <i class="fas fa-chart-line"></i>
-            </div>
-          </div>
-
-          <div class="widget-compact">
-            <div class="widget-content">
-              <div class="widget-title">Έσοδα Μήνα</div>
-              <div id="monthlyRevenueValue" class="widget-value">${Utils.formatCurrency(stats.monthlyRevenue)}</div>
-              <div class="widget-footer">${stats.completedThisMonth} εργασίες</div>
-            </div>
-            <div class="widget-icon primary">
-              <i class="fas fa-euro-sign"></i>
             </div>
           </div>
         </div>
@@ -205,6 +205,10 @@ window.DashboardView = {
     
     const clients = State.data.clients;
     const workers = State.data.workers || [];
+    const suppliers = State.data.suppliers || [];
+    const inventory = State.data.inventory || [];
+    const materialPurchases = State.data.materialPurchases || [];
+    const supplierPayments = State.data.supplierPayments || [];
     
     const now = new Date();
     const thisMonth = now.getMonth();
@@ -291,10 +295,31 @@ window.DashboardView = {
     // NOTE: removed older fallback monthlyProfit calculation to avoid duplicate declaration.
     // The `monthlyProfit` above (billing minus expenses) is the canonical value.
 
+    const supplierPurchasesTotal = materialPurchases.reduce((sum, purchase) => {
+      return sum + parseNumber(purchase.totalCost || purchase.total_cost);
+    }, 0);
+    const supplierPaymentsTotal = supplierPayments.reduce((sum, payment) => {
+      return sum + parseNumber(payment.amount);
+    }, 0);
+    const stockValue = inventory.reduce((sum, material) => {
+      const stock = parseNumber(material.stock);
+      const unitPrice = parseNumber(material.unitPrice || material.unit_price);
+      return sum + (stock * unitPrice);
+    }, 0);
+
     const stats = {
       totalJobs: jobs.length,
       totalClients: clients.length,
       totalWorkers: workers.length,
+      totalSuppliers: suppliers.length,
+      supplierBalance: supplierPurchasesTotal - supplierPaymentsTotal,
+      totalMaterials: inventory.length,
+      stockValue,
+      lowStockMaterials: inventory.filter(material => {
+        const stock = parseNumber(material.stock);
+        const minStock = parseNumber(material.minStock || material.min_stock);
+        return minStock > 0 && stock <= minStock;
+      }).length,
       activeJobs: jobs.filter(j => 
         j.status === 'Σε εξέλιξη' || j.status === 'Προγραμματισμένη'
       ).length,
@@ -405,6 +430,7 @@ window.DashboardView = {
     const upcomingJobs = State.data.jobs
       .filter(job => {
         if (!job.nextVisit) return false;
+        if (job.status === 'Ακυρώθηκε' || job.status === 'cancelled') return false;
         const visitDate = new Date(job.nextVisit);
         visitDate.setHours(0, 0, 0, 0);
         return visitDate >= today && visitDate <= nextWeek;
@@ -450,7 +476,6 @@ window.DashboardView = {
               </div>
               <div class="activity-content">
                 <div class="activity-title">${clientName}</div>
-                <div class="activity-subtitle">Εργασία</div>
                 <div class="activity-time">
                   <strong style="color: var(--accent-primary);">${Utils.formatDate(job.nextVisit)}</strong>
                   · ${urgencyText}
@@ -676,7 +701,6 @@ window.DashboardView = {
                   <th>Όνομα</th>
                   <th>Κωδικός</th>
                   <th>Ποσότητα</th>
-                  <th>Πληροφορίες</th>
                   <th>Κόστος</th>
                 </tr>
               </thead>
@@ -686,7 +710,6 @@ window.DashboardView = {
                     <td><strong>${paint.name}</strong></td>
                     <td>${paint.code || '-'}</td>
                     <td>${paint.quantity || '-'}</td>
-                    <td>${paint.info || '-'}</td>
                     <td><strong>${Utils.formatCurrency(Number(paint.cost) || 0)}</strong></td>
                   </tr>
                 `).join('')}
@@ -706,7 +729,6 @@ window.DashboardView = {
                 <tr>
                   <th>Εργάτης</th>
                   <th>Τύπος</th>
-                  <th>Ειδικότητα</th>
                   <th>Ωρομίσθιο</th>
                   <th>Ώρες</th>
                   <th>Κόστος</th>
@@ -717,14 +739,13 @@ window.DashboardView = {
                   <tr>
                     <td><strong>${worker.workerName}</strong></td>
                     <td>${(worker.workerType || worker.worker_type) === 'owner' ? 'Ιδιοκτήτης' : 'Υπάλληλος'}</td>
-                    <td>${worker.workerSpecialty || worker.specialty || ''}</td>
                     <td>${Utils.formatCurrency(worker.hourlyRate)}/ώρα</td>
                     <td>${worker.hoursAllocated}h</td>
                     <td><strong style="color: var(--error);">${Utils.formatCurrency(worker.laborCost)}</strong></td>
                   </tr>
                 `).join('')}
                 <tr style="background: var(--bg-secondary); font-weight: bold;">
-                  <td colspan="4" style="text-align: right;">ΣΥΝΟΛΟ:</td>
+                  <td colspan="3" style="text-align: right;">ΣΥΝΟΛΟ:</td>
                   <td>${assignedWorkers.reduce((sum, w) => sum + w.hoursAllocated, 0).toFixed(1)}h</td>
                   <td><strong style="color: var(--error);">${Utils.formatCurrency(laborCost)}</strong></td>
                 </tr>

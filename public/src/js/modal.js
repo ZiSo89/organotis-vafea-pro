@@ -6,13 +6,15 @@ const Modal = {
   container: null,
   currentModal: null,
   currentOnClose: null,
+  currentCloseOnBackdrop: false,
+  currentCloseOnEscape: false,
 
   init() {
     this.container = document.getElementById('modalContainer');
     
     // Close on backdrop click
     this.container.addEventListener('click', (e) => {
-      if (e.target === this.container) {
+      if (e.target === this.container && this.currentCloseOnBackdrop) {
         this.close(true);
       }
     });
@@ -26,7 +28,9 @@ const Modal = {
       content = '',
       size = '', // 'sm', 'lg', 'xl', 'full'
       footer = '',
-      onClose = null
+      onClose = null,
+      closeOnBackdrop = false,
+      closeOnEscape = false
     } = options;
 
     const modal = document.createElement('div');
@@ -56,6 +60,8 @@ const Modal = {
     this.container.classList.add('active');
     this.currentModal = modal;
     this.currentOnClose = onClose;
+    this.currentCloseOnBackdrop = closeOnBackdrop;
+    this.currentCloseOnEscape = closeOnEscape;
 
     // Focus management - only on desktop (not mobile to avoid keyboard popup)
     if (!Utils.isMobile()) {
@@ -72,6 +78,8 @@ const Modal = {
     if (this.container) {
       const onClose = this.currentOnClose;
       this.currentOnClose = null;
+      this.currentCloseOnBackdrop = false;
+      this.currentCloseOnEscape = false;
       this.container.classList.remove('active');
       setTimeout(() => {
         this.container.innerHTML = '';

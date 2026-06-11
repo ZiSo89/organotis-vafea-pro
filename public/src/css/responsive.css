@@ -86,6 +86,25 @@
   .quick-actions button {
     width: 100%;
   }
+
+  .visit-worker-list {
+    grid-template-columns: 1fr;
+  }
+
+  .visit-worker-card {
+    align-items: stretch;
+  }
+
+  .visit-worker-hours-field {
+    flex-direction: column;
+    align-items: stretch;
+    min-width: 92px;
+  }
+
+  .visit-worker-hours-field input {
+    width: 100%;
+    min-height: 48px;
+  }
   
   .modal {
     margin: var(--spacing-sm);

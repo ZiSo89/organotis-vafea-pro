@@ -361,6 +361,9 @@ const State = {
       
       // Refresh Dashboard if needed
       this.refreshDashboardIfNeeded();
+      if (collection === 'jobVisits' || collection === 'jobs') {
+        this.refreshWorkersIfNeeded();
+      }
       
       return createdItem;
     } catch (error) {
@@ -454,6 +457,9 @@ const State = {
         this.data[collection][index] = updated;
         this.saveToHistory(`Ενημέρωση ${collection}`, this.data);
         this.refreshDashboardIfNeeded();
+        if (collection === 'jobVisits' || collection === 'jobs') {
+          this.refreshWorkersIfNeeded();
+        }
       }
       
       return updated;
@@ -511,6 +517,9 @@ const State = {
         this.data[collection].splice(index, 1);
         this.saveToHistory(`Διαγραφή ${collection}`, this.data);
         this.refreshDashboardIfNeeded();
+        if (collection === 'jobVisits' || collection === 'jobs') {
+          this.refreshWorkersIfNeeded();
+        }
       } else {
         console.warn(`[State] Item with id ${id} not found in ${collection}`);
       }
@@ -615,6 +624,12 @@ const State = {
   refreshJobsIfNeeded() {
     if (this.currentSection === 'jobs' && window.JobsView && window.JobsView.refreshTable) {
       window.JobsView.refreshTable();
+    }
+  },
+
+  refreshWorkersIfNeeded() {
+    if (this.currentSection === 'workers' && window.WorkersView && window.WorkersView.refreshTable) {
+      window.WorkersView.refreshTable();
     }
   },
 

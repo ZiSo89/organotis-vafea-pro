@@ -6,6 +6,7 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/auth_check.php';
 require_once __DIR__ . '/warehouse_schema.php';
+require_once __DIR__ . '/material_identity.php';
 
 checkAuthentication();
 
@@ -20,6 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') exit(0);
 
 $db = getDBConnection();
 ensure_warehouse_schema($db);
+ensure_material_identity_schema($db);
 $method = $_SERVER['REQUEST_METHOD'];
 
 function purchase_select_sql() {
@@ -89,6 +91,9 @@ function normalize_purchase_items($items) {
         $normalized[] = [
             'material_id' => !empty($data['material_id']) ? (int)$data['material_id'] : null,
             'material_name' => $name,
+            'has_category' => isset($data['category']) && trim((string)$data['category']) !== '',
+            'category' => material_normalize_category($data['category'] ?? 'Άλλο'),
+            'color_code' => trim($data['color_code'] ?? ''),
             'quantity' => $quantity,
             'unit' => $data['unit'] ?? null,
             'unit_price' => $unitPrice,
@@ -107,20 +112,33 @@ function resolve_material_id($db, $item) {
         if ($stmt->fetch()) return (int)$item['material_id'];
     }
 
-    $stmt = $db->prepare("SELECT id FROM materials WHERE name = ? LIMIT 1");
-    $stmt->execute([$item['material_name']]);
-    $existingId = $stmt->fetchColumn();
-    if ($existingId) return (int)$existingId;
+    $prepared = material_prepare_data([
+        'name' => $item['material_name'],
+        'category' => $item['category'] ?? 'Άλλο',
+        'colorCode' => $item['color_code'] ?? '',
+        'unit' => $item['unit'] ?: 'τμχ',
+        'unitPrice' => $item['unit_price'],
+        'stock' => 0,
+        'minStock' => 0
+    ]);
+
+    $duplicate = find_material_duplicate($db, $prepared);
+    if (!$duplicate && empty($item['has_category'])) {
+        $duplicate = find_material_by_normalized_name($db, $item['material_name']);
+    }
+    if ($duplicate) return (int)$duplicate['id'];
 
     $stmt = $db->prepare("
-        INSERT INTO materials (name, unit, unit_price, stock, min_stock, category)
-        VALUES (:name, :unit, :unit_price, 0, 0, :category)
+        INSERT INTO materials (name, unit, unit_price, stock, min_stock, category, color_code, canonical_key)
+        VALUES (:name, :unit, :unit_price, 0, 0, :category, :color_code, :canonical_key)
     ");
     $stmt->execute([
-        ':name' => $item['material_name'],
-        ':unit' => $item['unit'] ?: 'τμχ',
-        ':unit_price' => $item['unit_price'],
-        ':category' => 'Αγορά'
+        ':name' => $prepared['name'],
+        ':unit' => $prepared['unit'] ?: 'τμχ',
+        ':unit_price' => $prepared['unit_price'],
+        ':category' => $prepared['category'],
+        ':color_code' => $prepared['color_code'] ?: null,
+        ':canonical_key' => $prepared['canonical_key']
     ]);
     return (int)$db->lastInsertId();
 }

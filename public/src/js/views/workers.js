@@ -11,7 +11,6 @@ window.WorkersView = {
   cancelBtnHandler: null,
   searchInputHandler: null,
   statusFilterHandler: null,
-  specialtyFilterHandler: null,
 
   render(container) {
     const workers = State.read('workers') || [];
@@ -106,15 +105,6 @@ window.WorkersView = {
             <option value="active">Ενεργοί</option>
             <option value="inactive">Ανενεργοί</option>
           </select>
-
-          <select id="specialtyFilter">
-            <option value="">Όλες οι ειδικότητες</option>
-            <option value="Ελαιοχρωματιστής">Ελαιοχρωματιστής</option>
-            <option value="Βοηθός">Βοηθός</option>
-            <option value="Γυψαδόρος">Γυψαδόρος</option>
-            <option value="Βαφέας">Βαφέας</option>
-            <option value="Ειδικός σε Ξύλο">Ειδικός σε Ξύλο</option>
-          </select>
         </div>
       </div>
 
@@ -184,16 +174,6 @@ window.WorkersView = {
       statusFilter.addEventListener('change', this.statusFilterHandler);
     }
 
-    // Specialty filter
-    const specialtyFilter = document.getElementById('specialtyFilter');
-    if (specialtyFilter) {
-      if (this.specialtyFilterHandler) {
-        specialtyFilter.removeEventListener('change', this.specialtyFilterHandler);
-      }
-      this.specialtyFilterHandler = () => this.filterWorkers();
-      specialtyFilter.addEventListener('change', this.specialtyFilterHandler);
-    }
-    
     // Event delegation for table buttons
     const container = document.getElementById('contentArea');
     if (container) {
@@ -239,6 +219,46 @@ window.WorkersView = {
     return (worker.workerType || worker.worker_type) === 'owner' ? 'owner' : 'employee';
   },
 
+  parseNumber(value) {
+    if (value === null || value === undefined || value === '') return 0;
+    const normalized = typeof value === 'string'
+      ? value.replace(',', '.').replace(/[^\d.-]/g, '')
+      : value;
+    const number = parseFloat(normalized);
+    return Number.isFinite(number) ? number : 0;
+  },
+
+  getEntryHours(entry) {
+    return this.parseNumber(entry.hours ?? entry.hoursAllocated ?? entry.hours_allocated);
+  },
+
+  getEntryHourlyRate(entry, fallbackWorker = null) {
+    return this.parseNumber(entry.hourlyRate ?? entry.hourly_rate ?? fallbackWorker?.hourlyRate ?? fallbackWorker?.hourly_rate);
+  },
+
+  getEntryLaborCost(entry, fallbackWorker = null) {
+    const type = (entry.workerType || entry.worker_type || fallbackWorker?.workerType || fallbackWorker?.worker_type) === 'owner' ? 'owner' : 'employee';
+    if (type === 'owner') return 0;
+
+    const hours = this.getEntryHours(entry);
+    const rate = this.getEntryHourlyRate(entry, fallbackWorker);
+    if (rate > 0) return hours * rate;
+
+    // Fallback only for old records that do not carry an hourly rate.
+    return this.parseNumber(entry.laborCost ?? entry.labor_cost);
+  },
+
+  isWorkerEntry(entry, worker) {
+    const entryWorkerId = entry.workerId ?? entry.worker_id ?? entry.id;
+    if (entryWorkerId !== undefined && entryWorkerId !== null && entryWorkerId !== '' && Number(entryWorkerId) > 0) {
+      return String(entryWorkerId) === String(worker.id);
+    }
+
+    const entryName = String(entry.workerName ?? entry.worker_name ?? entry.name ?? '').trim().toLowerCase();
+    const workerName = String(worker.name ?? '').trim().toLowerCase();
+    return !!entryName && entryName === workerName;
+  },
+
   getVisitsForJob(jobId) {
     const visits = State.read('jobVisits') || [];
     return visits.filter(visit => Number(visit.jobId || visit.job_id) === Number(jobId));
@@ -247,14 +267,9 @@ window.WorkersView = {
   getVisitTotals(visit) {
     const workers = this.parseJsonArray(visit.workers);
     return workers.reduce((totals, entry) => {
-      const hours = parseFloat(entry.hours ?? entry.hoursAllocated ?? entry.hours_allocated ?? 0) || 0;
+      const hours = this.getEntryHours(entry);
       const type = (entry.workerType || entry.worker_type) === 'owner' ? 'owner' : 'employee';
-      const rate = parseFloat(entry.hourlyRate ?? entry.hourly_rate ?? 0) || 0;
-      const laborCost = type === 'owner'
-        ? 0
-        : ((entry.laborCost !== undefined || entry.labor_cost !== undefined)
-          ? (parseFloat(entry.laborCost ?? entry.labor_cost) || 0)
-          : hours * rate);
+      const laborCost = this.getEntryLaborCost(entry);
 
       totals.totalHours += hours;
       totals.laborCost += laborCost;
@@ -276,13 +291,11 @@ window.WorkersView = {
       });
     } else {
       assignedWorkers.forEach(entry => {
-        const hours = parseFloat(entry.hoursAllocated ?? entry.hours_allocated ?? entry.hours ?? 0) || 0;
+        const hours = this.getEntryHours(entry);
         const type = (entry.workerType || entry.worker_type) === 'owner' ? 'owner' : 'employee';
         actualHours += hours;
         if (type !== 'owner') {
-          laborCost += (entry.laborCost !== undefined || entry.labor_cost !== undefined)
-            ? (parseFloat(entry.laborCost ?? entry.labor_cost) || 0)
-            : hours * (parseFloat(entry.hourlyRate ?? entry.hourly_rate ?? 0) || 0);
+          laborCost += this.getEntryLaborCost(entry);
         }
       });
     }
@@ -309,7 +322,6 @@ window.WorkersView = {
 
   getWorkerVisitStats(worker, options = {}) {
     const visits = State.read('jobVisits') || [];
-    const workerId = String(worker.id);
     const month = options.month;
     const year = options.year;
     const jobIdFilter = options.jobId ? String(options.jobId) : null;
@@ -326,17 +338,10 @@ window.WorkersView = {
 
       const workers = this.parseJsonArray(visit.workers);
       workers.forEach(entry => {
-        const entryWorkerId = entry.workerId ?? entry.worker_id ?? entry.id;
-        if (String(entryWorkerId) !== workerId) return;
+        if (!this.isWorkerEntry(entry, worker)) return;
 
-        const hours = parseFloat(entry.hours ?? entry.hoursAllocated ?? entry.hours_allocated ?? 0) || 0;
-        const type = (entry.workerType || entry.worker_type || worker.workerType || worker.worker_type) === 'owner' ? 'owner' : 'employee';
-        const rate = parseFloat(entry.hourlyRate ?? entry.hourly_rate ?? worker.hourlyRate ?? worker.hourly_rate ?? 0) || 0;
-        const laborCost = type === 'owner'
-          ? 0
-          : ((entry.laborCost !== undefined || entry.labor_cost !== undefined)
-            ? (parseFloat(entry.laborCost ?? entry.labor_cost) || 0)
-            : hours * rate);
+        const hours = this.getEntryHours(entry);
+        const laborCost = this.getEntryLaborCost(entry, worker);
 
         stats.hours += hours;
         stats.earnings += laborCost;
@@ -351,7 +356,6 @@ window.WorkersView = {
     const jobs = State.read('jobs') || [];
     const visits = State.read('jobVisits') || [];
     const jobsWithVisits = new Set(visits.map(visit => String(visit.jobId || visit.job_id || '')));
-    const workerId = String(worker.id);
     const month = options.month;
     const year = options.year;
     const jobIdFilter = options.jobId ? String(options.jobId) : null;
@@ -368,17 +372,11 @@ window.WorkersView = {
       if (month !== undefined && (jobDate.getMonth() !== month || jobDate.getFullYear() !== year)) return stats;
 
       const assignedWorkers = this.parseJsonArray(job.assignedWorkers ?? job.assigned_workers);
-      const assignment = assignedWorkers.find(entry => String(entry.workerId ?? entry.worker_id ?? entry.id) === workerId);
+      const assignment = assignedWorkers.find(entry => this.isWorkerEntry(entry, worker));
       if (!assignment) return stats;
 
-      const hours = parseFloat(assignment.hoursAllocated ?? assignment.hours_allocated ?? assignment.hours ?? 0) || 0;
-      const type = (assignment.workerType || assignment.worker_type || worker.workerType || worker.worker_type) === 'owner' ? 'owner' : 'employee';
-      const rate = parseFloat(assignment.hourlyRate ?? assignment.hourly_rate ?? worker.hourlyRate ?? worker.hourly_rate ?? 0) || 0;
-      const laborCost = type === 'owner'
-        ? 0
-        : ((assignment.laborCost !== undefined || assignment.labor_cost !== undefined)
-          ? (parseFloat(assignment.laborCost ?? assignment.labor_cost) || 0)
-          : hours * rate);
+      const hours = this.getEntryHours(assignment);
+      const laborCost = this.getEntryLaborCost(assignment, worker);
 
       stats.hours += hours;
       stats.earnings += laborCost;
@@ -778,7 +776,48 @@ window.WorkersView = {
     document.getElementById('workerForm').scrollIntoView({ behavior: 'smooth' });
   },
 
+  getWorkerDeleteBlockers(worker) {
+    const jobs = State.read('jobs') || [];
+    const visits = State.read('jobVisits') || [];
+
+    const assignedJobs = jobs.filter(job => {
+      const assignedWorkers = this.parseJsonArray(job.assignedWorkers ?? job.assigned_workers);
+      return assignedWorkers.some(entry => this.isWorkerEntry(entry, worker));
+    });
+
+    const recordedVisits = visits.filter(visit => {
+      const workers = this.parseJsonArray(visit.workers);
+      return workers.some(entry => this.isWorkerEntry(entry, worker));
+    });
+
+    return { assignedJobs, recordedVisits };
+  },
+
   async deleteWorker(id) {
+    const worker = State.read('workers', id);
+    if (!worker) {
+      Toast.error('Ο εργάτης δεν βρέθηκε');
+      return;
+    }
+
+    const blockers = this.getWorkerDeleteBlockers(worker);
+    if (blockers.assignedJobs.length > 0 || blockers.recordedVisits.length > 0) {
+      const modal = Modal.open({
+        title: '<i class="fas fa-exclamation-triangle"></i> Δεν επιτρέπεται η διαγραφή',
+        content: `
+          <div class="alert alert-warning">
+            <p><strong>Ο εργάτης δεν μπορεί να διαγραφεί.</strong></p>
+            <p>Είναι συνδεδεμένος με ${blockers.assignedJobs.length} εργασίες και ${blockers.recordedVisits.length} καταγεγραμμένες επισκέψεις.</p>
+            <p class="text-muted" style="margin-bottom: 0;">Αν δεν εργάζεται πλέον, αλλάξτε την κατάστασή του σε <strong>Ανενεργός</strong> για να διατηρηθεί σωστά το ιστορικό.</p>
+          </div>
+        `,
+        footer: '<button class="btn-primary" id="workerDeleteBlockedOkBtn">OK</button>',
+        size: 'sm'
+      });
+      modal.querySelector('#workerDeleteBlockedOkBtn').onclick = () => Modal.close();
+      return;
+    }
+
     Modal.confirm({
       title: 'Διαγραφή Εργάτη',
       message: 'Είστε σίγουροι ότι θέλετε να διαγράψετε αυτόν τον εργάτη;',
@@ -816,7 +855,6 @@ window.WorkersView = {
   filterWorkers() {
     const searchTerm = document.getElementById('workerSearch').value.toLowerCase();
     const statusFilter = document.getElementById('statusFilter').value;
-    const specialtyFilter = document.getElementById('specialtyFilter').value;
 
     let workers = State.data.workers;
 
@@ -832,11 +870,6 @@ window.WorkersView = {
     // Filter by status
     if (statusFilter) {
       workers = workers.filter(worker => worker.status === statusFilter);
-    }
-
-    // Filter by specialty
-    if (specialtyFilter) {
-      workers = workers.filter(worker => worker.specialty === specialtyFilter);
     }
 
     document.getElementById('workersTableContainer').innerHTML = this.renderTable(workers);
