@@ -137,6 +137,20 @@
   margin: var(--spacing-lg) 0;
 }
 
+.job-subsection {
+  margin-top: var(--spacing-md);
+  padding: var(--spacing-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.job-subsection h4 {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
 /* Purchase payment choices */
 .purchase-payment-section {
   margin-top: var(--spacing-xl);
@@ -227,6 +241,107 @@
   }
 
   .payment-option {
+    min-height: auto;
+  }
+}
+
+.billing-option-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-sm);
+}
+
+.billing-option {
+  display: grid !important;
+  grid-template-columns: auto 1fr;
+  align-items: flex-start;
+  gap: var(--spacing-md);
+  margin: 0;
+  min-height: 128px;
+  padding: var(--spacing-md);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg);
+  cursor: pointer;
+  font-weight: var(--font-weight-normal);
+  transition: border-color var(--transition-fast), background var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
+}
+
+.billing-option:hover {
+  transform: translateY(-1px);
+  border-color: var(--color-primary-light);
+  background: var(--color-hover);
+}
+
+.billing-option.is-active {
+  border-color: var(--color-primary);
+  background: rgba(52, 152, 219, 0.08);
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.12);
+}
+
+.billing-option input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.billing-option-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  color: var(--color-primary);
+  font-size: 1.1rem;
+}
+
+.billing-option.is-active .billing-option-icon {
+  background: var(--color-primary);
+  color: white;
+}
+
+.billing-option-content {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.billing-option-title {
+  color: var(--color-text);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.25;
+}
+
+.billing-option-description {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-normal);
+  line-height: 1.4;
+}
+
+.billing-option-meta {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: var(--spacing-xs);
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+}
+
+@media (max-width: 900px) {
+  .billing-option-list {
+    grid-template-columns: 1fr;
+  }
+
+  .billing-option {
     min-height: auto;
   }
 }
@@ -645,6 +760,21 @@
   color: white;
 }
 
+.financial-card.profit.profit-positive {
+  background: linear-gradient(180deg, rgba(40, 167, 69, 0.12), var(--bg) 62%);
+  border: 1px solid rgba(40, 167, 69, 0.28);
+}
+
+.financial-card.profit.profit-negative {
+  background: linear-gradient(180deg, rgba(239, 68, 68, 0.14), var(--bg) 62%);
+  border: 1px solid rgba(239, 68, 68, 0.28);
+}
+
+.financial-card.owner-cost .financial-header {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: white;
+}
+
 .financial-body {
   padding: var(--spacing-md);
 }
@@ -669,12 +799,42 @@
   font-weight: 600;
 }
 
-.financial-row.profit-row {
-  justify-content: center;
-  font-size: 1.75rem;
-  font-weight: 700;
-  padding: var(--spacing-lg) 0;
-  color: var(--accent-primary);
+.profit-summary-main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: var(--spacing-lg) var(--spacing-sm);
+  text-align: center;
+}
+
+.profit-summary-label {
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.profit-summary-main strong {
+  font-size: clamp(2rem, 4vw, 2.75rem);
+  line-height: 1;
+  font-weight: 800;
+}
+
+.profit-summary-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.profit-summary-meta span {
+  color: var(--text-muted);
 }
 
 .financial-row span {
@@ -696,6 +856,10 @@
 
 .financial-card.profit .financial-row strong {
   color: var(--color-info);
+}
+
+.financial-card.owner-cost .financial-row strong {
+  color: var(--warning, #f59e0b);
 }
 
 /* Responsive */

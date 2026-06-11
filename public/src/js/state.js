@@ -63,7 +63,7 @@ const State = {
       console.log('📥 [State] Loading data from SQLite...');
       
       // Use OfflineService directly in Electron (already extracts data properly)
-      const [clients, workers, materials, materialStockMovements, suppliers, materialPurchases, supplierPayments, jobs, offers, invoices, templates] = await Promise.all([
+      const [clients, workers, materials, materialStockMovements, suppliers, materialPurchases, supplierPayments, jobs, jobVisits, jobPayments, offers, invoices, templates] = await Promise.all([
         window.OfflineService.getClients(),
         window.OfflineService.getWorkers(),
         window.OfflineService.getMaterials(),
@@ -72,12 +72,14 @@ const State = {
         window.OfflineService.getMaterialPurchases(),
         window.OfflineService.getSupplierPayments(),
         window.OfflineService.getJobs(),
+        window.OfflineService.getJobVisits(),
+        window.OfflineService.getJobPayments(),
         window.OfflineService.getOffers(),
         window.OfflineService.getInvoices(),
         window.OfflineService.getTemplates(),
       ]);
 
-      console.log('📦 [State] Raw responses:', { clients, workers, materials, materialStockMovements, suppliers, materialPurchases, supplierPayments, jobs, offers, invoices, templates });
+      console.log('📦 [State] Raw responses:', { clients, workers, materials, materialStockMovements, suppliers, materialPurchases, supplierPayments, jobs, jobVisits, jobPayments, offers, invoices, templates });
       console.log('📦 [State] jobs response:', jobs);
       console.log('📦 [State] jobs.data type:', typeof jobs?.data, 'isArray:', Array.isArray(jobs?.data));
 
@@ -113,6 +115,8 @@ const State = {
         materialPurchases: extractData(materialPurchases, []),
         supplierPayments: extractData(supplierPayments, []),
         jobs: extractData(jobs, []),
+        jobVisits: extractData(jobVisits, []),
+        jobPayments: extractData(jobPayments, []),
         offers: extractData(offers, []),
         invoices: extractData(invoices, []),
         templates: extractData(templates, []),
@@ -137,6 +141,8 @@ const State = {
         materialPurchases: [],
         supplierPayments: [],
         jobs: [],
+        jobVisits: [],
+        jobPayments: [],
         offers: [],
         invoices: [],
         templates: [],
@@ -150,7 +156,7 @@ const State = {
    */
   async loadFromAPI() {
     try {
-      const [clients, workers, materials, materialStockMovements, suppliers, materialPurchases, supplierPayments, jobs, offers, invoices, templates] = await Promise.all([
+      const [clients, workers, materials, materialStockMovements, suppliers, materialPurchases, supplierPayments, jobs, jobVisits, jobPayments, offers, invoices, templates] = await Promise.all([
         API.getClients(),
         API.getWorkers(),
         API.getMaterials(),
@@ -159,6 +165,8 @@ const State = {
         API.getMaterialPurchases(),
         API.getSupplierPayments(),
         API.getJobs(),
+        API.getJobVisits(),
+        API.getJobPayments(),
         API.getOffers(),
         API.getInvoices(),
         API.getTemplates(),
@@ -173,6 +181,8 @@ const State = {
         materialPurchases: materialPurchases || [],
         supplierPayments: supplierPayments || [],
         jobs: jobs || [],
+        jobVisits: jobVisits || [],
+        jobPayments: jobPayments || [],
         offers: offers || [],
         invoices: invoices || [],
         templates: templates || [],
@@ -302,6 +312,8 @@ const State = {
         materialPurchases: 'createMaterialPurchase',
         supplierPayments: 'createSupplierPayment',
         jobs: 'createJob',
+        jobVisits: 'createJobVisit',
+        jobPayments: 'createJobPayment',
         offers: 'createOffer',
         invoices: 'createInvoice',
         templates: 'createTemplate',
@@ -401,6 +413,8 @@ const State = {
         materialPurchases: 'updateMaterialPurchase',
         supplierPayments: 'updateSupplierPayment',
         jobs: 'updateJob',
+        jobVisits: 'updateJobVisit',
+        jobPayments: 'updateJobPayment',
         offers: 'updateOffer',
         invoices: 'updateInvoice',
         templates: 'updateTemplate',
@@ -472,6 +486,8 @@ const State = {
         materialPurchases: 'deleteMaterialPurchase',
         supplierPayments: 'deleteSupplierPayment',
         jobs: 'deleteJob',
+        jobVisits: 'deleteJobVisit',
+        jobPayments: 'deleteJobPayment',
         offers: 'deleteOffer',
         invoices: 'deleteInvoice',
         templates: 'deleteTemplate',

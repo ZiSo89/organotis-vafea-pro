@@ -238,7 +238,7 @@ function upsert_calendar_event_for_job($db, $jobId) {
         return;
     }
 
-    $cleanTitle  = $job['title'] ?: ($job['type'] ?: 'Εργασία');
+    $cleanTitle  = $job['client_name'] ?: ($job['title'] ?: ($job['type'] ?: 'Εργασία'));
     $description = $job['notes'] ?: ($job['description'] ?? '');
     $address     = $job['address'] ?? '';
     $status      = normalizeEventStatus($job['status'] ?? '');

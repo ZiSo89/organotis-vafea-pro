@@ -7,6 +7,8 @@ SET time_zone = "+00:00";
 
 -- DROP TABLES IN CORRECT ORDER (child tables first)
 DROP TABLE IF EXISTS `timesheets`;
+DROP TABLE IF EXISTS `job_payments`;
+DROP TABLE IF EXISTS `job_visits`;
 DROP TABLE IF EXISTS `job_materials`;
 DROP TABLE IF EXISTS `job_workers`;
 DROP TABLE IF EXISTS `supplier_payments`;
@@ -188,6 +190,8 @@ CREATE TABLE `jobs` (
   `kilometers` decimal(10,2) DEFAULT 0.00,
   `billing_hours` decimal(10,2) DEFAULT 0.00,
   `billing_rate` decimal(10,2) DEFAULT 0.00,
+  `billing_type` varchar(20) NOT NULL DEFAULT 'hourly' COMMENT 'hourly | fixed',
+  `agreed_price` decimal(10,2) NOT NULL DEFAULT 0.00 COMMENT 'Συμφωνημένη τιμή (κατ αποκοπή)',
   `cost_per_km` decimal(10,2) DEFAULT 0.50,
   `notes` text DEFAULT NULL,
   `assigned_workers` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`assigned_workers`)),
@@ -241,6 +245,36 @@ CREATE TABLE `job_materials` (
   KEY `material_id` (`material_id`),
   CONSTRAINT `job_materials_ibfk_1` FOREIGN KEY (`job_id`) REFERENCES `jobs` (`id`) ON DELETE CASCADE,
   CONSTRAINT `job_materials_ibfk_2` FOREIGN KEY (`material_id`) REFERENCES `materials` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- JOB_VISITS TABLE (επισκέψεις εργασίας με ώρες ανά εργάτη)
+CREATE TABLE `job_visits` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `job_id` int(11) NOT NULL,
+  `visit_date` date NOT NULL,
+  `workers` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`workers`)),
+  `notes` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_job_visits_job` (`job_id`),
+  KEY `idx_job_visits_date` (`visit_date`),
+  CONSTRAINT `job_visits_ibfk_1` FOREIGN KEY (`job_id`) REFERENCES `jobs` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- JOB_PAYMENTS TABLE (πληρωμές πελάτη ανά εργασία)
+CREATE TABLE `job_payments` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `job_id` int(11) NOT NULL,
+  `payment_date` date NOT NULL,
+  `amount` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `notes` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_job_payments_job` (`job_id`),
+  KEY `idx_job_payments_date` (`payment_date`),
+  CONSTRAINT `job_payments_ibfk_1` FOREIGN KEY (`job_id`) REFERENCES `jobs` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- TIMESHEETS TABLE

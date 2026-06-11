@@ -450,7 +450,7 @@ window.DashboardView = {
               </div>
               <div class="activity-content">
                 <div class="activity-title">${clientName}</div>
-                <div class="activity-subtitle">${job.type || 'Εργασία'}</div>
+                <div class="activity-subtitle">Εργασία</div>
                 <div class="activity-time">
                   <strong style="color: var(--accent-primary);">${Utils.formatDate(job.nextVisit)}</strong>
                   · ${urgencyText}
@@ -650,10 +650,6 @@ window.DashboardView = {
         <div class="detail-section">
           <h4><i class="fas fa-paint-roller"></i> Λεπτομέρειες Εργασίας</h4>
           <div class="detail-grid">
-            <div class="detail-item">
-              <label>Τύπος Εργασίας:</label>
-              <span>${job.type || '-'}</span>
-            </div>
             <div class="detail-item">
               <label>Δωμάτια:</label>
               <span>${job.rooms || '-'}</span>
@@ -860,12 +856,6 @@ window.DashboardView = {
   },
 
   initDashboardMap() {
-    // Use Leaflet for mobile
-    if (Utils.isMobile()) {
-      this.loadDashboardMapLeaflet();
-      return;
-    }
-    
     // Check if Google Maps is already loaded
     if (typeof google !== 'undefined' && google.maps && google.maps.Map) {
       // Already loaded, render map immediately

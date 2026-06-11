@@ -11,6 +11,7 @@ ini_set('log_errors', 1);
 require_once '../config/database.php';
 require_once __DIR__ . '/auth_check.php';
 require_once __DIR__ . '/calendar_helpers.php';
+require_once __DIR__ . '/job_visits_schema.php';
 
 checkAuthentication();
 
@@ -133,7 +134,7 @@ function handleGet($conn) {
             $displayTitle = '';
             
             // Build display title based on what we have
-            if (!empty($cleanTitle) && !empty($event['client_name'])) {
+            if (!empty($cleanTitle) && !empty($event['client_name']) && trim($cleanTitle) !== trim($event['client_name'])) {
                 // Both title and client: "Title - ClientName"
                 $displayTitle = $cleanTitle . ' - ' . $event['client_name'];
             } else if (!empty($cleanTitle)) {
@@ -198,6 +199,51 @@ function handleGet($conn) {
             ];
         }
         
+        // Καταγεγραμμένες επισκέψεις εργασιών (job_visits) — read-only events
+        try {
+            ensure_job_visits_schema($conn);
+            $vQuery = "
+                SELECT jv.id, jv.job_id, jv.visit_date, jv.workers, jv.notes,
+                       j.title AS job_title, c.name AS client_name
+                FROM job_visits jv
+                INNER JOIN jobs j ON j.id = jv.job_id
+                LEFT JOIN clients c ON c.id = j.client_id
+            ";
+            $vParams = [];
+            if ($start && $end) {
+                $vQuery .= " WHERE jv.visit_date BETWEEN :start AND :end";
+                $vParams = [':start' => $start, ':end' => $end];
+            }
+            $vStmt = $conn->prepare($vQuery);
+            $vStmt->execute($vParams);
+            foreach ($vStmt->fetchAll(PDO::FETCH_ASSOC) as $visit) {
+                $totals = job_visit_totals($visit['workers']);
+                $who = $visit['client_name'] ?: ($visit['job_title'] ?: 'Εργασία');
+                $hoursLabel = $totals['total_hours'] > 0 ? ' (' . rtrim(rtrim(number_format($totals['total_hours'], 1, '.', ''), '0'), '.') . 'ω)' : '';
+                $events[] = [
+                    'id' => 'jobvisit-' . $visit['id'],
+                    'title' => '✔ ' . $who . $hoursLabel,
+                    'start' => substr($visit['visit_date'], 0, 10),
+                    'allDay' => true,
+                    'editable' => false,
+                    'backgroundColor' => '#64748b',
+                    'borderColor' => '#64748b',
+                    'extendedProps' => [
+                        'readonly_visit' => true,
+                        'visit_id' => (int)$visit['id'],
+                        'job_id' => (int)$visit['job_id'],
+                        'job_title' => $visit['job_title'],
+                        'client_name' => $visit['client_name'],
+                        'description' => $visit['notes'],
+                        'total_hours' => $totals['total_hours'],
+                        'labor_cost' => $totals['labor_cost']
+                    ]
+                ];
+            }
+        } catch (Exception $e) {
+            error_log('calendar job_visits events: ' . $e->getMessage());
+        }
+
         sendResponse($events);
         
     } catch(PDOException $e) {

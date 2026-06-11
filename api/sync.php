@@ -10,6 +10,7 @@ require_once '../config/logger.php';
 require_once __DIR__ . '/auth_check.php';
 require_once __DIR__ . '/calendar_helpers.php';
 require_once __DIR__ . '/warehouse_schema.php';
+require_once __DIR__ . '/job_visits_schema.php';
 
 checkAuthentication();
 
@@ -78,6 +79,7 @@ try {
     $allowedTables = [
         'clients', 'jobs', 'workers', 'materials', 'material_stock_movements',
         'suppliers', 'material_purchases', 'material_purchase_items', 'supplier_payments',
+        'job_visits', 'job_payments',
         'job_materials', 'invoices', 'templates', 'offers', 'calendar_events', 'settings'
     ];
     
@@ -88,6 +90,7 @@ try {
     
     $db = getDBConnection();
     ensure_warehouse_schema($db);
+    ensure_job_visits_schema($db);
     $processed = 0;
     $errors = [];
     

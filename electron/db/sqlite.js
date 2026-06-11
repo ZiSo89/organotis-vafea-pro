@@ -56,7 +56,7 @@ class SQLiteDB {
     const converted = {};
     
     // Fields that should be parsed as JSON
-    const jsonFields = ['assignedWorkers', 'paints', 'items', 'materials', 'tasks', 'coordinates'];
+    const jsonFields = ['assignedWorkers', 'paints', 'items', 'materials', 'tasks', 'coordinates', 'workers'];
     
     for (const key in row) {
       if (row.hasOwnProperty(key)) {
@@ -112,7 +112,7 @@ class SQLiteDB {
     if (!data || typeof data !== 'object') return data;
     
     // Fields that should be stringified as JSON
-    const jsonFields = ['assignedWorkers', 'paints', 'items', 'materials', 'tasks', 'coordinates'];
+    const jsonFields = ['assignedWorkers', 'paints', 'items', 'materials', 'tasks', 'coordinates', 'workers'];
     
     const converted = {};
     for (const key in data) {
@@ -196,6 +196,19 @@ class SQLiteDB {
         this.db.prepare('ALTER TABLE jobs ADD COLUMN visit_end_date TEXT').run();
       }
 
+      // Migration 5: billing_type / agreed_price (τρόπος χρέωσης ανά εργασία)
+      const jobsInfo3 = this.db.prepare('PRAGMA table_info(jobs)').all();
+      const billingCols = {
+        billing_type: "ALTER TABLE jobs ADD COLUMN billing_type TEXT DEFAULT 'hourly'",
+        agreed_price: 'ALTER TABLE jobs ADD COLUMN agreed_price REAL DEFAULT 0',
+      };
+      Object.keys(billingCols).forEach((name) => {
+        if (!jobsInfo3.some(col => col.name === name)) {
+          console.log(`📝 Migration: Adding ${name} column to jobs`);
+          this.db.prepare(billingCols[name]).run();
+        }
+      });
+
       console.log('✅ All migrations completed');
     } catch (error) {
       console.error('❌ Migration error:', error);
@@ -254,6 +267,8 @@ class SQLiteDB {
         kilometers INTEGER DEFAULT 0,
         billing_hours REAL DEFAULT 0,
         billing_rate REAL DEFAULT 0,
+        billing_type TEXT DEFAULT 'hourly',
+        agreed_price REAL DEFAULT 0,
         cost_per_km REAL DEFAULT 0.5,
         notes TEXT,
         assigned_workers TEXT,
@@ -389,6 +404,34 @@ class SQLiteDB {
         _sync_status TEXT DEFAULT 'synced',
         _sync_timestamp INTEGER DEFAULT 0,
         FOREIGN KEY (material_id) REFERENCES materials(id) ON DELETE CASCADE
+      );
+
+      -- Job Visits Table (επισκέψεις εργασίας με ώρες ανά εργάτη)
+      CREATE TABLE IF NOT EXISTS job_visits (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        job_id INTEGER NOT NULL,
+        visit_date TEXT NOT NULL,
+        workers TEXT,
+        notes TEXT,
+        created_at TEXT DEFAULT (datetime('now', 'localtime')),
+        updated_at TEXT DEFAULT (datetime('now', 'localtime')),
+        _sync_status TEXT DEFAULT 'synced',
+        _sync_timestamp INTEGER DEFAULT 0,
+        FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE
+      );
+
+      -- Job Payments Table (πληρωμές πελάτη ανά εργασία)
+      CREATE TABLE IF NOT EXISTS job_payments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        job_id INTEGER NOT NULL,
+        payment_date TEXT NOT NULL,
+        amount REAL DEFAULT 0,
+        notes TEXT,
+        created_at TEXT DEFAULT (datetime('now', 'localtime')),
+        updated_at TEXT DEFAULT (datetime('now', 'localtime')),
+        _sync_status TEXT DEFAULT 'synced',
+        _sync_timestamp INTEGER DEFAULT 0,
+        FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE
       );
 
       -- Job Materials Junction Table
@@ -565,6 +608,10 @@ class SQLiteDB {
       CREATE INDEX IF NOT EXISTS idx_calendar_start_date ON calendar_events(start_date);
       CREATE INDEX IF NOT EXISTS idx_calendar_client_id ON calendar_events(client_id);
       CREATE INDEX IF NOT EXISTS idx_calendar_job_id ON calendar_events(job_id);
+      CREATE INDEX IF NOT EXISTS idx_job_visits_job_id ON job_visits(job_id);
+      CREATE INDEX IF NOT EXISTS idx_job_visits_date ON job_visits(visit_date);
+      CREATE INDEX IF NOT EXISTS idx_job_payments_job_id ON job_payments(job_id);
+      CREATE INDEX IF NOT EXISTS idx_job_payments_date ON job_payments(payment_date);
       CREATE INDEX IF NOT EXISTS idx_job_workers_job_id ON job_workers(job_id);
       CREATE INDEX IF NOT EXISTS idx_job_workers_worker_id ON job_workers(worker_id);
       CREATE INDEX IF NOT EXISTS idx_timesheets_worker_id ON timesheets(worker_id);
@@ -819,7 +866,7 @@ class SQLiteDB {
   // Export all data to JSON (Universal format - works with both Electron and PHP/MySQL)
   exportToJSON() {
     try {
-      const tables = ['clients', 'workers', 'materials', 'material_stock_movements', 'suppliers', 'material_purchases', 'material_purchase_items', 'supplier_payments', 'jobs', 'offers', 'calendar_events', 'invoices', 'job_workers', 'job_materials', 'timesheets'];
+      const tables = ['clients', 'workers', 'materials', 'material_stock_movements', 'suppliers', 'material_purchases', 'material_purchase_items', 'supplier_payments', 'jobs', 'job_visits', 'job_payments', 'offers', 'calendar_events', 'invoices', 'job_workers', 'job_materials', 'timesheets'];
       const backup = {
         version: '1.0',
         exported_at: new Date().toISOString().slice(0, 19).replace('T', ' '),
@@ -844,7 +891,7 @@ class SQLiteDB {
               let value = row[key];
               
               // JSON fields: ensure they are valid JSON strings
-              const jsonFields = ['assigned_workers', 'paints', 'items', 'materials', 'tasks', 'coordinates'];
+              const jsonFields = ['assigned_workers', 'paints', 'items', 'materials', 'tasks', 'coordinates', 'workers'];
               if (jsonFields.includes(key) && value) {
                 // Debug coordinates export
                 if (key === 'coordinates') {
@@ -948,7 +995,7 @@ class SQLiteDB {
       // Start transaction
       const transaction = this.db.transaction(() => {
         // Clear existing data (in reverse dependency order)
-        const tables = ['calendar_events', 'invoices', 'offers', 'job_materials', 'job_workers', 'timesheets', 'jobs', 'supplier_payments', 'material_purchase_items', 'material_purchases', 'suppliers', 'material_stock_movements', 'materials', 'workers', 'clients'];
+        const tables = ['calendar_events', 'invoices', 'offers', 'job_payments', 'job_visits', 'job_materials', 'job_workers', 'timesheets', 'jobs', 'supplier_payments', 'material_purchase_items', 'material_purchases', 'suppliers', 'material_stock_movements', 'materials', 'workers', 'clients'];
         
         for (const table of tables) {
           console.log(`🗑️ Clearing ${table}...`);
@@ -1018,7 +1065,7 @@ class SQLiteDB {
                 let value = record[col];
                 
                 // Handle JSON fields
-                const jsonFields = ['assigned_workers', 'paints', 'items', 'materials', 'tasks', 'coordinates'];
+                const jsonFields = ['assigned_workers', 'paints', 'items', 'materials', 'tasks', 'coordinates', 'workers'];
                 if (jsonFields.includes(col) && value) {
                   // Debug coordinates
                   if (col === 'coordinates') {

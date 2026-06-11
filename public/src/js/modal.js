@@ -5,6 +5,7 @@
 const Modal = {
   container: null,
   currentModal: null,
+  currentOnClose: null,
 
   init() {
     this.container = document.getElementById('modalContainer');
@@ -12,7 +13,7 @@ const Modal = {
     // Close on backdrop click
     this.container.addEventListener('click', (e) => {
       if (e.target === this.container) {
-        this.close();
+        this.close(true);
       }
     });
   },
@@ -47,14 +48,14 @@ const Modal = {
     // Close button
     const closeBtn = modal.querySelector('.modal-close');
     closeBtn.onclick = () => {
-      this.close();
-      if (onClose) onClose();
+      this.close(true);
     };
 
     this.container.innerHTML = '';
     this.container.appendChild(modal);
     this.container.classList.add('active');
     this.currentModal = modal;
+    this.currentOnClose = onClose;
 
     // Focus management - only on desktop (not mobile to avoid keyboard popup)
     if (!Utils.isMobile()) {
@@ -67,13 +68,16 @@ const Modal = {
     return modal;
   },
 
-  close() {
+  close(triggerOnClose = false) {
     if (this.container) {
+      const onClose = this.currentOnClose;
+      this.currentOnClose = null;
       this.container.classList.remove('active');
       setTimeout(() => {
         this.container.innerHTML = '';
         this.currentModal = null;
       }, 300);
+      if (triggerOnClose && onClose) onClose();
     }
   },
 
@@ -89,6 +93,14 @@ const Modal = {
     } = options;
 
     return new Promise((resolve) => {
+      let settled = false;
+      const cancel = () => {
+        if (settled) return;
+        settled = true;
+        if (onCancel) onCancel();
+        resolve(false);
+      };
+
       const footer = `
         <button class="btn-ghost" data-action="cancel">${cancelText}</button>
         <button class="btn-primary" data-action="confirm">${confirmText}</button>
@@ -98,10 +110,12 @@ const Modal = {
         title,
         content: `<p>${message}</p>`,
         footer,
-        size: 'sm'
+        size: 'sm',
+        onClose: cancel
       });
 
       modal.querySelector('[data-action="confirm"]').onclick = () => {
+        settled = true;
         this.close();
         if (onConfirm) onConfirm();
         resolve(true);
@@ -109,8 +123,7 @@ const Modal = {
 
       modal.querySelector('[data-action="cancel"]').onclick = () => {
         this.close();
-        if (onCancel) onCancel();
-        resolve(false);
+        cancel();
       };
     });
   },

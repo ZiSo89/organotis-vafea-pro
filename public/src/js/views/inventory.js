@@ -169,12 +169,9 @@ window.SuppliersView = {
               <input type="date" id="purchaseDate" value="${this.today()}">
             </div>
             <div class="form-group">
-              <label>Αριθμός Παραστατικού</label>
-              <input type="text" id="purchaseReference" placeholder="π.χ. Απόδειξη #123">
-            </div>
-            <div class="form-group">
-              <label>Σύνολο Αγοράς</label>
-              <input type="text" id="purchaseTotalPreview" readonly value="0.00 €">
+              <label>Σύνολο Αγοράς (€) <span class="required">*</span></label>
+              <input type="number" id="purchaseTotalAmount" min="0.01" step="0.01" value="0" required>
+              <small class="text-muted">Μπορείτε να γράψετε μόνο το ποσό, χωρίς αναλυτικά υλικά.</small>
             </div>
             <div class="form-group span-2">
               <label>Σημειώσεις</label>
@@ -183,6 +180,7 @@ window.SuppliersView = {
           </div>
 
           <h4 style="margin-top: 20px;">Υλικά Αγοράς</h4>
+          <p class="text-muted" style="margin-bottom: 10px;">Προαιρετικά: αν προσθέσετε υλικά, θα ενημερωθεί και η φυσική Αποθήκη.</p>
           <div id="purchaseItemsContainer"></div>
           <button type="button" class="btn btn-secondary" id="addPurchaseItemBtn" style="margin-top: 10px;">
             <i class="fas fa-plus"></i> Προσθήκη Υλικού
@@ -221,20 +219,6 @@ window.SuppliersView = {
                 <label>Ποσό Πληρωμής (€)</label>
                 <input type="number" id="purchasePaymentAmount" min="0.01" step="0.01" value="" disabled>
               </div>
-              <div class="form-group" id="purchasePaymentMethodWrap" style="display: none;">
-                <label>Τρόπος Πληρωμής</label>
-                <select id="purchasePaymentMethod">
-                  <option value="">-</option>
-                  <option value="Μετρητά">Μετρητά</option>
-                  <option value="Κάρτα">Κάρτα</option>
-                  <option value="Τράπεζα">Τράπεζα</option>
-                  <option value="Άλλο">Άλλο</option>
-                </select>
-              </div>
-              <div class="form-group span-2" id="purchasePaymentNotesWrap" style="display: none;">
-                <label>Σημειώσεις Πληρωμής</label>
-                <input type="text" id="purchasePaymentNotes" placeholder="π.χ. πληρώθηκε μετρητά στο κατάστημα">
-              </div>
             </div>
           </div>
 
@@ -251,7 +235,6 @@ window.SuppliersView = {
               <th>Ενέργειες</th>
               <th>Ημερομηνία</th>
               <th>Κατάστημα</th>
-              <th>Παραστατικό</th>
               <th>Υλικά</th>
               <th>Σύνολο</th>
               <th>Πληρωμένο στην αγορά</th>
@@ -267,13 +250,12 @@ window.SuppliersView = {
                 </td>
                 <td>${Utils.formatDate(purchase.purchaseDate || purchase.purchase_date)}</td>
                 <td>${this.escape(purchase.supplierName || this.getSupplierName(purchase.supplierId || purchase.supplier_id, suppliers))}</td>
-                <td>${this.escape(purchase.referenceNumber || purchase.reference_number || '-')}</td>
                 <td>${(purchase.items || []).length}</td>
                 <td>${Utils.formatCurrency(purchase.totalCost || purchase.total_cost)}</td>
                 <td>${Utils.formatCurrency(purchase.paidAmount || purchase.paid_amount || 0)}</td>
                 <td><strong>${Utils.formatCurrency(purchase.balance || 0)}</strong></td>
               </tr>
-            `).join('') : '<tr><td colspan="8" class="text-muted">Δεν υπάρχουν αγορές ακόμα.</td></tr>'}
+            `).join('') : '<tr><td colspan="7" class="text-muted">Δεν υπάρχουν αγορές ακόμα.</td></tr>'}
           </tbody>
         </table>
       </div>
@@ -300,7 +282,11 @@ window.SuppliersView = {
             <label>Σύνδεση με αγορά</label>
             <select id="paymentPurchase">
               <option value="">Έναντι στο κατάστημα</option>
-              ${purchases.map(p => `<option value="${p.id}" data-supplier-id="${p.supplierId || p.supplier_id}">${Utils.formatDate(p.purchaseDate || p.purchase_date)} - ${this.escape(p.supplierName || '')} - ${Utils.formatCurrency(p.totalCost || p.total_cost)}</option>`).join('')}
+              ${purchases.map(p => {
+                const total = this.toNumber(p.totalCost || p.total_cost);
+                const balance = this.toNumber(p.balance ?? (total - this.toNumber(p.paidAmount || p.paid_amount)));
+                return `<option value="${p.id}" data-supplier-id="${p.supplierId || p.supplier_id}" data-total="${total}" data-balance="${balance}">${Utils.formatDate(p.purchaseDate || p.purchase_date)} - ${this.escape(p.supplierName || '')} - Υπόλοιπο ${Utils.formatCurrency(balance)}</option>`;
+              }).join('')}
             </select>
           </div>
           <div class="form-group">
@@ -310,16 +296,6 @@ window.SuppliersView = {
           <div class="form-group">
             <label>Ποσό (€) <span class="required">*</span></label>
             <input type="number" id="paymentAmount" min="0.01" step="0.01" required>
-          </div>
-          <div class="form-group">
-            <label>Τρόπος Πληρωμής</label>
-            <select id="paymentMethod">
-              <option value="">-</option>
-              <option value="Μετρητά">Μετρητά</option>
-              <option value="Κάρτα">Κάρτα</option>
-              <option value="Τράπεζα">Τράπεζα</option>
-              <option value="Άλλο">Άλλο</option>
-            </select>
           </div>
           <div class="form-group">
             <label>Σημειώσεις</label>
@@ -343,7 +319,6 @@ window.SuppliersView = {
               <th>Κατάστημα</th>
               <th>Αγορά</th>
               <th>Ποσό</th>
-              <th>Τρόπος</th>
               <th>Σημειώσεις</th>
             </tr>
           </thead>
@@ -358,10 +333,9 @@ window.SuppliersView = {
                 <td>${this.escape(payment.supplierName || this.getSupplierName(payment.supplierId || payment.supplier_id, suppliers))}</td>
                 <td>${payment.purchaseId || payment.purchase_id ? `#${payment.purchaseId || payment.purchase_id}` : 'Έναντι'}</td>
                 <td><strong>${Utils.formatCurrency(payment.amount)}</strong></td>
-                <td>${this.escape(payment.paymentMethod || payment.payment_method || '-')}</td>
                 <td>${this.escape(payment.notes || '-')}</td>
               </tr>
-            `).join('') : '<tr><td colspan="7" class="text-muted">Δεν υπάρχουν πληρωμές ακόμα.</td></tr>'}
+            `).join('') : '<tr><td colspan="6" class="text-muted">Δεν υπάρχουν πληρωμές ακόμα.</td></tr>'}
           </tbody>
         </table>
       </div>
@@ -487,7 +461,9 @@ window.SuppliersView = {
         </div>
         <div class="form-group">
           <label>Μονάδα</label>
-          <input type="text" class="purchase-unit" placeholder="π.χ. λίτρα, τεμ.">
+          <select class="purchase-unit">
+            ${this.renderUnitOptions()}
+          </select>
         </div>
         <div class="form-group">
           <label>Τιμή/Μονάδα</label>
@@ -503,7 +479,7 @@ window.SuppliersView = {
         </div>
       `;
       itemsContainer.appendChild(row);
-      row.querySelectorAll('input').forEach(input => input.addEventListener('input', () => this.updatePurchaseTotals(container)));
+      row.querySelectorAll('input, select').forEach(input => input.addEventListener('input', () => this.updatePurchaseTotals(container)));
       row.querySelector('.remove-purchase-item-btn').addEventListener('click', () => {
         row.remove();
         this.updatePurchaseTotals(container);
@@ -512,19 +488,21 @@ window.SuppliersView = {
     };
 
     addBtn.addEventListener('click', addRow);
-    addRow();
+
+    const totalInput = container.querySelector('#purchaseTotalAmount');
+    if (totalInput) {
+      totalInput.addEventListener('input', () => {
+        totalInput.dataset.manualTotal = 'true';
+      });
+    }
 
     const updatePaymentVisibility = () => {
       const status = container.querySelector('input[name="purchasePaymentStatus"]:checked')?.value || 'none';
       const showPaymentFields = status !== 'none';
       const showAmountField = status === 'partial';
       const amountWrap = container.querySelector('#purchasePaymentAmountWrap');
-      const methodWrap = container.querySelector('#purchasePaymentMethodWrap');
-      const notesWrap = container.querySelector('#purchasePaymentNotesWrap');
       const amountInput = container.querySelector('#purchasePaymentAmount');
       if (amountWrap) amountWrap.style.display = showAmountField ? '' : 'none';
-      if (methodWrap) methodWrap.style.display = showPaymentFields ? '' : 'none';
-      if (notesWrap) notesWrap.style.display = showPaymentFields ? '' : 'none';
       if (amountInput) {
         amountInput.disabled = !showAmountField;
         amountInput.required = showAmountField;
@@ -560,19 +538,24 @@ window.SuppliersView = {
           unitPrice,
           totalCost: quantity * unitPrice
         };
-      });
+      }).filter(item => item.materialName || item.quantity > 0 || item.unitPrice > 0);
 
       if (!container.querySelector('#purchaseSupplier').value) {
         Toast.error('Επιλέξτε κατάστημα');
         return;
       }
-      if (!items.length || items.some(item => !item.materialName || item.quantity <= 0)) {
-        Toast.error('Συμπληρώστε σωστά τα υλικά της αγοράς');
+      if (items.some(item => !item.materialName || item.quantity <= 0)) {
+        Toast.error('Συμπληρώστε σωστά τα υλικά της αγοράς ή αφαιρέστε την κενή γραμμή');
         return;
       }
 
       const paymentStatus = container.querySelector('input[name="purchasePaymentStatus"]:checked')?.value || 'none';
-      const purchaseTotal = items.reduce((sum, item) => sum + this.toNumber(item.totalCost), 0);
+      const itemsTotal = items.reduce((sum, item) => sum + this.toNumber(item.totalCost), 0);
+      const purchaseTotal = this.toNumber(container.querySelector('#purchaseTotalAmount').value) || itemsTotal;
+      if (purchaseTotal <= 0) {
+        Toast.error('Συμπληρώστε το σύνολο αγοράς');
+        return;
+      }
       const paymentAmount = paymentStatus === 'full'
         ? purchaseTotal
         : (paymentStatus === 'partial' ? this.toNumber(container.querySelector('#purchasePaymentAmount').value) : 0);
@@ -589,13 +572,14 @@ window.SuppliersView = {
       await State.create('materialPurchases', {
         supplierId: parseInt(container.querySelector('#purchaseSupplier').value, 10),
         purchaseDate: container.querySelector('#purchaseDate').value,
-        referenceNumber: container.querySelector('#purchaseReference').value.trim(),
+        totalCost: purchaseTotal,
+        referenceNumber: '',
         notes: container.querySelector('#purchaseNotes').value.trim(),
         initialPayment: {
           status: paymentStatus,
           amount: paymentAmount,
-          paymentMethod: container.querySelector('#purchasePaymentMethod')?.value || '',
-          notes: container.querySelector('#purchasePaymentNotes')?.value.trim() || ''
+          paymentMethod: '',
+          notes: ''
         },
         items
       });
@@ -611,6 +595,7 @@ window.SuppliersView = {
 
     const supplierSelect = container.querySelector('#paymentSupplier');
     const purchaseSelect = container.querySelector('#paymentPurchase');
+    const amountInput = container.querySelector('#paymentAmount');
     const filterPurchases = () => {
       const supplierId = supplierSelect.value;
       [...purchaseSelect.options].forEach(option => {
@@ -622,7 +607,24 @@ window.SuppliersView = {
       });
       if (purchaseSelect.selectedOptions[0]?.hidden) purchaseSelect.value = '';
     };
+    const fillAmountFromSelectedPurchase = () => {
+      const selected = purchaseSelect.selectedOptions[0];
+      if (!selected || !selected.value) return;
+
+      if (!supplierSelect.value && selected.dataset.supplierId) {
+        supplierSelect.value = selected.dataset.supplierId;
+        filterPurchases();
+      }
+
+      const balance = this.toNumber(selected.dataset.balance);
+      const total = this.toNumber(selected.dataset.total);
+      const suggestedAmount = balance > 0 ? balance : total;
+      if (suggestedAmount > 0 && amountInput) {
+        amountInput.value = suggestedAmount.toFixed(2);
+      }
+    };
     supplierSelect.addEventListener('change', filterPurchases);
+    purchaseSelect.addEventListener('change', fillAmountFromSelectedPurchase);
 
     if (this.editingPaymentId) {
       const payment = State.read('supplierPayments', this.editingPaymentId);
@@ -632,7 +634,6 @@ window.SuppliersView = {
         purchaseSelect.value = payment.purchaseId || payment.purchase_id || '';
         container.querySelector('#paymentDate').value = payment.paymentDate || payment.payment_date || this.today();
         container.querySelector('#paymentAmount').value = payment.amount || '';
-        container.querySelector('#paymentMethod').value = payment.paymentMethod || payment.payment_method || '';
         container.querySelector('#paymentNotes').value = payment.notes || '';
       }
     }
@@ -644,7 +645,7 @@ window.SuppliersView = {
         purchaseId: purchaseSelect.value ? parseInt(purchaseSelect.value, 10) : null,
         paymentDate: container.querySelector('#paymentDate').value,
         amount: this.toNumber(container.querySelector('#paymentAmount').value),
-        paymentMethod: container.querySelector('#paymentMethod').value,
+        paymentMethod: '',
         notes: container.querySelector('#paymentNotes').value.trim()
       };
 
@@ -759,10 +760,9 @@ window.SuppliersView = {
         <div class="detail-grid">
           <div class="detail-item"><label>Κατάστημα:</label><span>${this.escape(purchase.supplierName || '')}</span></div>
           <div class="detail-item"><label>Ημερομηνία:</label><span>${Utils.formatDate(purchase.purchaseDate || purchase.purchase_date)}</span></div>
-          <div class="detail-item"><label>Παραστατικό:</label><span>${this.escape(purchase.referenceNumber || purchase.reference_number || '-')}</span></div>
           <div class="detail-item"><label>Σύνολο:</label><span><strong>${Utils.formatCurrency(purchase.totalCost || purchase.total_cost)}</strong></span></div>
         </div>
-        <div class="table-wrapper" style="margin-top: 15px;">
+        ${items.length ? `<div class="table-wrapper" style="margin-top: 15px;">
           <table class="data-table">
             <thead><tr><th>Υλικό</th><th>Ποσότητα</th><th>Μονάδα</th><th>Τιμή</th><th>Σύνολο</th></tr></thead>
             <tbody>
@@ -777,7 +777,7 @@ window.SuppliersView = {
               `).join('')}
             </tbody>
           </table>
-        </div>
+        </div>` : '<p class="text-muted" style="margin-top: 15px;">Η αγορά καταχωρήθηκε μόνο με συνολικό ποσό, χωρίς αναλυτικά υλικά.</p>'}
       `,
       footer: '<button class="btn-primary" onclick="Modal.close()">Κλείσιμο</button>'
     });
@@ -792,18 +792,22 @@ window.SuppliersView = {
       total += lineTotal;
       row.querySelector('.purchase-line-total').value = Utils.formatCurrency(lineTotal);
     });
-    const preview = container.querySelector('#purchaseTotalPreview');
-    if (preview) preview.value = Utils.formatCurrency(total);
+    const totalInput = container.querySelector('#purchaseTotalAmount');
+    if (totalInput && total > 0 && totalInput.dataset.manualTotal !== 'true') {
+      totalInput.value = total.toFixed(2);
+    }
   },
 
   async refreshWarehouseData() {
-    const [materials, suppliers, purchases, payments] = await Promise.all([
+    const [materials, movements, suppliers, purchases, payments] = await Promise.all([
       API.getMaterials(),
+      API.getMaterialStockMovements(),
       API.getSuppliers(),
       API.getMaterialPurchases(),
       API.getSupplierPayments()
     ]);
     State.data.inventory = materials || [];
+    State.data.materialStockMovements = movements || [];
     State.data.suppliers = suppliers || [];
     State.data.materialPurchases = purchases || [];
     State.data.supplierPayments = payments || [];
@@ -834,6 +838,11 @@ window.SuppliersView = {
 
   today() {
     return new Date().toISOString().slice(0, 10);
+  },
+
+  renderUnitOptions(selected = 'λίτρα') {
+    const units = ['λίτρα', 'τεμ.', 'kg', 'm²', 'μέτρα', 'ρολά', 'κουβάδες', 'σακιά', 'άλλο'];
+    return units.map(unit => `<option value="${this.escape(unit)}" ${unit === selected ? 'selected' : ''}>${this.escape(unit)}</option>`).join('');
   },
 
   escape(value) {

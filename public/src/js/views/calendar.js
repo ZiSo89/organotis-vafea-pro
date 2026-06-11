@@ -237,6 +237,9 @@ window.CalendarView = {
         
         // Transform database results to FullCalendar format
         events = result.map(event => this.transformEventFromDB(event));
+
+        const recordedVisits = await this.loadRecordedVisitEventsFromSQLite(startStr, endStr);
+        events = [...events, ...recordedVisits];
         
         console.log('📅 After transformation:', events.length, 'events');
         if (events.length > 0) {
@@ -313,9 +316,8 @@ window.CalendarView = {
     // Use stored title as the base (clean job title or user input)
     const baseTitle = dbEvent.title || 'Επίσκεψη';
     
-    // Build display title: "Title - ClientName"
-    // ALWAYS build on-the-fly, never store combined title
-    const displayTitle = clientName ? `${baseTitle} - ${clientName}` : baseTitle;
+    // Build display title without duplicating "Client - Client" when the title is the client name.
+    const displayTitle = clientName && baseTitle !== clientName ? `${baseTitle} - ${clientName}` : baseTitle;
     
     console.log('🏷️ Title info:', { 
       storedTitle: dbEvent.title,
@@ -385,6 +387,82 @@ window.CalendarView = {
       }
     };
   },
+
+  getRecordedVisitTotals(workers) {
+    if (typeof workers === 'string') {
+      try {
+        workers = JSON.parse(workers);
+      } catch (error) {
+        workers = [];
+      }
+    }
+    if (!Array.isArray(workers)) workers = [];
+
+    return workers.reduce((totals, worker) => {
+      const hours = parseFloat(worker.hours ?? worker.hoursAllocated ?? worker.hours_allocated ?? 0) || 0;
+      const rate = parseFloat(worker.hourlyRate ?? worker.hourly_rate ?? 0) || 0;
+      const type = (worker.workerType || worker.worker_type) === 'owner' ? 'owner' : 'employee';
+      totals.totalHours += hours;
+      if (type !== 'owner') {
+        totals.laborCost += (worker.laborCost !== undefined || worker.labor_cost !== undefined)
+          ? (parseFloat(worker.laborCost ?? worker.labor_cost) || 0)
+          : hours * rate;
+      }
+      return totals;
+    }, { totalHours: 0, laborCost: 0 });
+  },
+
+  transformRecordedVisitFromDB(visit) {
+    const totals = this.getRecordedVisitTotals(visit.workers);
+    const who = visit.clientName || visit.jobTitle || 'Εργασία';
+    const hoursLabel = totals.totalHours > 0
+      ? ` (${Number(totals.totalHours.toFixed(1)).toString()}ω)`
+      : '';
+    const visitDate = String(visit.visitDate || visit.visit_date || '').substring(0, 10);
+
+    return {
+      id: `jobvisit-${visit.id}`,
+      title: `✔ ${who}${hoursLabel}`,
+      start: visitDate,
+      allDay: true,
+      editable: false,
+      backgroundColor: '#64748b',
+      borderColor: '#64748b',
+      extendedProps: {
+        readonly_visit: true,
+        visit_id: Number(visit.id),
+        job_id: Number(visit.jobId || visit.job_id),
+        job_title: visit.jobTitle || visit.job_title || '',
+        client_name: visit.clientName || visit.client_name || '',
+        description: visit.notes || '',
+        total_hours: totals.totalHours,
+        labor_cost: totals.laborCost,
+        status: 'completed'
+      }
+    };
+  },
+
+  async loadRecordedVisitEventsFromSQLite(start, end) {
+    const sql = `
+      SELECT
+        jv.id,
+        jv.job_id,
+        jv.visit_date,
+        jv.workers,
+        jv.notes,
+        j.title as jobTitle,
+        c.name as clientName
+      FROM job_visits jv
+      INNER JOIN jobs j ON j.id = jv.job_id
+      LEFT JOIN clients c ON c.id = j.client_id
+      WHERE jv.visit_date >= ? AND jv.visit_date <= ?
+      ORDER BY jv.visit_date ASC
+    `;
+
+    const response = await window.electronAPI.db.query(sql, [start, end]);
+    const visits = response.success ? response.data : [];
+    return visits.map(visit => this.transformRecordedVisitFromDB(visit));
+  },
   
   /* ========================================
      Get Status Color
@@ -432,7 +510,6 @@ window.CalendarView = {
           AND ce.start_date IS NOT NULL
           AND ce._sync_status != 'deleted'
           ORDER BY ce.start_date ASC
-          LIMIT 10
         `;  
         
         const response = await window.electronAPI.db.query(sql, [start, end]);
@@ -451,6 +528,10 @@ window.CalendarView = {
         
         // Transform database results
         events = result.map(event => this.transformEventFromDB(event));
+        const recordedVisits = await this.loadRecordedVisitEventsFromSQLite(start, end);
+        events = [...events, ...recordedVisits]
+          .sort((a, b) => new Date(a.start) - new Date(b.start))
+          .slice(0, 10);
         console.log('📅 Transformed events:', events);      } else {
         // Web version - use API
         const url = `/api/calendar.php?start=${start}&end=${end}`;
@@ -530,8 +611,8 @@ window.CalendarView = {
       // Use original_title from extendedProps (clean title without client name)
       // Build displayTitle from original_title + clientName, or use visit.title if original_title doesn't exist
       const originalTitle = props.original_title || props.originalTitle;
-      const displayTitle = originalTitle 
-        ? (clientName ? `${originalTitle} - ${clientName}` : originalTitle)
+      const displayTitle = originalTitle
+        ? (clientName && originalTitle !== clientName ? `${originalTitle} - ${clientName}` : originalTitle)
         : visit.title;
       
       console.log('📅 Rendering visit:', { 
@@ -645,6 +726,11 @@ window.CalendarView = {
     console.log('📅 showEventDetailsFromData called with:', visitData);
     
     const props = visitData.extendedProps || {};
+
+    if (props.readonly_visit || String(visitData.id).startsWith('jobvisit-')) {
+      this.showRecordedVisitDetails(visitData, props);
+      return;
+    }
     
     console.log('📦 extendedProps:', props);
     
@@ -945,6 +1031,56 @@ window.CalendarView = {
   },
 
   /* ========================================
+     Read-only modal για καταγεγραμμένη επίσκεψη εργασίας
+     ======================================== */
+  showRecordedVisitDetails(event, props) {
+    const dateText = event.start ? Utils.formatDate(event.start) : '-';
+    const hours = parseFloat(props.total_hours || 0) || 0;
+    const content = `
+      <div class="detail-grid">
+        <div class="detail-item">
+          <label>Πελάτης:</label>
+          <span>${props.client_name || '-'}</span>
+        </div>
+        <div class="detail-item">
+          <label>Εργασία:</label>
+          <span>${props.job_title || '-'}</span>
+        </div>
+        <div class="detail-item">
+          <label>Ημερομηνία:</label>
+          <span>${dateText}</span>
+        </div>
+        <div class="detail-item">
+          <label>Σύνολο ωρών:</label>
+          <span>${hours ? hours + ' ώρες' : '-'}</span>
+        </div>
+        ${props.description ? `
+        <div class="detail-item span-2">
+          <label>Σημειώσεις:</label>
+          <span>${props.description}</span>
+        </div>
+        ` : ''}
+        <div class="detail-item span-2">
+          <small class="text-muted">
+            <i class="fas fa-info-circle"></i> Η καταγεγραμμένη επίσκεψη επεξεργάζεται από την προβολή της εργασίας.
+          </small>
+        </div>
+      </div>
+    `;
+    const footer = props.job_id ? `
+      <button class="btn-primary" onclick="Modal.close(); Router.navigate('jobs'); setTimeout(() => window.JobsView && window.JobsView.viewJob(${props.job_id}), 300);">
+        <i class="fas fa-briefcase"></i> Άνοιγμα Εργασίας
+      </button>
+    ` : '';
+    Modal.open({
+      title: '<i class="fas fa-clock"></i> Καταγεγραμμένη Επίσκεψη',
+      content,
+      footer,
+      size: 'md'
+    });
+  },
+
+  /* ========================================
      Show Event Details Modal
      ======================================== */
   showEventDetails(event) {
@@ -952,6 +1088,12 @@ window.CalendarView = {
     console.log('📅 showEventDetails called with:', event);
     
     const props = event.extendedProps || {};
+
+    // Read-only events από καταγεγραμμένες επισκέψεις εργασιών (job_visits)
+    if (props.readonly_visit || String(event.id).startsWith('jobvisit-')) {
+      this.showRecordedVisitDetails(event, props);
+      return;
+    }
     
     console.log('📦 extendedProps:', props);
     
@@ -1176,6 +1318,12 @@ window.CalendarView = {
     // For events with jobs, this should be the job title
     // For manual events, this is the user-entered title
     const cleanTitle = props.originalTitle || props.original_title || event.title;
+    const linkedJob = isLinkedJob ? jobs.find(j => j.id == jobId) : null;
+    const linkedClientName = props.clientName || props.client_name || linkedJob?.clientName || '';
+    const linkedJobTitle = linkedJob?.title || '';
+    const visitTitleValue = isLinkedJob && linkedClientName && (!cleanTitle || cleanTitle === linkedJobTitle || cleanTitle === 'Εργασία')
+      ? linkedClientName
+      : cleanTitle;
     
     // Normalize status for comparison
     const normalizedStatus = this.normalizeStatus(props.status || 'pending');
@@ -1227,7 +1375,7 @@ window.CalendarView = {
           
           <div class="form-group">
             <label for="editVisitTitle">Τίτλος *</label>
-            <input type="text" id="editVisitTitle" class="form-control" value="${cleanTitle}" placeholder="π.χ. Βαφή Διαμερίσματος" required>
+            <input type="text" id="editVisitTitle" class="form-control" value="${visitTitleValue}" placeholder="π.χ. ${linkedClientName || 'Βαφή Διαμερίσματος'}" required>
           </div>
           
           <div class="form-group">
@@ -1340,6 +1488,10 @@ window.CalendarView = {
         clientSelectGroup.style.display = 'none';
         clientTextGroup.style.display = 'block';
         clientText.value = selectedOption.dataset.client || '';
+        const titleInput = document.getElementById('editVisitTitle');
+        if (titleInput && !titleInput.value.trim()) {
+          titleInput.value = selectedOption.dataset.client || selectedOption.dataset.title || '';
+        }
       } else {
         // Independent visit - show client dropdown
         clientSelectGroup.style.display = 'block';
@@ -1484,6 +1636,11 @@ window.CalendarView = {
      ======================================== */
   async updateEventDates(event) {
     try {
+      // Οι καταγεγραμμένες επισκέψεις (job_visits) δεν μετακινούνται από το ημερολόγιο
+      if (String(event.id).startsWith('jobvisit-')) {
+        this.calendar.refetchEvents();
+        return;
+      }
       const pad = (n) => String(n).padStart(2, '0');
       const fmtDate = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
       const fmtTime = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
@@ -1699,10 +1856,10 @@ window.CalendarView = {
           
           // Get client ID
           const jobClientId = job.clientId || job.client_id;
+          const jobClient = clients.find(client => Number(client.id) === Number(jobClientId));
           
-          // Store ONLY the job title (clean, without client name)
-          // original_title also stores the same for edit purposes
-          const eventTitle = job.title || 'Εργασία';
+          // Default title is the customer name, but existing events keep user edits.
+          const eventTitle = jobClient?.name || job.title || 'Εργασία';
           
           console.log(`📅 Job ${job.id}: clientId=${jobClientId}, storing title="${eventTitle}"`);
           
@@ -1743,8 +1900,11 @@ window.CalendarView = {
           };
           
           if (existing && existing.length > 0) {
-            // Update existing event
-            await window.electronAPI.db.update('calendar_events', existing[0].id, eventData);
+            // Update existing event without overwriting a user-edited title.
+            const scheduleData = { ...eventData };
+            delete scheduleData.title;
+            delete scheduleData.original_title;
+            await window.electronAPI.db.update('calendar_events', existing[0].id, scheduleData);
             updated++;
           } else {
             // Create new event only if job has next_visit

@@ -15,14 +15,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/job_visits_schema.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 $action = $_GET['action'] ?? '';
 
 try {
     $pdo = getDBConnection();
+    ensure_job_visits_schema($pdo);
     
     if ($method === 'GET') {
+
+        // Aggregated totals από job_visits (μία φόρτωση, cache σε static)
+        function stats_job_visit_totals($jobId) {
+            global $pdo;
+            static $cache = null;
+            if ($cache === null) {
+                $cache = [];
+                try {
+                    $stmt = $pdo->query("SELECT job_id, workers FROM job_visits");
+                    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                        $jid = (int)$row['job_id'];
+                        $t = job_visit_totals($row['workers']);
+                        if (!isset($cache[$jid])) {
+                            $cache[$jid] = ['total_hours' => 0.0, 'employee_hours' => 0.0, 'owner_hours' => 0.0, 'labor_cost' => 0.0, 'visit_count' => 0];
+                        }
+                        $cache[$jid]['total_hours'] += $t['total_hours'];
+                        $cache[$jid]['employee_hours'] += $t['employee_hours'];
+                        $cache[$jid]['owner_hours'] += $t['owner_hours'];
+                        $cache[$jid]['labor_cost'] += $t['labor_cost'];
+                        $cache[$jid]['visit_count'] += 1;
+                    }
+                } catch (Exception $e) {
+                    error_log('stats_job_visit_totals: ' . $e->getMessage());
+                }
+            }
+            return $cache[(int)$jobId] ?? null;
+        }
 
         // Helper: compute financials for a job row (billing, expenses, profit)
         function compute_job_financials($job) {
@@ -31,11 +60,17 @@ try {
                 return (float)$v;
             };
 
-            // billingAmount preference order: billing_amount, hours*rate, total_cost
+            // billingAmount preference order: agreed_price (fixed), billing_amount, hours*rate, total_cost
             $billing = 0.0;
-            if (isset($job['billing_amount'])) {
+            $billingType = $job['billing_type'] ?? $job['billingType'] ?? 'hourly';
+            $agreedPrice = $toFloat($job['agreed_price'] ?? $job['agreedPrice'] ?? 0);
+            if ($billingType === 'fixed' && $agreedPrice > 0) {
+                $billing = $agreedPrice;
+            }
+
+            if ($billing == 0.0 && isset($job['billing_amount'])) {
                 $billing = $toFloat($job['billing_amount']);
-            } elseif (isset($job['billingAmount'])) {
+            } elseif ($billing == 0.0 && isset($job['billingAmount'])) {
                 $billing = $toFloat($job['billingAmount']);
             }
 
@@ -59,8 +94,13 @@ try {
             $cost_per_km = $toFloat($job['cost_per_km'] ?? $job['costPerKm'] ?? $job['travel_cost'] ?? 0.5);
             $travel = $kilometers * $cost_per_km;
 
-            // parse assigned workers JSON if exists to compute labor cost
+            // Εργατικό κόστος: αν υπάρχουν καταγεγραμμένες επισκέψεις, αυτές μετράνε.
+            // Αλλιώς από το JSON των ανατεθειμένων εργατών.
             $labor = 0.0;
+            $visitTotals = isset($job['id']) ? stats_job_visit_totals($job['id']) : null;
+            if (is_array($visitTotals) && ($visitTotals['visit_count'] ?? 0) > 0) {
+                $labor = $toFloat($visitTotals['labor_cost']);
+            } else {
             $assigned = $job['assigned_workers'] ?? $job['assignedWorkers'] ?? $job['workers'] ?? null;
             $decoded = null;
             if ($assigned) {
@@ -85,6 +125,7 @@ try {
                         $labor += $toFloat($w['labor_cost'] ?? $w['laborCost'] ?? $w['cost'] ?? 0);
                     }
                 }
+            }
             }
 
             $expenses = $materials + $labor + $travel;
