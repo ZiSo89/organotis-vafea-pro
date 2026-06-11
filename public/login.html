@@ -6,12 +6,12 @@
     <title>Σύνδεση - Τέχνη και Χρώμα</title>
     
     <!-- Favicons -->
-    <link rel="icon" type="image/x-icon" href="/public/assets/icons/favicon.ico?v=20260611a">
-    <link rel="icon" type="image/png" sizes="192x192" href="/public/assets/icons/icon.png?v=20260611a">
-    <link rel="apple-touch-icon" href="/public/assets/icons/icon.png?v=20260611a">
+    <link rel="icon" type="image/x-icon" href="/public/assets/icons/favicon.ico?v=20260611b">
+    <link rel="icon" type="image/png" sizes="192x192" href="/public/assets/icons/icon.png?v=20260611b">
+    <link rel="apple-touch-icon" href="/public/assets/icons/icon.png?v=20260611b">
     
     <!-- Manifest -->
-    <link rel="manifest" href="/public/manifest.json?v=20260611a">
+    <link rel="manifest" href="/public/manifest.json?v=20260611b">
     
     <!-- PWA Meta Tags -->
     <meta name="theme-color" content="#ffffff">
@@ -255,6 +255,25 @@
         const rememberMeCheckbox = document.getElementById('rememberMe');
         const loginBtn = document.getElementById('loginBtn');
         const errorMessage = document.getElementById('errorMessage');
+
+        if ('serviceWorker' in navigator) {
+            let refreshing = false;
+
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                if (refreshing) return;
+                refreshing = true;
+                window.location.reload();
+            });
+
+            window.addEventListener('load', async () => {
+                try {
+                    const registration = await navigator.serviceWorker.register('sw.js?v=20260611b', { scope: './' });
+                    registration.update();
+                } catch (error) {
+                    console.warn('[PWA] Service worker registration failed:', error);
+                }
+            });
+        }
 
         function showError(message) {
             errorMessage.textContent = message;
