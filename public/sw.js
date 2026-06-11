@@ -1,4 +1,4 @@
-const APP_VERSION = '20260611b';
+const APP_VERSION = '20260611d';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(self.skipWaiting());
@@ -28,6 +28,8 @@ self.addEventListener('fetch', (event) => {
   const shouldBypassCache = request.mode === 'navigate'
     || url.pathname.endsWith('/manifest.json')
     || url.pathname.endsWith('/sw.js')
+    || url.pathname.endsWith('.css')
+    || url.pathname.endsWith('.js')
     || url.pathname.endsWith('/assets/icons/icon.png')
     || url.pathname.endsWith('/assets/icons/logo.png');
 
