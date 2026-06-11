@@ -4,6 +4,7 @@
  */
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/auth_check.php';
+require_once __DIR__ . '/material_identity.php';
 checkAuthentication();
 
 // Log API request
@@ -16,6 +17,7 @@ header('Content-Type: application/json; charset=utf-8');
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') exit(0);
 
 $db = getDBConnection();
+ensure_material_identity_schema($db);
 $method = $_SERVER['REQUEST_METHOD'];
 
 try {
@@ -34,12 +36,17 @@ try {
             
         case 'POST':
             $input = json_decode(file_get_contents('php://input'), true);
-            if (!$input || !isset($input['name'])) sendError('Το όνομα είναι υποχρεωτικό');
+            if (!$input) sendError('Δεν υπάρχουν δεδομένα');
             
-            $data = convertToSnakeCase($input);
+            $data = material_prepare_data($input);
+            $duplicate = find_material_duplicate($db, $data);
+            if ($duplicate) {
+                sendError('Υπάρχει ήδη υλικό με ίδια κατηγορία και ταυτότητα: ' . $duplicate['name'], 409);
+            }
+
             $stmt = $db->prepare("
-                INSERT INTO materials (name, unit, unit_price, stock, min_stock, category)
-                VALUES (:name, :unit, :unit_price, :stock, :min_stock, :category)
+                INSERT INTO materials (name, unit, unit_price, stock, min_stock, category, color_code, canonical_key)
+                VALUES (:name, :unit, :unit_price, :stock, :min_stock, :category, :color_code, :canonical_key)
             ");
             $stmt->execute([
                 ':name' => $data['name'],
@@ -47,7 +54,9 @@ try {
                 ':unit_price' => $data['unit_price'] ?? 0,
                 ':stock' => $data['stock'] ?? 0,
                 ':min_stock' => $data['min_stock'] ?? 0,
-                ':category' => $data['category'] ?? null
+                ':category' => $data['category'],
+                ':color_code' => $data['color_code'] ?: null,
+                ':canonical_key' => $data['canonical_key']
             ]);
             
             $stmt = $db->prepare("SELECT * FROM materials WHERE id = ?");
@@ -59,12 +68,22 @@ try {
             if (!isset($_GET['id'])) sendError('Το ID είναι υποχρεωτικό');
             $input = json_decode(file_get_contents('php://input'), true);
             if (!$input) sendError('Δεν υπάρχουν δεδομένα');
+
+            $existingStmt = $db->prepare("SELECT * FROM materials WHERE id = ?");
+            $existingStmt->execute([$_GET['id']]);
+            if (!$existingStmt->fetch()) sendError('Το υλικό δεν βρέθηκε', 404);
             
-            $data = convertToSnakeCase($input);
+            $data = material_prepare_data($input);
+            $duplicate = find_material_duplicate($db, $data, $_GET['id']);
+            if ($duplicate) {
+                sendError('Υπάρχει ήδη υλικό με ίδια κατηγορία και ταυτότητα: ' . $duplicate['name'], 409);
+            }
+
             $stmt = $db->prepare("
                 UPDATE materials 
                 SET name = :name, unit = :unit, unit_price = :unit_price,
-                    stock = :stock, min_stock = :min_stock, category = :category
+                    stock = :stock, min_stock = :min_stock, category = :category,
+                    color_code = :color_code, canonical_key = :canonical_key
                 WHERE id = :id
             ");
             $stmt->execute([
@@ -74,10 +93,10 @@ try {
                 ':unit_price' => $data['unit_price'] ?? 0,
                 ':stock' => $data['stock'] ?? 0,
                 ':min_stock' => $data['min_stock'] ?? 0,
-                ':category' => $data['category'] ?? null
+                ':category' => $data['category'],
+                ':color_code' => $data['color_code'] ?: null,
+                ':canonical_key' => $data['canonical_key']
             ]);
-            
-            if ($stmt->rowCount() === 0) sendError('Το υλικό δεν βρέθηκε', 404);
             
             $stmt = $db->prepare("SELECT * FROM materials WHERE id = ?");
             $stmt->execute([$_GET['id']]);

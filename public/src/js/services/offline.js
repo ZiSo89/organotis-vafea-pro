@@ -481,16 +481,197 @@ window.OfflineService = {
     return await this.getById('materials', id);
   },
 
+  prepareMaterialData(data = {}) {
+    if (typeof MaterialIdentity === 'undefined') {
+      return data;
+    }
+    return MaterialIdentity.prepare(data);
+  },
+
+  async findMaterialDuplicate(data = {}, excludeId = null) {
+    const materialsResult = await this.getMaterials();
+    const materials = materialsResult.success ? materialsResult.data : [];
+    if (typeof MaterialIdentity === 'undefined') return null;
+    return MaterialIdentity.findDuplicate(materials, data, excludeId)
+      || MaterialIdentity.findSimilar(materials, data, excludeId);
+  },
+
+  async resolveMaterialForItem(item = {}) {
+    const materialId = Number(item.materialId || item.material_id || 0);
+    if (materialId > 0) {
+      const materialResult = await this.getById('materials', materialId);
+      if (materialResult.success && materialResult.data) return materialResult.data;
+    }
+
+    const payload = this.prepareMaterialData({
+      name: item.materialName || item.material_name || item.name,
+      category: item.category || 'Άλλο',
+      colorCode: item.colorCode || item.color_code || '',
+      unit: item.unit || 'τμχ',
+      unitPrice: item.unitPrice || item.unit_price || 0,
+      stock: 0,
+      minStock: 0
+    });
+    const duplicate = await this.findMaterialDuplicate(payload);
+    if (duplicate) return duplicate;
+
+    const created = await this.createMaterial(payload);
+    return created.data?.record || created.data || created.record || created;
+  },
+
   async createMaterial(data) {
-    return await this.insert('materials', data);
+    const payload = this.prepareMaterialData(data);
+    const duplicate = await this.findMaterialDuplicate(payload);
+    if (duplicate) {
+      throw new Error(`Υπάρχει ήδη υλικό με ίδια κατηγορία και ταυτότητα: ${duplicate.name}`);
+    }
+    return await this.insert('materials', payload);
   },
 
   async updateMaterial(id, data) {
-    return await this.update('materials', id, data);
+    const payload = this.prepareMaterialData(data);
+    const duplicate = await this.findMaterialDuplicate(payload, id);
+    if (duplicate) {
+      throw new Error(`Υπάρχει ήδη υλικό με ίδια κατηγορία και ταυτότητα: ${duplicate.name}`);
+    }
+    return await this.update('materials', id, payload);
   },
 
   async deleteMaterial(id) {
     return await this.delete('materials', id);
+  },
+
+  async getMaterialDuplicateGroups() {
+    const materialsResult = await this.getMaterials();
+    if (!materialsResult.success) return materialsResult;
+
+    const groupsByKey = new Map();
+    for (const material of materialsResult.data || []) {
+      const key = material.canonicalKey || material.canonical_key || MaterialIdentity.buildKey(material);
+      if (!key) continue;
+      if (!groupsByKey.has(key)) groupsByKey.set(key, []);
+      groupsByKey.get(key).push(material);
+    }
+
+    const groups = [...groupsByKey.entries()]
+      .filter(([, materials]) => materials.length > 1)
+      .map(([canonicalKey, materials]) => ({
+        canonicalKey,
+        materials: materials.sort((a, b) => Number(a.id) - Number(b.id))
+      }));
+
+    return { success: true, data: groups };
+  },
+
+  async mergeMaterialDuplicates(primaryId, duplicateIds = []) {
+    const primaryResult = await this.getMaterial(primaryId);
+    if (!primaryResult.success || !primaryResult.data) {
+      return { success: false, message: 'Το primary υλικό δεν βρέθηκε' };
+    }
+
+    const primary = primaryResult.data;
+    const duplicates = [];
+    for (const duplicateId of duplicateIds) {
+      const result = await this.getMaterial(duplicateId);
+      if (result.success && result.data && Number(result.data.id) !== Number(primaryId)) {
+        duplicates.push(result.data);
+      }
+    }
+
+    if (!duplicates.length) {
+      return { success: false, message: 'Δεν επιλέχθηκαν διπλά υλικά' };
+    }
+
+    const primaryKey = primary.canonicalKey || primary.canonical_key || MaterialIdentity.buildKey(primary);
+    if (duplicates.some(material => (material.canonicalKey || material.canonical_key || MaterialIdentity.buildKey(material)) !== primaryKey)) {
+      return { success: false, message: 'Τα υλικά δεν ανήκουν στο ίδιο duplicate group' };
+    }
+
+    const duplicateIdSet = new Set(duplicates.map(material => Number(material.id)));
+    const totalStock = [primary, ...duplicates].reduce((sum, material) => sum + (parseFloat(material.stock) || 0), 0);
+    const maxMinStock = Math.max(...[primary, ...duplicates].map(material => parseFloat(material.minStock || material.min_stock || 0) || 0));
+    const unitPrice = parseFloat(primary.unitPrice || primary.unit_price || 0)
+      || duplicates.map(material => parseFloat(material.unitPrice || material.unit_price || 0) || 0).find(value => value > 0)
+      || 0;
+
+    const [itemsResult, movementsResult, jobsResult] = await Promise.all([
+      this.getAll('material_purchase_items'),
+      this.getAll('material_stock_movements'),
+      this.getAll('jobs')
+    ]);
+
+    for (const item of itemsResult.success ? itemsResult.data : []) {
+      if (duplicateIdSet.has(Number(item.materialId || item.material_id))) {
+        await this.update('material_purchase_items', item.id, {
+          ...item,
+          materialId: primary.id,
+          materialName: primary.name
+        });
+      }
+    }
+
+    for (const movement of movementsResult.success ? movementsResult.data : []) {
+      if (duplicateIdSet.has(Number(movement.materialId || movement.material_id))) {
+        await this.update('material_stock_movements', movement.id, {
+          ...movement,
+          materialId: primary.id
+        });
+      }
+    }
+
+    let updatedJobs = 0;
+    for (const job of jobsResult.success ? jobsResult.data : []) {
+      const paints = Array.isArray(job.paints) ? job.paints : [];
+      let changed = false;
+      const nextPaints = paints.map(paint => {
+        const materialId = Number(paint.materialId || paint.material_id || 0);
+        if (!duplicateIdSet.has(materialId)) return paint;
+        changed = true;
+        return {
+          ...paint,
+          materialId: primary.id,
+          material_id: undefined,
+          name: primary.name,
+          category: primary.category,
+          code: primary.colorCode || primary.color_code || paint.code,
+          colorCode: primary.colorCode || primary.color_code || paint.colorCode,
+          unit: primary.unit || paint.unit
+        };
+      }).map(paint => {
+        const cleaned = { ...paint };
+        delete cleaned.material_id;
+        return cleaned;
+      });
+
+      if (changed) {
+        updatedJobs++;
+        await this.update('jobs', job.id, {
+          ...job,
+          paints: nextPaints
+        });
+      }
+    }
+
+    await this.update('materials', primary.id, this.prepareMaterialData({
+      ...primary,
+      stock: totalStock,
+      minStock: maxMinStock,
+      unitPrice
+    }));
+
+    for (const duplicate of duplicates) {
+      await this.deleteMaterial(duplicate.id);
+    }
+
+    const refreshed = await this.getMaterial(primary.id);
+    return {
+      success: true,
+      data: {
+        primary: refreshed.data,
+        mergedIds: duplicates.map(material => material.id),
+        updatedJobs
+      }
+    };
   },
 
   async getMaterialStockMovements() {
@@ -682,16 +863,30 @@ window.OfflineService = {
 
     const purchaseId = purchaseResult.data?.record?.id || purchaseResult.data?.id;
     for (const item of items) {
+      const material = await this.resolveMaterialForItem(item);
       await this.insert('material_purchase_items', {
         purchaseId,
-        materialId: item.materialId || null,
-        materialName: item.materialName,
+        materialId: material?.id || item.materialId || null,
+        materialName: item.materialName || material?.name || '',
         quantity: item.quantity,
         unit: item.unit,
         unitPrice: item.unitPrice,
         totalCost: item.totalCost,
         notes: item.notes || ''
       });
+
+      if (material?.id) {
+        await this.createMaterialStockMovement({
+          materialId: material.id,
+          movementType: 'add',
+          quantity: item.quantity,
+          movementDate: data.purchaseDate,
+          unit: item.unit || material.unit,
+          referenceType: 'purchase',
+          referenceId: purchaseId,
+          notes: 'Αγορά από προμηθευτή'
+        });
+      }
     }
 
     const initialPayment = data.initialPayment || data.initial_payment || {};

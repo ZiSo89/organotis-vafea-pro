@@ -256,13 +256,6 @@ window.JobsView = {
                 <button type="button" class="btn btn-secondary" id="addPaintBtn">
                   <i class="fas fa-plus"></i> Προσθήκη Υλικού
                 </button>
-                <label class="checkbox-inline" style="margin-top: 12px;">
-                  <input type="checkbox" id="deductMaterialsFromStock">
-                  Αφαίρεση από αποθήκη κατά την αποθήκευση
-                </label>
-                <small class="text-muted" style="display: block; margin-top: 4px;">
-                  Χρησιμοποιήστε το μόνο όταν τα υλικά πρέπει να αφαιρεθούν από τη φυσική αποθήκη.
-                </small>
                 <div id="paintsContainer" style="margin-top: 15px;">
                   <!-- Materials will appear here -->
                 </div>
@@ -883,18 +876,81 @@ window.JobsView = {
   },
 
   parseCurrencyInput(value) {
-    const normalized = String(value || '')
-      .replace(/\./g, '')
-      .replace(',', '.')
-      .replace(/[^\d.-]/g, '');
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? value : 0;
+    }
+
+    let normalized = String(value || '').trim().replace(/[^\d,.-]/g, '');
+    if (!normalized) return 0;
+
+    const hasComma = normalized.includes(',');
+    const hasDot = normalized.includes('.');
+
+    if (hasComma) {
+      // Greek format: 1.234,56
+      normalized = normalized.replace(/\./g, '').replace(',', '.');
+    } else if (hasDot) {
+      const dotParts = normalized.split('.');
+      const lastPart = dotParts[dotParts.length - 1];
+      if (dotParts.length > 2 || lastPart.length === 3) {
+        // Thousands format: 1.234 or 40.000
+        normalized = normalized.replace(/\./g, '');
+      }
+      // Otherwise keep decimal dot: 20.00
+    }
+
     const parsed = parseFloat(normalized);
     return Number.isFinite(parsed) ? parsed : 0;
   },
 
+  formatMaterialCurrency(amount) {
+    const value = this.parseCurrencyInput(amount);
+    return new Intl.NumberFormat('el-GR', {
+      style: 'currency',
+      currency: 'EUR',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(value);
+  },
+
   getMaterialCostTotal() {
     return this.assignedPaints.reduce((sum, material) => {
-      return sum + this.parseCurrencyInput(material.cost ?? material.totalCost ?? 0);
+      return sum + this.getAssignedMaterialLineCost(material);
     }, 0);
+  },
+
+  getAssignedMaterialLineCost(material = {}) {
+    const stockMaterial = this.getInventoryMaterialForAssignedMaterial(material);
+    if (stockMaterial) {
+      const unitPrice = this.parseCurrencyInput(stockMaterial.unitPrice || stockMaterial.unit_price || 0);
+      const quantity = this.parseMaterialQuantity(material.quantity);
+      return unitPrice * quantity;
+    }
+
+    return this.parseCurrencyInput(material.cost ?? material.totalCost ?? 0);
+  },
+
+  recalculateAssignedMaterialCosts() {
+    if (!Array.isArray(this.assignedPaints)) return;
+
+    this.assignedPaints = this.assignedPaints.map(material => ({
+      ...material,
+      cost: this.getAssignedMaterialLineCost(material)
+    }));
+  },
+
+  getInventoryMaterialForAssignedMaterial(material = {}) {
+    const inventory = State.read('inventory') || [];
+    const materialId = material.materialId || material.material_id;
+    if (materialId) {
+      const byId = State.read('inventory', materialId);
+      if (byId) return byId;
+    }
+
+    if (!material.name || typeof MaterialIdentity === 'undefined') return null;
+    return inventory.find(item => {
+      return MaterialIdentity.normalizeSearchText(item.name) === MaterialIdentity.normalizeSearchText(material.name);
+    }) || null;
   },
 
   getWorkerType(worker) {
@@ -1183,7 +1239,7 @@ window.JobsView = {
   getWorkedTimeTotals(jobId, assignedWorkers = []) {
     const actuals = jobId ? this.getVisitWorkerActuals(jobId) : new Map();
     const assignedKeys = new Set();
-    const totals = { totalHours: 0, ownerHours: 0, ownerOpportunityCost: 0 };
+    const totals = { totalHours: 0, laborCost: 0, ownerHours: 0, ownerOpportunityCost: 0 };
 
     assignedWorkers.forEach(worker => {
       const workerId = worker.workerId ?? worker.worker_id;
@@ -1197,11 +1253,17 @@ window.JobsView = {
       const workedHours = assignedHours + actualHours;
       const hourlyRate = parseFloat(worker.hourlyRate ?? worker.hourly_rate ?? actual?.hourlyRate ?? 0) || 0;
       const workerType = (worker.workerType || worker.worker_type || actual?.workerType) === 'owner' ? 'owner' : 'employee';
+      const assignedLaborCost = worker.laborCost !== undefined || worker.labor_cost !== undefined
+        ? (parseFloat(worker.laborCost ?? worker.labor_cost) || 0)
+        : assignedHours * hourlyRate;
+      const actualLaborCost = parseFloat(actual?.actualLaborCost || 0) || 0;
 
       totals.totalHours += workedHours;
       if (workerType === 'owner') {
         totals.ownerHours += workedHours;
         totals.ownerOpportunityCost += (assignedHours * hourlyRate) + (parseFloat(actual?.ownerOpportunityCost || 0) || 0);
+      } else {
+        totals.laborCost += assignedLaborCost + actualLaborCost;
       }
     });
 
@@ -1215,6 +1277,8 @@ window.JobsView = {
       if (workerType === 'owner') {
         totals.ownerHours += actualHours;
         totals.ownerOpportunityCost += actualHours * hourlyRate;
+      } else {
+        totals.laborCost += parseFloat(actual.actualLaborCost || 0) || 0;
       }
     });
 
@@ -1508,6 +1572,7 @@ window.JobsView = {
     }
     const workedTotals = this.getWorkedTimeTotals(job.id, assignedWorkers);
     actualHours = workedTotals.totalHours;
+    laborCost = workedTotals.laborCost;
     ownerHours = workedTotals.ownerHours;
     ownerOpportunityCost = workedTotals.ownerOpportunityCost;
 
@@ -1576,7 +1641,7 @@ window.JobsView = {
       materialsInput.min = String(materialTotal);
       const shouldAdjust = enforce || document.activeElement !== materialsInput;
       const currentMaterials = parseFloat(materialsInput.value || 0) || 0;
-      if (shouldAdjust && currentMaterials < materialTotal) {
+      if (shouldAdjust && Math.abs(currentMaterials - materialTotal) > 0.005) {
         materialsInput.value = materialTotal ? materialTotal.toFixed(2) : '0';
       }
     }
@@ -1607,8 +1672,6 @@ window.JobsView = {
     const billingType = this.getFormBillingType();
 
     // ΕΞΟΔΑ
-    const visitTotals = this.currentEdit ? this.getVisitAggregateTotals(this.currentEdit) : { visitCount: 0, laborCost: 0, ownerHours: 0, ownerOpportunityCost: 0, totalHours: 0 };
-    const laborCost = visitTotals.visitCount > 0 ? visitTotals.laborCost : this.getEmployeeLaborCost(); // Μόνο οι υπάλληλοι είναι έξοδο
     const ownerFallback = this.assignedWorkers.reduce((sum, worker) => {
       if (this.getWorkerType(worker) !== 'owner') return sum;
       const hours = parseFloat(worker.hoursAllocated || worker.hours_allocated || 0) || 0;
@@ -1616,6 +1679,7 @@ window.JobsView = {
       return sum + (hours * rate);
     }, 0);
     const workedTotals = this.getWorkedTimeTotals(this.currentEdit, this.assignedWorkers);
+    const laborCost = workedTotals.laborCost; // Μόνο οι υπάλληλοι είναι έξοδο
     const ownerOpportunityCost = workedTotals.ownerOpportunityCost || ownerFallback;
     const actualHours = workedTotals.totalHours;
     const travelCost = kilometers * costPerKm; // Κόστος μετακίνησης
@@ -1643,7 +1707,7 @@ window.JobsView = {
     const economicProfitDisplay = document.getElementById('economicProfitDisplay');
     
     if (laborDisplay) laborDisplay.textContent = Utils.formatCurrency(laborCost);
-    if (materialsDisplay) materialsDisplay.textContent = Utils.formatCurrency(materials);
+    if (materialsDisplay) materialsDisplay.textContent = this.formatMaterialCurrency(materials);
     if (travelDisplay) travelDisplay.textContent = Utils.formatCurrency(travelCost);
     if (totalExpensesDisplay) totalExpensesDisplay.textContent = Utils.formatCurrency(totalExpenses);
     if (billingAmountDisplay) billingAmountDisplay.textContent = Utils.formatCurrency(billingAmount);
@@ -1775,6 +1839,8 @@ window.JobsView = {
     const visitStartTime = visitAllDay ? null : (document.getElementById('jobVisitStartTime')?.value || null);
     const visitEndTime = visitAllDay ? null : (document.getElementById('jobVisitEndTime')?.value || null);
 
+    this.recalculateAssignedMaterialCosts();
+
     const jobData = {
       clientId: Number(jobClient), // Convert to number
       type: null,
@@ -1812,7 +1878,7 @@ window.JobsView = {
     }
 
     // ΕΞΟΔΑ
-    const laborCost = this.getEmployeeLaborCost(); // Κόστος υπαλλήλων μόνο
+    const laborCost = this.getWorkedTimeTotals(this.currentEdit, this.assignedWorkers).laborCost; // Κόστος υπαλλήλων μόνο
     const travelCost = jobData.kilometers * jobData.costPerKm;
     const totalExpenses = jobData.materialsCost + laborCost + travelCost;
 
@@ -1843,7 +1909,7 @@ window.JobsView = {
       return;
     }
 
-    const shouldDeductStock = document.getElementById('deductMaterialsFromStock')?.checked === true;
+    const shouldDeductStock = this.assignedPaints.some(item => item.deductFromStock && !item.stockDeducted);
     if (shouldDeductStock && !this.validateStockDeduction()) {
       return;
     }
@@ -1904,6 +1970,7 @@ window.JobsView = {
         this.refreshJobFormLinkedSections(this.currentEdit);
       }
       this.refreshTable();
+      this.renderAssignedPaints();
       if (typeof State !== 'undefined' && State.refreshCalendarIfNeeded) {
         State.refreshCalendarIfNeeded();
       }
@@ -1914,9 +1981,9 @@ window.JobsView = {
   },
 
   validateStockDeduction() {
-    const pendingItems = this.assignedPaints.filter(item => !item.stockDeducted);
+    const pendingItems = this.assignedPaints.filter(item => item.deductFromStock && !item.stockDeducted);
     if (!pendingItems.length) {
-      Toast.info('Τα υλικά έχουν ήδη αφαιρεθεί από την αποθήκη');
+      Toast.info('Δεν υπάρχουν υλικά προς αφαίρεση από την αποθήκη');
       return false;
     }
 
@@ -1949,6 +2016,7 @@ window.JobsView = {
 
   async deductAssignedMaterialsFromStock(jobId) {
     for (const item of this.assignedPaints) {
+      if (!item.deductFromStock) continue;
       if (item.stockDeducted) continue;
 
       const materialId = item.materialId || item.material_id;
@@ -1964,13 +2032,127 @@ window.JobsView = {
         unit: item.unit || material.unit || 'λίτρα',
         referenceType: 'job',
         referenceId: jobId,
-        notes: `Χρήση στην εργασία #${jobId}`
+        notes: this.getJobStockMovementNote('Χρήση', jobId)
       });
+
+      if (!result?.movement || !result?.material) {
+        throw new Error(`Δεν επιβεβαιώθηκε η κίνηση αποθήκης για "${item.name}"`);
+      }
 
       item.stockDeducted = true;
       item.stockDeductedAt = new Date().toISOString();
-      item.stockMovementId = result?.movement?.id || null;
+      item.stockMovementId = result.movement.id || null;
     }
+  },
+
+  async createJobMaterialStockMovement(item, jobId, movementType, quantity, notePrefix = 'Χρήση') {
+    const materialId = item.materialId || item.material_id;
+    const numericQuantity = this.parseMaterialQuantity(quantity);
+    const material = State.read('inventory', materialId);
+    if (!materialId || numericQuantity <= 0 || !material) {
+      throw new Error(`Το υλικό "${item.name}" δεν είναι συνδεδεμένο με την αποθήκη`);
+    }
+
+    const result = await State.create('materialStockMovements', {
+      materialId: Number(materialId),
+      movementType,
+      quantity: numericQuantity,
+      movementDate: new Date().toISOString().split('T')[0],
+      unit: item.unit || material.unit || 'λίτρα',
+      referenceType: 'job',
+      referenceId: jobId,
+      notes: this.getJobStockMovementNote(notePrefix, jobId)
+    });
+
+    if (!result?.movement || !result?.material) {
+      throw new Error(`Δεν επιβεβαιώθηκε η κίνηση αποθήκης για "${item.name}"`);
+    }
+
+    return result;
+  },
+
+  getJobStockMovementNote(action, jobId = this.currentEdit) {
+    const clientName = this.getJobClientNameForStockMovement(jobId);
+    return clientName && clientName !== 'Άγνωστος'
+      ? `${action} - Πελάτης: ${clientName}`
+      : action;
+  },
+
+  getJobClientNameForStockMovement(jobId = this.currentEdit) {
+    const selectedClientId = document.getElementById('jobClient')?.value;
+    const job = jobId ? State.read('jobs', jobId) : null;
+    const clientId = selectedClientId || job?.clientId || job?.client_id;
+    return clientId ? this.getClientName(clientId) : 'Άγνωστος';
+  },
+
+  async adjustDeductedMaterialStockChange(previousItem, nextItem, jobId) {
+    if (!jobId) return;
+
+    const previousMaterialId = Number(previousItem.materialId || previousItem.material_id || 0);
+    const nextMaterialId = Number(nextItem.materialId || nextItem.material_id || 0);
+    const previousQuantity = this.parseMaterialQuantity(previousItem.quantity);
+    const nextQuantity = this.parseMaterialQuantity(nextItem.quantity);
+    if (!previousMaterialId || !nextMaterialId || previousQuantity <= 0 || nextQuantity <= 0) return;
+
+    if (previousMaterialId !== nextMaterialId) {
+      await this.createJobMaterialStockMovement(previousItem, jobId, 'add', previousQuantity, 'Διόρθωση επιστροφής υλικού');
+      const removal = await this.createJobMaterialStockMovement(nextItem, jobId, 'remove', nextQuantity, 'Διόρθωση χρήσης υλικού');
+      nextItem.stockMovementId = removal.movement.id || nextItem.stockMovementId || null;
+      nextItem.stockDeductedAt = new Date().toISOString();
+      return;
+    }
+
+    const delta = nextQuantity - previousQuantity;
+    if (Math.abs(delta) < 0.0001) return;
+
+    if (delta > 0) {
+      const removal = await this.createJobMaterialStockMovement(nextItem, jobId, 'remove', delta, 'Διόρθωση επιπλέον χρήσης υλικού');
+      nextItem.stockMovementId = removal.movement.id || nextItem.stockMovementId || null;
+      nextItem.stockDeductedAt = new Date().toISOString();
+    } else {
+      await this.createJobMaterialStockMovement(nextItem, jobId, 'add', Math.abs(delta), 'Διόρθωση επιστροφής υλικού');
+    }
+  },
+
+  hasStockDeductionMovement(item, jobId = this.currentEdit) {
+    const materialId = Number(item.materialId || item.material_id || 0);
+    if (!materialId || !jobId) return false;
+
+    const stockMovementId = item.stockMovementId || item.stock_movement_id;
+    const movements = State.read('materialStockMovements') || [];
+    if (stockMovementId && movements.some(movement => Number(movement.id) === Number(stockMovementId))) {
+      return true;
+    }
+
+    return movements.some(movement => {
+      const movementMaterialId = Number(movement.materialId || movement.material_id || 0);
+      const referenceType = movement.referenceType || movement.reference_type;
+      const referenceId = Number(movement.referenceId || movement.reference_id || 0);
+      const movementType = movement.movementType || movement.movement_type;
+      const quantity = parseFloat(movement.quantity || 0) || 0;
+      return movementMaterialId === materialId
+        && referenceType === 'job'
+        && referenceId === Number(jobId)
+        && (movementType === 'remove' || quantity < 0);
+    });
+  },
+
+  reconcileAssignedPaintStockFlags(jobId = this.currentEdit) {
+    if (!Array.isArray(this.assignedPaints) || !jobId) return;
+
+    this.assignedPaints = this.assignedPaints.map(item => {
+      const hasDeductionMovement = this.hasStockDeductionMovement(item, jobId);
+      if (!item.stockDeducted && !hasDeductionMovement) {
+        return item;
+      }
+
+      return {
+        ...item,
+        deductFromStock: item.deductFromStock === true || hasDeductionMovement,
+        stockDeducted: hasDeductionMovement,
+        stockMovementId: hasDeductionMovement ? (item.stockMovementId || item.stock_movement_id || null) : null
+      };
+    });
   },
 
   parseMaterialQuantity(value) {
@@ -2210,17 +2392,22 @@ window.JobsView = {
       const hourlyRate = parseFloat(w.hourlyRate ?? w.hourly_rate ?? 0) || 0;
       const inactiveText = w.status === 'inactive' ? ' · ανενεργός' : '';
       return `
-        <tr>
-          <td><strong>${w.name}</strong><br><small class="text-muted">${isOwner ? 'Ιδιοκτήτης' : 'Υπάλληλος'} · ${Utils.formatCurrency(hourlyRate)}/ώρα${inactiveText}</small></td>
-          <td style="width: 110px;">
-            <input type="number" class="visit-worker-hours" min="0" step="0.5" value="${hours}"
+        <label class="visit-worker-card">
+          <span class="visit-worker-info">
+            <strong>${w.name}</strong>
+            <small class="text-muted">${isOwner ? 'Ιδιοκτήτης' : 'Υπάλληλος'} · ${Utils.formatCurrency(hourlyRate)}/ώρα${inactiveText}</small>
+          </span>
+          <span class="visit-worker-hours-field">
+            <span>Ώρες</span>
+            <input type="number" class="visit-worker-hours" min="0" step="0.5" inputmode="decimal" value="${hours}"
                    placeholder="0"
+                   aria-label="Ώρες για ${w.name}"
                    data-worker-id="${w.id}"
                    data-worker-name="${w.name}"
                    data-worker-type="${isOwner ? 'owner' : 'employee'}"
                    data-hourly-rate="${hourlyRate}">
-          </td>
-        </tr>
+          </span>
+        </label>
       `;
     }).join('');
 
@@ -2233,17 +2420,7 @@ window.JobsView = {
         <div class="form-group span-2">
           <label>Ώρες ανά εργάτη</label>
           ${workers.length > 0 ? `
-          <div class="table-wrapper">
-            <table class="data-table" style="margin-top: 5px;">
-              <thead>
-                <tr>
-                  <th>Εργάτης</th>
-                  <th>Ώρες</th>
-                </tr>
-              </thead>
-              <tbody>${workerRows}</tbody>
-            </table>
-          </div>
+          <div class="visit-worker-list">${workerRows}</div>
           <small class="text-muted" style="display: block; margin-top: 4px;">
             Αφήστε 0/κενό όσους δεν δούλεψαν. Οι ώρες υπαλλήλων μετράνε ως έξοδο, του ιδιοκτήτη μόνο ως χρόνος.
           </small>
@@ -2580,7 +2757,7 @@ window.JobsView = {
       if (wrap) wrap.style.display = isAllDay ? 'none' : '';
       if (endWrap) endWrap.style.display = isAllDay ? 'none' : '';
     }
-    document.getElementById('jobMaterialsCost').value = job.materialsCost ? Math.round(job.materialsCost) : 0;
+    document.getElementById('jobMaterialsCost').value = 0;
     document.getElementById('jobKilometers').value = job.kilometers ? Math.round(job.kilometers) : 0;
     document.getElementById('jobBillingHours').value = job.billingHours ? Math.round(job.billingHours) : 0;
     document.getElementById('jobBillingRate').value = job.billingRate ? Math.round(job.billingRate) : 50;
@@ -2620,12 +2797,18 @@ window.JobsView = {
       } else {
         this.assignedPaints = [];
       }
-      this.assignedPaints = this.assignedPaints.map(material => ({
-        ...material,
-        quantity: material.quantity || '',
-        info: material.info || '',
-        cost: this.parseCurrencyInput(material.cost || material.totalCost || 0)
-      }));
+      this.assignedPaints = this.assignedPaints.map(material => {
+        const hasDeductionMovement = this.hasStockDeductionMovement(material, job.id);
+        return {
+          ...material,
+          quantity: material.quantity || '',
+          info: material.info || '',
+          cost: this.parseCurrencyInput(material.cost || material.totalCost || 0),
+          deductFromStock: material.deductFromStock === true || hasDeductionMovement,
+          stockDeducted: hasDeductionMovement,
+          stockMovementId: hasDeductionMovement ? (material.stockMovementId || material.stock_movement_id || null) : null
+        };
+      });
       
       console.log('[Jobs] Parsed assignedWorkers:', this.assignedWorkers);
       console.log('[Jobs] Parsed assignedPaints:', this.assignedPaints);
@@ -2985,7 +3168,13 @@ window.JobsView = {
       const actual = actuals.get(key) || { actualHours: 0, actualLaborCost: 0, ownerOpportunityCost: 0 };
       const plannedHours = parseFloat(w.hoursAllocated ?? w.hours_allocated ?? 0) || 0;
       const hourlyRate = parseFloat(w.hourlyRate ?? w.hourly_rate ?? 0) || 0;
-      const fallbackOwnerCost = this.getWorkerType(w) === 'owner' ? plannedHours * hourlyRate : 0;
+      const workerType = this.getWorkerType(w);
+      const plannedLaborCost = workerType === 'owner'
+        ? 0
+        : ((w.laborCost !== undefined || w.labor_cost !== undefined)
+          ? (parseFloat(w.laborCost ?? w.labor_cost) || 0)
+          : plannedHours * hourlyRate);
+      const plannedOwnerCost = workerType === 'owner' ? plannedHours * hourlyRate : 0;
       return {
         ...w,
         index,
@@ -2993,7 +3182,8 @@ window.JobsView = {
         plannedHours,
         actualHours: actual.actualHours || 0,
         actualLaborCost: actual.actualLaborCost || 0,
-        ownerOpportunityCost: actual.ownerOpportunityCost || fallbackOwnerCost,
+        laborCost: plannedLaborCost + (parseFloat(actual.actualLaborCost || 0) || 0),
+        ownerOpportunityCost: plannedOwnerCost + (parseFloat(actual.ownerOpportunityCost || 0) || 0),
         variance: (actual.actualHours || 0) - plannedHours
       };
     });
@@ -3011,6 +3201,7 @@ window.JobsView = {
         plannedHours: 0,
         actualHours: actual.actualHours || 0,
         actualLaborCost: actual.actualLaborCost || 0,
+        laborCost: actual.workerType === 'owner' ? 0 : (parseFloat(actual.actualLaborCost || 0) || 0),
         ownerOpportunityCost: actual.ownerOpportunityCost || 0,
         variance: actual.actualHours || 0
       });
@@ -3019,10 +3210,8 @@ window.JobsView = {
     const totalPlannedHours = rows.reduce((sum, w) => sum + w.plannedHours, 0);
     const totalActualHours = rows.reduce((sum, w) => sum + w.actualHours, 0);
     const totalDisplayedHours = totalPlannedHours + totalActualHours;
-    const totalActualCost = rows.reduce((sum, w) => sum + w.actualLaborCost, 0);
+    const totalLaborCost = rows.reduce((sum, w) => sum + (parseFloat(w.laborCost || 0) || 0), 0);
     const totalOwnerOpportunityCost = rows.reduce((sum, w) => sum + (w.ownerOpportunityCost || 0), 0);
-    const fallbackCost = this.assignedWorkers.reduce((sum, w) => sum + (parseFloat(w.laborCost || w.labor_cost || 0) || 0), 0);
-    const hasActuals = totalActualHours > 0;
 
     container.innerHTML = `
       <div class="table-wrapper">
@@ -3053,7 +3242,7 @@ window.JobsView = {
                 <td><strong>${w.workerName}</strong>${this.getWorkerType(w) === 'owner' ? '<br><small class="text-muted">Ιδιοκτήτης</small>' : ''}${!w.isAssigned ? '<br><small class="text-muted">Δεν είναι ανατεθειμένος</small>' : (w.actualHours === 0 && this.currentEdit ? '<br><small class="text-muted">Χωρίς ώρες επίσκεψης</small>' : '')}</td>
                 <td><strong>${w.plannedHours.toFixed(1)}h</strong><br><small class="text-muted">${w.plannedHours.toFixed(1)}h × ${Utils.formatCurrency(w.hourlyRate)}/ώρα = ${Utils.formatCurrency(w.plannedHours * w.hourlyRate)}</small></td>
                 <td><strong>${w.actualHours.toFixed(1)}h</strong><br><small class="text-muted">${w.actualHours.toFixed(1)}h × ${Utils.formatCurrency(w.hourlyRate)}/ώρα = ${Utils.formatCurrency(w.actualHours * w.hourlyRate)}</small></td>
-                <td><strong style="color: var(--accent-primary);">${Utils.formatCurrency(hasActuals ? w.actualLaborCost : (parseFloat(w.laborCost || w.labor_cost || 0) || 0))}</strong></td>
+                <td><strong style="color: var(--accent-primary);">${Utils.formatCurrency(w.laborCost || 0)}</strong></td>
                 <td><strong style="color: ${(w.ownerOpportunityCost || 0) > 0 ? 'var(--warning, #f59e0b)' : 'var(--text-muted)'};">${Utils.formatCurrency(w.ownerOpportunityCost || 0)}</strong></td>
               </tr>
             `).join('')}
@@ -3062,7 +3251,7 @@ window.JobsView = {
               <td style="text-align: right;">ΣΥΝΟΛΟ:<br><small class="text-muted">Σύνολο ωρών: ${totalDisplayedHours.toFixed(1)}h</small></td>
               <td>${totalPlannedHours.toFixed(1)}h</td>
               <td>${totalActualHours.toFixed(1)}h</td>
-              <td><strong style="color: var(--accent-primary);">${Utils.formatCurrency(hasActuals ? totalActualCost : fallbackCost)}</strong></td>
+              <td><strong style="color: var(--accent-primary);">${Utils.formatCurrency(totalLaborCost)}</strong></td>
               <td><strong style="color: ${totalOwnerOpportunityCost > 0 ? 'var(--warning, #f59e0b)' : 'var(--text-muted)'};">${Utils.formatCurrency(totalOwnerOpportunityCost)}</strong></td>
             </tr>
           </tbody>
@@ -3193,19 +3382,31 @@ window.JobsView = {
   },
 
   // Material Management Methods (stored in legacy `paints` JSON field)
-  addPaint() {
+  addPaint(index = null) {
+    const editIndex = Number.isInteger(index) ? index : null;
+    const editingPaint = editIndex !== null ? this.assignedPaints[editIndex] : null;
+    const isEditing = !!editingPaint;
+
     const content = `
       <div class="form-grid">
         <div class="form-group span-2">
           <label>Όνομα <span class="required">*</span></label>
-          <input type="text" id="newPaintName" list="paintNamesList" placeholder="π.χ. Λευκό Ματ Ακρυλικό">
-          <datalist id="paintNamesList">
-            ${(State.read('inventory') || []).map(p => `<option value="${p.name}">`).join('')}
-          </datalist>
+          <div class="autocomplete-container">
+            <input type="text" id="newPaintName" placeholder="Αναζήτηση υλικού..." autocomplete="off">
+            <input type="hidden" id="newMaterialStockId">
+            <div id="newPaintNameResults" class="autocomplete-results" style="display: none;"></div>
+          </div>
         </div>
 
         <div class="form-group">
-          <label>Κωδικός</label>
+          <label>Κατηγορία</label>
+          <select id="newMaterialCategory">
+            ${MaterialIdentity.categoryOptions('Χρώμα')}
+          </select>
+        </div>
+
+        <div class="form-group" id="newPaintCodeGroup">
+          <label>Κωδικός χρώματος</label>
           <input type="text" id="newPaintCode" placeholder="π.χ. RAL 9010, NCS S0500-N">
         </div>
 
@@ -3217,72 +3418,268 @@ window.JobsView = {
         <div class="form-group">
           <label>Κόστος (€)</label>
           <input type="number" id="newMaterialCost" min="0" step="0.01" value="0">
+          <small class="text-muted">Συμπληρώνεται αυτόματα από την τιμή του υλικού αποθήκης και την ποσότητα.</small>
         </div>
 
         <div class="form-group span-2">
-          <label>Πληροφορίες</label>
-          <textarea id="newMaterialInfo" rows="3" placeholder="π.χ. Υλικό για σαλόνι, δωμάτιο ή γενικές σημειώσεις"></textarea>
+          <label class="checkbox-inline" style="align-items: flex-start;">
+            <input type="checkbox" id="deductNewMaterialFromStock" style="margin-top: 3px;">
+            <span>
+              Αφαίρεση από αποθήκη κατά την αποθήκευση
+              <small class="text-muted" style="display: block; margin-top: 4px;">
+                Ενεργοποιήστε το μόνο αν αυτό το υλικό πρέπει να αφαιρεθεί από το φυσικό απόθεμα.
+              </small>
+            </span>
+          </label>
         </div>
+
       </div>
     `;
 
     const footer = `
       <button class="btn-ghost" onclick="Modal.close()">Ακύρωση</button>
       <button class="btn-primary" id="confirmAddPaintBtn">
-        <i class="fas fa-plus"></i> Προσθήκη
+        <i class="fas fa-${isEditing ? 'save' : 'plus'}"></i> ${isEditing ? 'Αποθήκευση' : 'Προσθήκη'}
       </button>
     `;
 
     Modal.open({
-      title: '<i class="fas fa-boxes"></i> Προσθήκη Υλικού',
+      title: `<i class="fas fa-boxes"></i> ${isEditing ? 'Επεξεργασία Υλικού' : 'Προσθήκη Υλικού'}`,
       content: content,
       footer: footer,
-      size: 'md'
+      size: 'md',
+      closeOnBackdrop: false,
+      closeOnEscape: false
     });
 
     setTimeout(() => {
       const confirmBtn = document.getElementById('confirmAddPaintBtn');
       const nameInput = document.getElementById('newPaintName');
+      const stockIdInput = document.getElementById('newMaterialStockId');
+      const nameResults = document.getElementById('newPaintNameResults');
+      const categoryInput = document.getElementById('newMaterialCategory');
+      const codeGroup = document.getElementById('newPaintCodeGroup');
       const codeInput = document.getElementById('newPaintCode');
       const quantityInput = document.getElementById('newMaterialQuantity');
       const costInput = document.getElementById('newMaterialCost');
-      const infoInput = document.getElementById('newMaterialInfo');
+      const deductInput = document.getElementById('deductNewMaterialFromStock');
+      const updateCodeVisibility = () => {
+        const isColor = MaterialIdentity.normalizeCategory(categoryInput?.value) === 'Χρώμα';
+        if (codeGroup) codeGroup.style.display = isColor ? '' : 'none';
+        if (!isColor && codeInput) codeInput.value = '';
+      };
+      categoryInput?.addEventListener('change', updateCodeVisibility);
+      updateCodeVisibility();
+
+      const getSelectedStockMaterial = () => {
+        if (stockIdInput?.value) {
+          const byId = State.read('inventory', stockIdInput.value);
+          if (byId) return byId;
+        }
+        return (State.read('inventory') || []).find(item => {
+          return MaterialIdentity.normalizeSearchText(item.name) === MaterialIdentity.normalizeSearchText(nameInput.value);
+        }) || null;
+      };
+
+      const updateAutoCost = () => {
+        const material = getSelectedStockMaterial();
+        const unitPrice = this.parseCurrencyInput(material?.unitPrice || material?.unit_price || 0);
+        if (!material) {
+          costInput.readOnly = false;
+          return;
+        }
+
+        const quantity = this.parseMaterialQuantity(quantityInput.value);
+        const multiplier = quantity > 0 ? quantity : 1;
+        costInput.value = (unitPrice * multiplier).toFixed(2);
+        costInput.readOnly = true;
+        costInput.title = 'Το κόστος υπολογίζεται από την τιμή του υλικού στην αποθήκη επί την ποσότητα';
+      };
+
+      if (isEditing) {
+        nameInput.value = editingPaint.name || '';
+        stockIdInput.value = editingPaint.materialId || editingPaint.material_id || '';
+        categoryInput.value = MaterialIdentity.normalizeCategory(editingPaint.category || 'Χρώμα');
+        codeInput.value = editingPaint.colorCode || editingPaint.code || '';
+        quantityInput.value = editingPaint.quantity || '';
+        costInput.value = this.parseCurrencyInput(editingPaint.cost || 0);
+        costInput.dataset.manual = 'false';
+        deductInput.checked = editingPaint.deductFromStock === true || editingPaint.stockDeducted === true;
+        deductInput.disabled = editingPaint.stockDeducted === true;
+        updateCodeVisibility();
+      } else {
+        costInput.dataset.manual = 'false';
+      }
+      updateAutoCost();
+
+      quantityInput?.addEventListener('input', updateAutoCost);
+      costInput?.addEventListener('input', () => {
+        if (!getSelectedStockMaterial()) {
+          costInput.dataset.manual = 'true';
+        }
+      });
+
+      const escape = window.Utils && typeof Utils.escapeHtml === 'function'
+        ? Utils.escapeHtml.bind(Utils)
+        : (value) => String(value || '');
+      const renderMaterialResults = () => {
+        if (!nameInput || !nameResults) return;
+        const matches = MaterialIdentity.search(State.read('inventory') || [], nameInput.value);
+        if (!matches.length) {
+          nameResults.innerHTML = '<div class="autocomplete-item text-muted">Δεν βρέθηκαν υλικά</div>';
+          nameResults.style.display = '';
+          return;
+        }
+        nameResults.innerHTML = matches.map(material => `
+          <div class="autocomplete-item" data-material-id="${material.id}">
+            <strong>${escape(material.name)}</strong>
+            <br>
+            <small class="text-muted">
+              ${escape(material.category || 'Άλλο')}
+              ${material.colorCode || material.color_code ? ` • ${escape(material.colorCode || material.color_code)}` : ''}
+              • ${parseFloat(material.stock || 0).toFixed(2)} ${escape(material.unit || '')}
+            </small>
+          </div>
+        `).join('');
+        nameResults.style.display = '';
+        nameResults.querySelectorAll('.autocomplete-item[data-material-id]').forEach(item => {
+          item.addEventListener('mousedown', (event) => {
+            event.preventDefault();
+            const material = State.read('inventory', item.dataset.materialId);
+            if (!material) return;
+            nameInput.value = material.name || '';
+            stockIdInput.value = material.id || '';
+            categoryInput.value = MaterialIdentity.normalizeCategory(material.category);
+            codeInput.value = material.colorCode || material.color_code || '';
+            costInput.dataset.manual = 'false';
+            updateAutoCost();
+            updateCodeVisibility();
+            nameResults.style.display = 'none';
+          });
+        });
+      };
+
+      nameInput?.addEventListener('focus', renderMaterialResults);
+      nameInput?.addEventListener('input', () => {
+        stockIdInput.value = '';
+        costInput.readOnly = false;
+        renderMaterialResults();
+      });
+      nameInput?.addEventListener('blur', () => {
+        setTimeout(() => {
+          if (nameResults) nameResults.style.display = 'none';
+          const material = (State.read('inventory') || []).find(item => {
+            return MaterialIdentity.normalizeSearchText(item.name) === MaterialIdentity.normalizeSearchText(nameInput.value);
+          });
+          if (!material) return;
+          nameInput.value = material.name || nameInput.value;
+          stockIdInput.value = material.id || '';
+          categoryInput.value = MaterialIdentity.normalizeCategory(material.category);
+          codeInput.value = material.colorCode || material.color_code || '';
+          updateAutoCost();
+          updateCodeVisibility();
+        }, 150);
+      });
 
       if (confirmBtn && nameInput) {
-        confirmBtn.addEventListener('click', () => {
+        confirmBtn.addEventListener('click', async () => {
           const paintName = nameInput.value.trim();
-          const paintCode = codeInput.value.trim();
+          const category = MaterialIdentity.normalizeCategory(categoryInput?.value || 'Χρώμα');
+          const paintCode = category === 'Χρώμα' ? codeInput.value.trim() : '';
           const quantity = quantityInput.value.trim();
-          const cost = this.parseCurrencyInput(costInput.value);
-          const info = infoInput.value.trim();
-          const stockMaterial = (State.read('inventory') || []).find(material => {
-            return String(material.name || '').toLowerCase() === paintName.toLowerCase();
-          });
+          const deductFromStock = deductInput?.checked === true;
+          const inventory = State.read('inventory') || [];
+          const candidate = MaterialIdentity.prepare({ name: paintName, category, colorCode: paintCode });
+          let stockMaterial = getSelectedStockMaterial();
 
           if (!paintName) {
             Toast.error('Παρακαλώ εισάγετε όνομα υλικού');
             return;
           }
 
-          this.assignedPaints.push({
-            name: paintName,
-            code: paintCode,
+          const similar = MaterialIdentity.findSimilar(inventory, candidate);
+          if (similar && (!stockMaterial || Number(stockMaterial.id) !== Number(similar.id))) {
+            const useExisting = await MaterialIdentity.confirmUseExisting(candidate, similar);
+            if (useExisting) {
+              stockMaterial = similar;
+            }
+          } else if (similar) {
+            stockMaterial = similar;
+          }
+
+          if (stockMaterial) {
+            stockIdInput.value = stockMaterial.id || '';
+            updateAutoCost();
+          }
+
+          const cost = stockMaterial
+            ? this.getAssignedMaterialLineCost({ materialId: stockMaterial.id, quantity })
+            : this.parseCurrencyInput(costInput.value);
+
+          if (deductFromStock && !stockMaterial) {
+            Toast.error('Για αφαίρεση από αποθήκη, επιλέξτε υπάρχον υλικό από την αναζήτηση');
+            return;
+          }
+
+          if (deductFromStock) {
+            const numericQuantity = this.parseMaterialQuantity(quantity);
+            if (numericQuantity <= 0) {
+              Toast.error('Για αφαίρεση από αποθήκη, γράψτε αριθμητική ποσότητα');
+              return;
+            }
+            const available = parseFloat(stockMaterial?.stock || 0) || 0;
+            const previousMaterialId = Number(editingPaint?.materialId || editingPaint?.material_id || 0);
+            const previousQuantity = editingPaint?.stockDeducted
+              ? this.parseMaterialQuantity(editingPaint.quantity)
+              : 0;
+            const additionalQuantity = editingPaint?.stockDeducted && previousMaterialId === Number(stockMaterial.id)
+              ? Math.max(0, numericQuantity - previousQuantity)
+              : numericQuantity;
+            if (additionalQuantity > available) {
+              Toast.error(`Δεν υπάρχει αρκετό απόθεμα για "${stockMaterial.name}" (${available} διαθέσιμο, ${additionalQuantity} ζητήθηκε)`);
+              return;
+            }
+          }
+
+          const nextPaint = {
+            name: stockMaterial ? stockMaterial.name : paintName,
+            category: stockMaterial ? stockMaterial.category : category,
+            code: stockMaterial ? (stockMaterial.colorCode || stockMaterial.color_code || paintCode) : paintCode,
+            colorCode: stockMaterial ? (stockMaterial.colorCode || stockMaterial.color_code || paintCode) : paintCode,
             quantity,
             cost,
-            info,
             materialId: stockMaterial ? stockMaterial.id : null,
             unit: stockMaterial ? stockMaterial.unit : null,
-            stockDeducted: false
-          });
+            deductFromStock: editingPaint?.stockDeducted ? true : deductFromStock,
+            stockDeducted: editingPaint?.stockDeducted === true,
+            stockDeductedAt: editingPaint?.stockDeductedAt || null,
+            stockMovementId: editingPaint?.stockMovementId || null
+          };
+
+          if (isEditing && editingPaint?.stockDeducted === true) {
+            try {
+              await this.adjustDeductedMaterialStockChange(editingPaint, nextPaint, this.currentEdit);
+            } catch (error) {
+              console.error('[Jobs] Stock adjustment failed:', error);
+              Toast.error('Δεν έγινε η διορθωτική κίνηση αποθήκης: ' + error.message);
+              return;
+            }
+          }
+
+          if (isEditing) {
+            this.assignedPaints[editIndex] = nextPaint;
+          } else {
+            this.assignedPaints.push(nextPaint);
+          }
 
           this.renderAssignedPaints();
           this.calculateCost();
-          Toast.success('Το υλικό προστέθηκε');
           Modal.close();
+          await this.autoSaveMaterialsIfEditing(isEditing ? 'Το υλικό ενημερώθηκε' : 'Το υλικό προστέθηκε');
         });
 
         // Enter key support
-        [nameInput, codeInput, quantityInput, costInput, infoInput].forEach(input => {
+        [nameInput, codeInput, quantityInput, costInput].forEach(input => {
           input.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
               e.preventDefault();
@@ -3302,6 +3699,7 @@ window.JobsView = {
     const container = document.getElementById('paintsContainer');
     
     if (!container) return;
+    this.reconcileAssignedPaintStockFlags();
 
     if (this.assignedPaints.length === 0) {
       container.innerHTML = '<p class="text-muted" style="font-style: italic; margin: 10px 0;">Δεν έχουν προστεθεί υλικά ακόμα</p>';
@@ -3316,11 +3714,10 @@ window.JobsView = {
         <table class="data-table" style="margin-top: 10px;">
           <thead>
             <tr>
-              <th style="width: 80px;">Ενέργειες</th>
+              <th style="width: 110px;">Ενέργειες</th>
               <th>Όνομα</th>
               <th>Κωδικός</th>
               <th>Ποσότητα</th>
-              <th>Πληροφορίες</th>
               <th>Κόστος</th>
             </tr>
           </thead>
@@ -3328,6 +3725,9 @@ window.JobsView = {
             ${this.assignedPaints.map((paint, index) => `
               <tr>
                 <td>
+                  <button class="btn-icon edit-paint-btn" data-paint-index="${index}" title="Επεξεργασία">
+                    <i class="fas fa-edit"></i>
+                  </button>
                   <button class="btn-icon remove-paint-btn" data-paint-index="${index}" title="Αφαίρεση">
                     <i class="fas fa-trash"></i>
                   </button>
@@ -3335,17 +3735,17 @@ window.JobsView = {
                 <td>
                   <strong>${paint.name}</strong>
                   ${paint.materialId || paint.material_id ? '<br><small class="text-muted">Συνδεδεμένο με Αποθήκη</small>' : ''}
+                  ${paint.deductFromStock && !paint.stockDeducted ? '<br><small style="color: var(--color-warning);"><i class="fas fa-box-open"></i> Θα αφαιρεθεί από αποθήκη</small>' : ''}
                   ${paint.stockDeducted ? '<br><small style="color: var(--success);"><i class="fas fa-check"></i> Αφαιρέθηκε από αποθήκη</small>' : ''}
                 </td>
                 <td>${paint.code || '-'}</td>
                 <td>${paint.quantity || '-'}</td>
-                <td>${paint.info || '-'}</td>
-                <td><strong>${Utils.formatCurrency(this.parseCurrencyInput(paint.cost || 0))}</strong></td>
+                <td><strong>${this.formatMaterialCurrency(this.getAssignedMaterialLineCost(paint))}</strong></td>
               </tr>
             `).join('')}
             <tr style="background: var(--bg-secondary); font-weight: bold;">
-              <td colspan="5" style="text-align: right;">ΣΥΝΟΛΟ ΥΛΙΚΩΝ:</td>
-              <td><strong style="color: var(--accent-primary);">${Utils.formatCurrency(materialsTotal)}</strong></td>
+              <td colspan="4" style="text-align: right;">ΣΥΝΟΛΟ ΥΛΙΚΩΝ:</td>
+              <td><strong style="color: var(--accent-primary);">${this.formatMaterialCurrency(materialsTotal)}</strong></td>
             </tr>
           </tbody>
         </table>
@@ -3354,14 +3754,23 @@ window.JobsView = {
 
     this.applyMinimumCostFields();
 
-    // Add event listeners for remove buttons
+    // Add event listeners for edit/remove buttons
     setTimeout(() => {
+      const editButtons = container.querySelectorAll('.edit-paint-btn');
       const removeButtons = container.querySelectorAll('.remove-paint-btn');
+
+      editButtons.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          const index = parseInt(btn.dataset.paintIndex, 10);
+          this.addPaint(index);
+        });
+      });
       
       removeButtons.forEach(btn => {
         btn.addEventListener('click', (e) => {
           e.preventDefault();
-          const index = parseInt(btn.dataset.paintIndex);
+          const index = parseInt(btn.dataset.paintIndex, 10);
           this.removePaint(index);
         });
       });
@@ -3376,13 +3785,27 @@ window.JobsView = {
       message: `Θέλετε σίγουρα να αφαιρέσετε το υλικό "${paint.name}";`,
       confirmText: 'Αφαίρεση',
       confirmClass: 'btn-danger',
-      onConfirm: () => {
+      onConfirm: async () => {
         this.assignedPaints.splice(index, 1);
         this.renderAssignedPaints();
         this.calculateCost();
-        Toast.success('Το υλικό αφαιρέθηκε');
+        await this.autoSaveMaterialsIfEditing('Το υλικό αφαιρέθηκε');
       }
     });
+  },
+
+  async autoSaveMaterialsIfEditing(successMessage = 'Τα υλικά ενημερώθηκαν') {
+    if (!this.currentEdit) {
+      Toast.success(successMessage);
+      return;
+    }
+
+    try {
+      await this.saveJob({ preventDefault() {} });
+    } catch (error) {
+      console.error('[Jobs] Auto-save materials failed:', error);
+      Toast.error('Το υλικό άλλαξε στη φόρμα, αλλά δεν αποθηκεύτηκε αυτόματα');
+    }
   }
 };
 

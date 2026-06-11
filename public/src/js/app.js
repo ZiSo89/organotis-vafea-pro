@@ -147,13 +147,8 @@ function showQuickAddModal() {
       break;
 
     case 'inventory':
-      title = 'Νέο Χρώμα';
-      fields = [
-        { name: 'name', label: 'Όνομα Χρώματος', required: true },
-        { name: 'code', label: 'Κωδικός' },
-        { name: 'brand', label: 'Μάρκα' }
-      ];
-      break;
+      Toast.info('Χρησιμοποιήστε τη φόρμα της Αποθήκης για κατηγορία και κωδικό χρώματος');
+      return;
 
     default:
       Toast.info('Χρησιμοποιήστε τη φόρμα στην τρέχουσα σελίδα');
@@ -191,7 +186,7 @@ if ('serviceWorker' in navigator) {
 
   window.addEventListener('load', async () => {
     try {
-      const registration = await navigator.serviceWorker.register('sw.js?v=20260611e', { scope: './' });
+      const registration = await navigator.serviceWorker.register('sw.js?v=20260611g', { scope: './' });
       registration.update();
     } catch (error) {
       console.warn('[PWA] Service worker registration failed:', error);

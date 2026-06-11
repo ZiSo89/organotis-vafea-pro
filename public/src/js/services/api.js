@@ -360,6 +360,28 @@ class APIService {
         return await this.routeRequest('materials', 'delete', null, id);
     }
 
+    async getMaterialDuplicateGroups() {
+        if (this.isElectron && window.OfflineService?.getMaterialDuplicateGroups) {
+            const result = await window.OfflineService.getMaterialDuplicateGroups();
+            return result.success ? result.data : [];
+        }
+        const result = await this.request('/material_duplicates.php');
+        return result.data || [];
+    }
+
+    async mergeMaterialDuplicates(primaryId, duplicateIds) {
+        if (this.isElectron && window.OfflineService?.mergeMaterialDuplicates) {
+            const result = await window.OfflineService.mergeMaterialDuplicates(primaryId, duplicateIds);
+            if (!result.success) throw new Error(result.message || 'Η συγχώνευση απέτυχε');
+            return result.data;
+        }
+        const result = await this.request('/material_duplicates.php', {
+            method: 'POST',
+            body: JSON.stringify({ primaryId, duplicateIds })
+        });
+        return result.data;
+    }
+
     async getMaterialStockMovements() {
         return await this.routeRequest('material_stock_movements', 'list');
     }

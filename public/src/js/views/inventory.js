@@ -260,9 +260,6 @@ window.SuppliersView = {
         </table>
       </div>
 
-      <datalist id="inventoryMaterialsList">
-        ${inventory.map(m => `<option value="${this.escape(m.name)}">`).join('')}
-      </datalist>
     `;
   },
 
@@ -453,7 +450,20 @@ window.SuppliersView = {
       row.innerHTML = `
         <div class="form-group">
           <label>Υλικό</label>
-          <input type="text" class="purchase-material-name" list="inventoryMaterialsList" required placeholder="Όνομα υλικού">
+          <div class="autocomplete-container">
+            <input type="text" class="purchase-material-name" required placeholder="Αναζήτηση υλικού..." autocomplete="off">
+            <div class="purchase-material-results autocomplete-results" style="display: none;"></div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Κατηγορία</label>
+          <select class="purchase-category">
+            ${this.renderCategoryOptions('Χρώμα')}
+          </select>
+        </div>
+        <div class="form-group purchase-color-code-group">
+          <label>Κωδικός χρώματος</label>
+          <input type="text" class="purchase-color-code" placeholder="π.χ. RAL 9010">
         </div>
         <div class="form-group">
           <label>Ποσότητα</label>
@@ -479,11 +489,17 @@ window.SuppliersView = {
         </div>
       `;
       itemsContainer.appendChild(row);
-      row.querySelectorAll('input, select').forEach(input => input.addEventListener('input', () => this.updatePurchaseTotals(container)));
+      row.querySelectorAll('input, select').forEach(input => {
+        input.addEventListener('input', () => this.updatePurchaseTotals(container));
+        input.addEventListener('change', () => this.updatePurchaseTotals(container));
+      });
+      row.querySelector('.purchase-category').addEventListener('change', () => this.updatePurchaseColorCodeVisibility(row));
+      this.setupPurchaseMaterialAutocomplete(row);
       row.querySelector('.remove-purchase-item-btn').addEventListener('click', () => {
         row.remove();
         this.updatePurchaseTotals(container);
       });
+      this.updatePurchaseColorCodeVisibility(row);
       this.updatePurchaseTotals(container);
     };
 
@@ -525,32 +541,52 @@ window.SuppliersView = {
       e.preventDefault();
       const rows = [...container.querySelectorAll('.purchase-item-row')];
       const inventory = State.read('inventory') || [];
-      const items = rows.map(row => {
+      const items = [];
+      for (const row of rows) {
         const name = row.querySelector('.purchase-material-name').value.trim();
-        const material = inventory.find(m => (m.name || '').toLowerCase() === name.toLowerCase());
+        const category = row.querySelector('.purchase-category').value;
+        const colorCode = row.querySelector('.purchase-color-code')?.value.trim() || '';
+        let material = inventory.find(m => MaterialIdentity.normalizeSearchText(m.name) === MaterialIdentity.normalizeSearchText(name));
+        const candidate = MaterialIdentity.prepare({ name, category, colorCode });
+        const similar = MaterialIdentity.findSimilar(inventory, candidate);
+        if (similar && (!material || Number(material.id) !== Number(similar.id))) {
+          const useExisting = await MaterialIdentity.confirmUseExisting(candidate, similar);
+          if (useExisting) {
+            material = similar;
+            row.querySelector('.purchase-material-name').value = similar.name || name;
+            row.querySelector('.purchase-category').value = MaterialIdentity.normalizeCategory(similar.category || category);
+            row.querySelector('.purchase-color-code').value = similar.colorCode || similar.color_code || '';
+            this.updatePurchaseColorCodeVisibility(row);
+          }
+        } else if (similar) {
+          material = similar;
+        }
         const quantity = this.toNumber(row.querySelector('.purchase-quantity').value);
         const unitPrice = this.toNumber(row.querySelector('.purchase-unit-price').value);
-        return {
+        items.push({
           materialId: material ? material.id : null,
-          materialName: name,
+          materialName: material ? material.name : name,
+          category: material ? (material.category || category) : category,
+          colorCode: material ? (material.colorCode || material.color_code || colorCode) : colorCode,
           quantity,
           unit: row.querySelector('.purchase-unit').value.trim() || (material ? material.unit : ''),
           unitPrice,
           totalCost: quantity * unitPrice
-        };
-      }).filter(item => item.materialName || item.quantity > 0 || item.unitPrice > 0);
+        });
+      }
+      const filteredItems = items.filter(item => item.materialName || item.quantity > 0 || item.unitPrice > 0);
 
       if (!container.querySelector('#purchaseSupplier').value) {
         Toast.error('Επιλέξτε κατάστημα');
         return;
       }
-      if (items.some(item => !item.materialName || item.quantity <= 0)) {
+      if (filteredItems.some(item => !item.materialName || item.quantity <= 0)) {
         Toast.error('Συμπληρώστε σωστά τα υλικά της αγοράς ή αφαιρέστε την κενή γραμμή');
         return;
       }
 
       const paymentStatus = container.querySelector('input[name="purchasePaymentStatus"]:checked')?.value || 'none';
-      const itemsTotal = items.reduce((sum, item) => sum + this.toNumber(item.totalCost), 0);
+      const itemsTotal = filteredItems.reduce((sum, item) => sum + this.toNumber(item.totalCost), 0);
       const purchaseTotal = this.toNumber(container.querySelector('#purchaseTotalAmount').value) || itemsTotal;
       if (purchaseTotal <= 0) {
         Toast.error('Συμπληρώστε το σύνολο αγοράς');
@@ -581,7 +617,7 @@ window.SuppliersView = {
           paymentMethod: '',
           notes: ''
         },
-        items
+        items: filteredItems
       });
       Toast.success('Η αγορά καταχωρήθηκε');
       await this.refreshWarehouseData();
@@ -798,6 +834,85 @@ window.SuppliersView = {
     }
   },
 
+  updatePurchaseColorCodeVisibility(row) {
+    const category = row.querySelector('.purchase-category')?.value;
+    const group = row.querySelector('.purchase-color-code-group');
+    const input = row.querySelector('.purchase-color-code');
+    const isColor = MaterialIdentity.normalizeCategory(category) === 'Χρώμα';
+    if (group) group.style.display = isColor ? '' : 'none';
+    if (!isColor && input) input.value = '';
+  },
+
+  fillPurchaseRowFromInventory(row) {
+    const name = row.querySelector('.purchase-material-name')?.value.trim();
+    if (!name) return;
+
+    const inventory = State.read('inventory') || [];
+    const material = inventory.find(item => MaterialIdentity.normalizeSearchText(item.name) === MaterialIdentity.normalizeSearchText(name));
+    if (!material) return;
+
+    row.querySelector('.purchase-material-name').value = material.name || name;
+    row.querySelector('.purchase-category').value = MaterialIdentity.normalizeCategory(material.category);
+    row.querySelector('.purchase-color-code').value = material.colorCode || material.color_code || '';
+    row.querySelector('.purchase-unit').value = material.unit || row.querySelector('.purchase-unit').value;
+    row.querySelector('.purchase-unit-price').value = this.toNumber(material.unitPrice || material.unit_price).toFixed(2);
+    this.updatePurchaseColorCodeVisibility(row);
+  },
+
+  setupPurchaseMaterialAutocomplete(row) {
+    const input = row.querySelector('.purchase-material-name');
+    const results = row.querySelector('.purchase-material-results');
+    if (!input || !results) return;
+
+    const render = () => {
+      const matches = MaterialIdentity.search(State.read('inventory') || [], input.value);
+      this.renderMaterialAutocompleteResults(results, matches, (material) => {
+        input.value = material.name || '';
+        results.style.display = 'none';
+        this.fillPurchaseRowFromInventory(row);
+        this.updatePurchaseTotals(row.closest('#purchaseForm') || document);
+      });
+    };
+
+    input.addEventListener('focus', render);
+    input.addEventListener('input', render);
+    input.addEventListener('blur', () => {
+      setTimeout(() => {
+        results.style.display = 'none';
+        this.fillPurchaseRowFromInventory(row);
+      }, 150);
+    });
+  },
+
+  renderMaterialAutocompleteResults(results, materials, onSelect) {
+    if (!materials.length) {
+      results.innerHTML = '<div class="autocomplete-item text-muted">Δεν βρέθηκαν υλικά</div>';
+      results.style.display = '';
+      return;
+    }
+
+    results.innerHTML = materials.map(material => `
+      <div class="autocomplete-item" data-material-id="${material.id}">
+        <strong>${this.escape(material.name)}</strong>
+        <br>
+        <small class="text-muted">
+          ${this.escape(material.category || 'Άλλο')}
+          ${material.colorCode || material.color_code ? ` • ${this.escape(material.colorCode || material.color_code)}` : ''}
+          • ${this.toNumber(material.stock).toFixed(2)} ${this.escape(material.unit || '')}
+        </small>
+      </div>
+    `).join('');
+    results.style.display = '';
+
+    results.querySelectorAll('.autocomplete-item[data-material-id]').forEach(item => {
+      item.addEventListener('mousedown', (event) => {
+        event.preventDefault();
+        const material = State.read('inventory', item.dataset.materialId);
+        if (material) onSelect(material);
+      });
+    });
+  },
+
   async refreshWarehouseData() {
     const [materials, movements, suppliers, purchases, payments] = await Promise.all([
       API.getMaterials(),
@@ -843,6 +958,10 @@ window.SuppliersView = {
   renderUnitOptions(selected = 'λίτρα') {
     const units = ['λίτρα', 'τεμ.', 'kg', 'm²', 'μέτρα', 'ρολά', 'κουβάδες', 'σακιά', 'άλλο'];
     return units.map(unit => `<option value="${this.escape(unit)}" ${unit === selected ? 'selected' : ''}>${this.escape(unit)}</option>`).join('');
+  },
+
+  renderCategoryOptions(selected = 'Χρώμα') {
+    return MaterialIdentity.categoryOptions(selected);
   },
 
   escape(value) {

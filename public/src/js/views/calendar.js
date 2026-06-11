@@ -420,7 +420,7 @@ window.CalendarView = {
 
   transformRecordedVisitFromDB(visit) {
     const totals = this.getRecordedVisitTotals(visit.workers);
-    const who = visit.clientName || visit.jobTitle || 'Εργασία';
+    const who = visit.clientName || visit.jobTitle || 'Επίσκεψη';
     const hoursLabel = totals.totalHours > 0
       ? ` (${Number(totals.totalHours.toFixed(1)).toString()}ω)`
       : '';
@@ -1096,10 +1096,6 @@ window.CalendarView = {
           <span>${props.client_name || '-'}</span>
         </div>
         <div class="detail-item">
-          <label>Εργασία:</label>
-          <span>${props.job_title || '-'}</span>
-        </div>
-        <div class="detail-item">
           <label>Ημερομηνία:</label>
           <span>${dateText}</span>
         </div>
@@ -1115,14 +1111,14 @@ window.CalendarView = {
         ` : ''}
         <div class="detail-item span-2">
           <small class="text-muted">
-            <i class="fas fa-info-circle"></i> Η καταγεγραμμένη επίσκεψη επεξεργάζεται από την προβολή της εργασίας.
+            <i class="fas fa-info-circle"></i> Η καταγεγραμμένη επίσκεψη επεξεργάζεται από την αντίστοιχη καρτέλα.
           </small>
         </div>
       </div>
     `;
     const footer = props.job_id ? `
       <button class="btn-primary" onclick="Modal.close(); Router.navigate('jobs'); setTimeout(() => window.JobsView && window.JobsView.viewJob(${props.job_id}), 300);">
-        <i class="fas fa-briefcase"></i> Άνοιγμα Εργασίας
+        <i class="fas fa-briefcase"></i> Άνοιγμα
       </button>
     ` : '';
     Modal.open({
@@ -1426,9 +1422,9 @@ window.CalendarView = {
             <input type="text" id="editVisitClientText" class="form-control" readonly>
           </div>
           
-          <div class="form-group">
+          <div class="form-group" id="editVisitTitleGroup" style="display: ${isLinkedJob ? 'none' : 'block'};">
             <label for="editVisitTitle">Τίτλος *</label>
-            <input type="text" id="editVisitTitle" class="form-control" value="${visitTitleValue}" placeholder="π.χ. ${linkedClientName || 'Βαφή Διαμερίσματος'}" required>
+            <input type="text" id="editVisitTitle" class="form-control" value="${visitTitleValue}" placeholder="π.χ. ${linkedClientName || 'Βαφή Διαμερίσματος'}" ${isLinkedJob ? 'disabled' : 'required'}>
           </div>
           
           <div class="form-group">
@@ -1515,6 +1511,16 @@ window.CalendarView = {
     const clientTextGroup = document.getElementById('editClientTextGroup');
     const clientText = document.getElementById('editVisitClientText');
     const clientSelect = document.getElementById('editVisitClient');
+    const titleGroup = document.getElementById('editVisitTitleGroup');
+    const titleInput = document.getElementById('editVisitTitle');
+
+    const setTitleFieldVisible = (visible) => {
+      if (titleGroup) titleGroup.style.display = visible ? 'block' : 'none';
+      if (titleInput) {
+        titleInput.disabled = !visible;
+        titleInput.required = visible;
+      }
+    };
     
     // Initialize: if job is selected, show readonly client field
     if (jobId) {
@@ -1523,11 +1529,13 @@ window.CalendarView = {
         clientSelectGroup.style.display = 'none';
         clientTextGroup.style.display = 'block';
         clientText.value = selectedJob.clientName || '';
+        setTitleFieldVisible(false);
       }
     } else {
       // No job - show client dropdown
       clientSelectGroup.style.display = 'block';
       clientTextGroup.style.display = 'none';
+      setTitleFieldVisible(true);
       // Ensure client is selected in dropdown
       if (clientId) {
         clientSelect.value = String(clientId); // Force string comparison
@@ -1541,6 +1549,7 @@ window.CalendarView = {
         clientSelectGroup.style.display = 'none';
         clientTextGroup.style.display = 'block';
         clientText.value = selectedOption.dataset.client || '';
+        setTitleFieldVisible(false);
         const titleInput = document.getElementById('editVisitTitle');
         if (titleInput && !titleInput.value.trim()) {
           titleInput.value = selectedOption.dataset.client || selectedOption.dataset.title || '';
@@ -1549,6 +1558,7 @@ window.CalendarView = {
         // Independent visit - show client dropdown
         clientSelectGroup.style.display = 'block';
         clientTextGroup.style.display = 'none';
+        setTitleFieldVisible(true);
       }
     });
     
@@ -1611,20 +1621,19 @@ window.CalendarView = {
     
     const isAllDay = allDayElement ? allDayElement.checked : false;
     
-    const title = document.getElementById('editVisitTitle').value;
+    const titleInput = document.getElementById('editVisitTitle');
+    const title = titleInput && !titleInput.disabled ? titleInput.value : null;
     
     console.log('✏️ Updating visit with:', {
       eventId: event.id,
       title: title,
       clientId: clientId,
       jobId: jobId,
-      'Stored in DB as title': title,
-      'Stored in DB as original_title': title
+      'Stored in DB as title': jobId ? '(unchanged - linked job)' : title,
+      'Stored in DB as original_title': jobId ? '(unchanged - linked job)' : title
     });
     
     const eventData = {
-      title: title,
-      original_title: title,
       start_date: document.getElementById('editVisitStartDate').value,
       end_date: document.getElementById('editVisitEndDate').value || null,
       job_id: jobId,
@@ -1634,6 +1643,11 @@ window.CalendarView = {
       status: document.getElementById('editVisitStatus').value,
       all_day: isAllDay ? 1 : 0
     };
+
+    if (!jobId) {
+      eventData.title = title;
+      eventData.original_title = title;
+    }
     
     // Add or clear time fields based on all-day status
     if (!isAllDay) {

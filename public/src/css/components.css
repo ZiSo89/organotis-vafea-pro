@@ -151,6 +151,54 @@
   gap: var(--spacing-sm);
 }
 
+.visit-worker-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-xs);
+}
+
+.visit-worker-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+  margin: 0;
+  padding: var(--spacing-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  font-weight: var(--font-weight-normal);
+}
+
+.visit-worker-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.visit-worker-info strong {
+  line-height: 1.25;
+}
+
+.visit-worker-hours-field {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  flex: 0 0 auto;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.visit-worker-hours-field input {
+  width: 92px;
+  min-height: 44px;
+  text-align: center;
+  font-size: 1rem;
+}
+
 /* Purchase payment choices */
 .purchase-payment-section {
   margin-top: var(--spacing-xl);

@@ -137,6 +137,63 @@ class SQLiteDB {
     return converted;
   }
 
+  normalizeMaterialText(value) {
+    return String(value || '')
+      .trim()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}]+/gu, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  normalizeMaterialCode(value) {
+    return String(value || '')
+      .trim()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toUpperCase()
+      .replace(/[^\p{L}\p{N}]+/gu, '');
+  }
+
+  materialNameKey(value) {
+    const normalized = this.normalizeMaterialText(value);
+    if (!normalized) return '';
+    return normalized.split(' ').filter(Boolean).sort().join(' ');
+  }
+
+  normalizeMaterialCategory(category) {
+    const normalized = this.normalizeMaterialText(category);
+    const aliases = {
+      'χρωματα': 'Χρώμα',
+      'χρωμα': 'Χρώμα',
+      'ασταρια': 'Αστάρι',
+      'ασταρι': 'Αστάρι',
+      'βερνικι λουστρο': 'Βερνίκι / Λούστρο',
+      'βερνικια λουστρα': 'Βερνίκι / Λούστρο',
+      'στοκος σπατουλαρισμα': 'Στόκος / Σπατουλάρισμα',
+      'στοκοι σπατουλαρισματα': 'Στόκος / Σπατουλάρισμα',
+      'διαλυτικο καθαριστικο': 'Διαλυτικό / Καθαριστικό',
+      'διαλυτικα καθαριστικα': 'Διαλυτικό / Καθαριστικό',
+      'ταινιες προστασια': 'Ταινίες / Προστασία',
+      'ρολα πινελα': 'Ρολά / Πινέλα',
+      'εργαλεια': 'Εργαλεία',
+      'αλλο': 'Άλλο'
+    };
+    return aliases[normalized] || 'Άλλο';
+  }
+
+  buildMaterialCanonicalKey(material) {
+    const category = this.normalizeMaterialCategory(material.category);
+    const categoryKey = this.normalizeMaterialText(category);
+    const codeKey = this.normalizeMaterialCode(material.color_code || material.colorCode);
+    if (category === 'Χρώμα' && codeKey) {
+      return `category:${categoryKey}|color_code:${codeKey}`;
+    }
+    return `category:${categoryKey}|name:${this.materialNameKey(material.name)}`;
+  }
+
   /* ========================================
      Database Migrations
      ======================================== */
@@ -208,6 +265,37 @@ class SQLiteDB {
           this.db.prepare(billingCols[name]).run();
         }
       });
+
+      // Migration 6: material identity columns for duplicate prevention
+      const materialTable = this.db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'materials'").get();
+      if (materialTable) {
+        const materialsInfo = this.db.prepare('PRAGMA table_info(materials)').all();
+        if (!materialsInfo.some(col => col.name === 'color_code')) {
+          console.log('📝 Migration: Adding color_code column to materials');
+          this.db.prepare('ALTER TABLE materials ADD COLUMN color_code TEXT').run();
+        }
+        if (!materialsInfo.some(col => col.name === 'canonical_key')) {
+          console.log('📝 Migration: Adding canonical_key column to materials');
+          this.db.prepare('ALTER TABLE materials ADD COLUMN canonical_key TEXT').run();
+        }
+
+        const materials = this.db.prepare('SELECT id, name, category, color_code FROM materials').all();
+        const updateMaterial = this.db.prepare(`
+          UPDATE materials
+          SET category = ?, color_code = ?, canonical_key = ?
+          WHERE id = ?
+        `);
+        for (const material of materials) {
+          const category = this.normalizeMaterialCategory(material.category);
+          const colorCode = category === 'Χρώμα' ? String(material.color_code || '').trim() : '';
+          const canonicalKey = this.buildMaterialCanonicalKey({
+            name: material.name,
+            category,
+            color_code: colorCode
+          });
+          updateMaterial.run(category, colorCode || null, canonicalKey, material.id);
+        }
+      }
 
       console.log('✅ All migrations completed');
     } catch (error) {
@@ -315,6 +403,8 @@ class SQLiteDB {
         stock REAL DEFAULT 0,
         min_stock REAL DEFAULT 0,
         category TEXT,
+        color_code TEXT,
+        canonical_key TEXT,
         created_at TEXT DEFAULT (datetime('now', 'localtime')),
         updated_at TEXT DEFAULT (datetime('now', 'localtime')),
         _sync_status TEXT DEFAULT 'synced',
@@ -595,6 +685,7 @@ class SQLiteDB {
       CREATE INDEX IF NOT EXISTS idx_jobs_next_visit ON jobs(next_visit);
       CREATE INDEX IF NOT EXISTS idx_workers_status ON workers(status);
       CREATE INDEX IF NOT EXISTS idx_materials_category ON materials(category);
+      CREATE INDEX IF NOT EXISTS idx_materials_canonical_key ON materials(canonical_key);
       CREATE INDEX IF NOT EXISTS idx_suppliers_name ON suppliers(name);
       CREATE INDEX IF NOT EXISTS idx_material_purchases_supplier ON material_purchases(supplier_id);
       CREATE INDEX IF NOT EXISTS idx_material_purchases_date ON material_purchases(purchase_date);

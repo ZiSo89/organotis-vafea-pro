@@ -72,10 +72,13 @@ CREATE TABLE `materials` (
   `stock` decimal(10,2) DEFAULT 0.00,
   `min_stock` decimal(10,2) DEFAULT 0.00,
   `category` varchar(100) DEFAULT NULL,
+  `color_code` varchar(100) DEFAULT NULL,
+  `canonical_key` varchar(512) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`),
-  KEY `idx_materials_category` (`category`)
+  KEY `idx_materials_category` (`category`),
+  KEY `idx_materials_canonical_key` (`canonical_key`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- SUPPLIERS TABLE (καταστήματα / προμηθευτές)

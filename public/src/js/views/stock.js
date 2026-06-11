@@ -40,16 +40,25 @@ window.InventoryView = {
       </div>
 
       <div class="grid-2">
-        <div class="card">
+        <div class="card" id="stockMaterialEditorCard">
           <h3>${this.editingMaterialId ? 'Επεξεργασία Υλικού' : 'Νέο Υλικό'}</h3>
           <form id="stockMaterialForm" class="form-grid">
             <div class="form-group">
               <label>Όνομα υλικού <span class="required">*</span></label>
-              <input type="text" id="stockMaterialName" required placeholder="π.χ. Πλαστικό λευκό">
+              <div class="autocomplete-container">
+                <input type="text" id="stockMaterialName" required placeholder="π.χ. Πλαστικό λευκό" autocomplete="off">
+                <div id="stockMaterialNameResults" class="autocomplete-results" style="display: none;"></div>
+              </div>
             </div>
             <div class="form-group">
               <label>Κατηγορία</label>
-              <input type="text" id="stockMaterialCategory" placeholder="π.χ. Χρώματα, Αναλώσιμα">
+              <select id="stockMaterialCategory">
+                ${this.renderCategoryOptions('Χρώμα')}
+              </select>
+            </div>
+            <div class="form-group" id="stockColorCodeGroup" style="display: none;">
+              <label>Κωδικός χρώματος</label>
+              <input type="text" id="stockMaterialColorCode" placeholder="π.χ. RAL 9010">
             </div>
             <div class="form-group">
               <label>Μονάδα</label>
@@ -81,10 +90,12 @@ window.InventoryView = {
           <form id="stockMovementForm" class="form-grid">
             <div class="form-group span-2">
               <label>Υλικό <span class="required">*</span></label>
-              <select id="stockMovementMaterial" required>
-                <option value="">Επιλέξτε υλικό...</option>
-                ${materials.map(material => `<option value="${material.id}" data-unit="${this.escape(material.unit || 'λίτρα')}">${this.escape(material.name)} (${this.toNumber(material.stock).toFixed(2)} ${this.escape(material.unit || '')})</option>`).join('')}
-              </select>
+              <div class="autocomplete-container">
+                <input type="text" id="stockMovementMaterialSearch" placeholder="Αναζήτηση υλικού..." autocomplete="off" required>
+                <input type="hidden" id="stockMovementMaterial">
+                <div id="stockMovementMaterialResults" class="autocomplete-results" style="display: none;"></div>
+              </div>
+              <small class="text-muted">Γράψτε όνομα, κατηγορία ή κωδικό και επιλέξτε από τις προτάσεις.</small>
             </div>
             <div class="form-group">
               <label>Τύπος κίνησης</label>
@@ -145,13 +156,19 @@ window.InventoryView = {
   renderMaterialsTable(materials) {
     return `
       <div class="card" style="margin-top: 20px;">
-        <h3><i class="fas fa-list"></i> Υλικά στην αποθήκη</h3>
+        <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+          <h3><i class="fas fa-list"></i> Υλικά στην αποθήκη</h3>
+          <button type="button" class="btn btn-secondary" id="checkDuplicateMaterialsBtn">
+            <i class="fas fa-object-group"></i> Έλεγχος διπλών
+          </button>
+        </div>
         <div class="table-wrapper">
           <table class="data-table">
             <thead>
               <tr>
                 <th>Ενέργειες</th>
                 <th>Υλικό</th>
+                <th>Κωδικός</th>
                 <th>Κατηγορία</th>
                 <th>Ποσότητα</th>
                 <th>Μονάδα</th>
@@ -171,6 +188,7 @@ window.InventoryView = {
                       <button class="btn-icon btn-danger delete-stock-material-btn" data-id="${material.id}" title="Διαγραφή"><i class="fas fa-trash"></i></button>
                     </td>
                     <td><strong>${this.escape(material.name)}</strong></td>
+                    <td>${this.escape(material.colorCode || material.color_code || '-')}</td>
                     <td>${this.escape(material.category || '-')}</td>
                     <td><strong>${stock.toFixed(2)}</strong></td>
                     <td>${this.escape(material.unit || '-')}</td>
@@ -178,7 +196,7 @@ window.InventoryView = {
                     <td>${Utils.formatCurrency(stock * unitPrice)}</td>
                   </tr>
                 `;
-              }).join('') : '<tr><td colspan="7" class="text-muted">Δεν υπάρχουν υλικά ακόμα.</td></tr>'}
+              }).join('') : '<tr><td colspan="8" class="text-muted">Δεν υπάρχουν υλικά ακόμα.</td></tr>'}
             </tbody>
           </table>
         </div>
@@ -187,6 +205,15 @@ window.InventoryView = {
   },
 
   renderMovementsTable(movements) {
+    const latestMovements = movements
+      .slice()
+      .sort((a, b) => {
+        const dateCompare = String(b.movementDate || b.movement_date || '').localeCompare(String(a.movementDate || a.movement_date || ''));
+        if (dateCompare !== 0) return dateCompare;
+        return Number(b.id || 0) - Number(a.id || 0);
+      })
+      .slice(0, 10);
+
     return `
       <div class="card" style="margin-top: 20px;">
         <h3><i class="fas fa-history"></i> Ιστορικό κινήσεων</h3>
@@ -204,7 +231,7 @@ window.InventoryView = {
               </tr>
             </thead>
             <tbody>
-              ${movements.length ? movements.slice(0, 80).map(movement => `
+              ${latestMovements.length ? latestMovements.map(movement => `
                 <tr>
                   <td>${Utils.formatDate(movement.movementDate || movement.movement_date)}</td>
                   <td><strong>${this.escape(movement.materialName || movement.material_name || '-')}</strong></td>
@@ -244,12 +271,20 @@ window.InventoryView = {
       btn.addEventListener('click', () => {
         this.editingMaterialId = btn.dataset.id;
         this.render(container);
+        this.scrollToMaterialEditor(container);
       });
     });
 
     container.querySelectorAll('.delete-stock-material-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
-        if (!confirm('Να διαγραφεί το υλικό από την αποθήκη;')) return;
+        const material = State.read('inventory', btn.dataset.id);
+        const confirmed = await Modal.confirm({
+          title: 'Διαγραφή Υλικού',
+          message: `Να διαγραφεί το υλικό <strong>${this.escape(material?.name || '')}</strong> από την αποθήκη;`,
+          confirmText: 'Διαγραφή',
+          cancelText: 'Ακύρωση'
+        });
+        if (!confirmed) return;
         await State.delete('inventory', btn.dataset.id);
         Toast.success('Το υλικό διαγράφηκε');
         this.render(container);
@@ -258,9 +293,8 @@ window.InventoryView = {
 
     container.querySelectorAll('.quick-stock-remove-btn').forEach(btn => {
       btn.addEventListener('click', () => {
-        const select = container.querySelector('#stockMovementMaterial');
         const type = container.querySelector('#stockMovementType');
-        if (select) select.value = btn.dataset.id;
+        this.setMovementMaterialSelection(container, btn.dataset.id);
         if (type) type.value = 'remove';
         this.updateMovementUnit(container);
         this.updateMovementLabel(container);
@@ -268,10 +302,16 @@ window.InventoryView = {
       });
     });
 
-    container.querySelector('#stockMovementMaterial')?.addEventListener('change', () => this.updateMovementUnit(container));
+    this.setupMovementMaterialAutocomplete(container);
+    if (!this.editingMaterialId) {
+      this.setupMaterialNameAutocomplete(container);
+    }
     container.querySelector('#stockMovementType')?.addEventListener('change', () => this.updateMovementLabel(container));
+    container.querySelector('#stockMaterialCategory')?.addEventListener('change', () => this.updateColorCodeVisibility(container));
+    container.querySelector('#checkDuplicateMaterialsBtn')?.addEventListener('click', () => this.showDuplicateMaterialsModal(container));
     this.updateMovementUnit(container);
     this.updateMovementLabel(container);
+    this.updateColorCodeVisibility(container);
   },
 
   populateEditForm(container) {
@@ -280,46 +320,87 @@ window.InventoryView = {
     if (!material) return;
 
     container.querySelector('#stockMaterialName').value = material.name || '';
-    container.querySelector('#stockMaterialCategory').value = material.category || '';
+    container.querySelector('#stockMaterialCategory').value = MaterialIdentity.normalizeCategory(material.category || 'Άλλο');
+    container.querySelector('#stockMaterialColorCode').value = material.colorCode || material.color_code || '';
     container.querySelector('#stockMaterialUnit').value = material.unit || 'λίτρα';
     container.querySelector('#stockMaterialUnitPrice').value = this.toNumber(material.unitPrice || material.unit_price);
+    this.updateColorCodeVisibility(container);
+  },
+
+  scrollToMaterialEditor(container) {
+    requestAnimationFrame(() => {
+      const editor = container.querySelector('#stockMaterialEditorCard');
+      const nameInput = container.querySelector('#stockMaterialName');
+      if (!editor) return;
+
+      editor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setTimeout(() => nameInput?.focus({ preventScroll: true }), 250);
+    });
   },
 
   async saveMaterial(event, container) {
     event.preventDefault();
     const payload = {
       name: container.querySelector('#stockMaterialName').value.trim(),
-      category: container.querySelector('#stockMaterialCategory').value.trim(),
+      category: container.querySelector('#stockMaterialCategory').value,
+      colorCode: container.querySelector('#stockMaterialColorCode')?.value.trim() || '',
       unit: container.querySelector('#stockMaterialUnit').value || 'λίτρα',
       unitPrice: this.toNumber(container.querySelector('#stockMaterialUnitPrice').value),
       stock: 0,
       minStock: 0
     };
+    const preparedPayload = MaterialIdentity.prepare(payload);
 
-    if (!payload.name) {
+    if (!preparedPayload.name) {
       Toast.error('Συμπληρώστε όνομα υλικού');
       return;
     }
 
     if (this.editingMaterialId) {
+      const duplicate = MaterialIdentity.findDuplicate(State.read('inventory') || [], preparedPayload, this.editingMaterialId);
+      if (duplicate) {
+        Toast.error(`Υπάρχει ήδη το υλικό "${duplicate.name}"`);
+        return;
+      }
       const existing = State.read('inventory', this.editingMaterialId);
       await State.update('inventory', this.editingMaterialId, {
-        ...payload,
+        ...preparedPayload,
         stock: this.toNumber(existing?.stock),
         minStock: this.toNumber(existing?.minStock || existing?.min_stock)
       });
       this.editingMaterialId = null;
       Toast.success('Το υλικό ενημερώθηκε');
     } else {
-      const material = await State.create('inventory', payload);
       const initialQuantity = this.toNumber(container.querySelector('#stockInitialQuantity')?.value);
+      const duplicate = MaterialIdentity.findSimilar(State.read('inventory') || [], preparedPayload);
+      if (duplicate) {
+        const useExisting = await MaterialIdentity.confirmUseExisting(preparedPayload, duplicate);
+        if (useExisting) {
+          if (initialQuantity > 0) {
+            await State.create('materialStockMovements', {
+              materialId: duplicate.id,
+              movementType: 'add',
+              quantity: initialQuantity,
+              movementDate: this.today(),
+              unit: duplicate.unit || preparedPayload.unit,
+              referenceType: 'manual',
+              notes: 'Προσθήκη σε υπάρχον υλικό'
+            });
+          }
+          Toast.success('Χρησιμοποιήθηκε το υπάρχον υλικό');
+          this.render(container);
+          return;
+        }
+      }
+
+      const material = await State.create('inventory', preparedPayload);
       if (initialQuantity > 0) {
         await State.create('materialStockMovements', {
           materialId: material.id,
           movementType: 'add',
           quantity: initialQuantity,
           movementDate: this.today(),
-          unit: payload.unit,
+          unit: preparedPayload.unit,
           referenceType: 'manual',
           notes: 'Αρχική ποσότητα'
         });
@@ -365,11 +446,160 @@ window.InventoryView = {
   },
 
   updateMovementUnit(container) {
-    const selected = container.querySelector('#stockMovementMaterial')?.selectedOptions?.[0];
+    const materialId = container.querySelector('#stockMovementMaterial')?.value;
+    const material = materialId ? State.read('inventory', materialId) : null;
     const unitInput = container.querySelector('#stockMovementUnit');
-    if (selected && unitInput) {
-      unitInput.value = selected.dataset.unit || '';
+    if (material && unitInput) {
+      unitInput.value = material.unit || 'λίτρα';
     }
+  },
+
+  updateMovementMaterialFromSearch(container) {
+    const input = container.querySelector('#stockMovementMaterialSearch');
+    const hidden = container.querySelector('#stockMovementMaterial');
+    if (!input || !hidden) return;
+
+    const material = this.findMovementMaterialByLabel(input.value);
+    hidden.value = material ? material.id : '';
+    if (material) input.value = this.movementMaterialLabel(material);
+    this.updateMovementUnit(container);
+  },
+
+  setMovementMaterialSelection(container, materialId) {
+    const material = State.read('inventory', materialId);
+    const input = container.querySelector('#stockMovementMaterialSearch');
+    const hidden = container.querySelector('#stockMovementMaterial');
+    if (!material || !input || !hidden) return;
+
+    input.value = this.movementMaterialLabel(material);
+    hidden.value = material.id;
+  },
+
+  setupMovementMaterialAutocomplete(container) {
+    const input = container.querySelector('#stockMovementMaterialSearch');
+    const results = container.querySelector('#stockMovementMaterialResults');
+    const hidden = container.querySelector('#stockMovementMaterial');
+    if (!input || !results || !hidden) return;
+
+    const render = () => {
+      hidden.value = '';
+      const matches = this.searchMaterials(input.value);
+      this.renderMaterialAutocompleteResults(results, matches, (material) => {
+        this.setMovementMaterialSelection(container, material.id);
+        results.style.display = 'none';
+        this.updateMovementUnit(container);
+        container.querySelector('#stockMovementQuantity')?.focus();
+      });
+    };
+
+    input.addEventListener('focus', render);
+    input.addEventListener('input', render);
+    input.addEventListener('blur', () => {
+      setTimeout(() => {
+        results.style.display = 'none';
+        this.updateMovementMaterialFromSearch(container);
+      }, 150);
+    });
+  },
+
+  setupMaterialNameAutocomplete(container) {
+    const input = container.querySelector('#stockMaterialName');
+    const results = container.querySelector('#stockMaterialNameResults');
+    if (!input || !results) return;
+
+    const render = () => {
+      const matches = this.searchMaterials(input.value);
+      this.renderMaterialAutocompleteResults(results, matches, (material) => {
+        input.value = material.name || '';
+        results.style.display = 'none';
+        this.fillMaterialFormFromName(container);
+      });
+    };
+
+    input.addEventListener('focus', render);
+    input.addEventListener('input', render);
+    input.addEventListener('blur', () => {
+      setTimeout(() => {
+        results.style.display = 'none';
+        this.fillMaterialFormFromName(container);
+      }, 150);
+    });
+  },
+
+  searchMaterials(query, limit = 12) {
+    const materials = State.read('inventory') || [];
+    const normalizedQuery = MaterialIdentity.normalizeText(query);
+    if (!normalizedQuery) return materials.slice(0, limit);
+
+    const words = normalizedQuery.split(' ').filter(Boolean);
+    return materials
+      .map(material => {
+        const haystack = MaterialIdentity.normalizeText([
+          material.name,
+          material.category,
+          material.colorCode || material.color_code,
+          this.movementMaterialLabel(material)
+        ].filter(Boolean).join(' '));
+        const matches = words.every(word => haystack.includes(word));
+        const startsWithName = MaterialIdentity.normalizeSearchText(material.name).startsWith(normalizedQuery);
+        return { material, matches, startsWithName };
+      })
+      .filter(result => result.matches)
+      .sort((a, b) => Number(b.startsWithName) - Number(a.startsWithName) || String(a.material.name).localeCompare(String(b.material.name), 'el'))
+      .slice(0, limit)
+      .map(result => result.material);
+  },
+
+  renderMaterialAutocompleteResults(results, materials, onSelect) {
+    if (!materials.length) {
+      results.innerHTML = '<div class="autocomplete-item text-muted">Δεν βρέθηκαν υλικά</div>';
+      results.style.display = '';
+      return;
+    }
+
+    results.innerHTML = materials.map(material => `
+      <div class="autocomplete-item" data-material-id="${material.id}">
+        <strong>${this.escape(material.name)}</strong>
+        <br>
+        <small class="text-muted">
+          ${this.escape(material.category || 'Άλλο')}
+          ${material.colorCode || material.color_code ? ` • ${this.escape(material.colorCode || material.color_code)}` : ''}
+          • ${this.toNumber(material.stock).toFixed(2)} ${this.escape(material.unit || '')}
+        </small>
+      </div>
+    `).join('');
+    results.style.display = '';
+
+    results.querySelectorAll('.autocomplete-item[data-material-id]').forEach(item => {
+      item.addEventListener('mousedown', (event) => {
+        event.preventDefault();
+        const material = State.read('inventory', item.dataset.materialId);
+        if (material) onSelect(material);
+      });
+    });
+  },
+
+  findMovementMaterialByLabel(label) {
+    const value = String(label || '').trim();
+    if (!value) return null;
+
+    const materials = State.read('inventory') || [];
+    return materials.find(material => this.movementMaterialLabel(material) === value)
+      || materials.find(material => MaterialIdentity.normalizeText(this.movementMaterialLabel(material)) === MaterialIdentity.normalizeText(value))
+      || materials.find(material => MaterialIdentity.normalizeSearchText(material.name) === MaterialIdentity.normalizeSearchText(value))
+      || null;
+  },
+
+  movementMaterialLabel(material) {
+    const code = material.colorCode || material.color_code;
+    const codePart = code ? ` • ${code}` : '';
+    return `${material.name}${codePart} • ${material.category || 'Άλλο'} • ${this.toNumber(material.stock).toFixed(2)} ${material.unit || ''}`;
+  },
+
+  materialNameOptionLabel(material) {
+    const code = material.colorCode || material.color_code;
+    const codePart = code ? ` • ${code}` : '';
+    return `${material.category || 'Άλλο'}${codePart} • ${this.toNumber(material.stock).toFixed(2)} ${material.unit || ''}`;
   },
 
   updateMovementLabel(container) {
@@ -377,6 +607,114 @@ window.InventoryView = {
     const label = container.querySelector('#stockMovementQuantityLabel');
     if (!label) return;
     label.textContent = type === 'adjust' ? 'Νέα συνολική ποσότητα' : 'Ποσότητα';
+  },
+
+  updateColorCodeVisibility(container) {
+    const category = container.querySelector('#stockMaterialCategory')?.value;
+    const group = container.querySelector('#stockColorCodeGroup');
+    const input = container.querySelector('#stockMaterialColorCode');
+    const isColor = MaterialIdentity.normalizeCategory(category) === 'Χρώμα';
+    if (group) group.style.display = isColor ? '' : 'none';
+    if (!isColor && input) input.value = '';
+  },
+
+  fillMaterialFormFromName(container) {
+    const name = container.querySelector('#stockMaterialName')?.value.trim();
+    if (!name) return;
+
+    const material = this.findMaterialByName(name);
+    if (!material) return;
+
+    container.querySelector('#stockMaterialName').value = material.name || name;
+    container.querySelector('#stockMaterialCategory').value = MaterialIdentity.normalizeCategory(material.category);
+    container.querySelector('#stockMaterialColorCode').value = material.colorCode || material.color_code || '';
+    container.querySelector('#stockMaterialUnit').value = material.unit || 'λίτρα';
+    container.querySelector('#stockMaterialUnitPrice').value = this.toNumber(material.unitPrice || material.unit_price);
+    this.updateColorCodeVisibility(container);
+    Toast.info(`Υπάρχει ήδη το υλικό "${material.name}". Αν το καταχωρήσετε, θα προταθεί χρήση του υπάρχοντος.`);
+  },
+
+  findMaterialByName(name) {
+    const normalized = MaterialIdentity.normalizeSearchText(name);
+    return (State.read('inventory') || []).find(material => {
+      return MaterialIdentity.normalizeSearchText(material.name) === normalized;
+    }) || null;
+  },
+
+  async showDuplicateMaterialsModal(container) {
+    try {
+      const groups = await API.getMaterialDuplicateGroups();
+      if (!groups.length) {
+        Modal.alert('Δεν βρέθηκαν διπλά υλικά με βάση την κατηγορία, τον κωδικό χρώματος και το καθαρισμένο όνομα.', 'Έλεγχος διπλών');
+        return;
+      }
+
+      const content = groups.map((group, index) => `
+        <div class="duplicate-material-group" data-group-index="${index}" style="border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 12px; margin-bottom: 12px;">
+          <h4 style="margin: 0 0 10px;">Ομάδα ${index + 1}</h4>
+          <div class="form-group">
+            <label>Primary υλικό που θα κρατηθεί</label>
+            <select class="duplicate-primary-select">
+              ${group.materials.map(material => `<option value="${material.id}">#${material.id} - ${this.escape(material.name)} (${this.escape(material.category || 'Άλλο')}${material.colorCode || material.color_code ? ', ' + this.escape(material.colorCode || material.color_code) : ''})</option>`).join('')}
+            </select>
+          </div>
+          <div class="table-wrapper">
+            <table class="data-table">
+              <thead><tr><th>ID</th><th>Υλικό</th><th>Κατηγορία</th><th>Κωδικός</th><th>Stock</th></tr></thead>
+              <tbody>
+                ${group.materials.map(material => `
+                  <tr>
+                    <td>#${material.id}</td>
+                    <td><strong>${this.escape(material.name)}</strong></td>
+                    <td>${this.escape(material.category || 'Άλλο')}</td>
+                    <td>${this.escape(material.colorCode || material.color_code || '-')}</td>
+                    <td>${this.toNumber(material.stock).toFixed(2)} ${this.escape(material.unit || '')}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+          <button type="button" class="btn btn-primary merge-duplicate-group-btn" data-group-index="${index}" style="margin-top: 10px;">
+            Συγχώνευση ομάδας
+          </button>
+        </div>
+      `).join('');
+
+      const modal = Modal.open({
+        title: 'Συγχώνευση διπλών υλικών',
+        size: 'xl',
+        content,
+        footer: '<button class="btn-ghost" onclick="Modal.close()">Κλείσιμο</button>'
+      });
+
+      modal.querySelectorAll('.merge-duplicate-group-btn').forEach(button => {
+        button.addEventListener('click', async () => {
+          const index = Number(button.dataset.groupIndex);
+          const groupEl = modal.querySelector(`.duplicate-material-group[data-group-index="${index}"]`);
+          const primaryId = Number(groupEl.querySelector('.duplicate-primary-select').value);
+          const duplicateIds = groups[index].materials
+            .map(material => Number(material.id))
+            .filter(id => id !== primaryId);
+
+          const confirmed = await Modal.confirm({
+            title: 'Επιβεβαίωση συγχώνευσης',
+            message: `Θα κρατηθεί το υλικό #${primaryId} και θα μεταφερθούν σε αυτό stock, αγορές, κινήσεις και συνδέσεις εργασιών από ${duplicateIds.length} διπλά υλικά. Να συνεχίσω;`,
+            confirmText: 'Συγχώνευση',
+            cancelText: 'Ακύρωση'
+          });
+          if (!confirmed) return;
+
+          const result = await API.mergeMaterialDuplicates(primaryId, duplicateIds);
+          await State.loadAll();
+          Toast.success(`Συγχωνεύτηκαν ${result.mergedIds?.length || duplicateIds.length} υλικά`);
+          Modal.close();
+          this.render(container);
+        });
+      });
+    } catch (error) {
+      console.error('Duplicate material merge error:', error);
+      Toast.error(error.message || 'Σφάλμα στον έλεγχο διπλών');
+    }
   },
 
   movementLabel(type) {
@@ -406,8 +744,16 @@ window.InventoryView = {
     return div.innerHTML;
   },
 
+  escapeAttribute(value) {
+    return this.escape(value).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  },
+
   renderUnitOptions(selected = 'λίτρα') {
     const units = ['λίτρα', 'τεμ.', 'kg', 'm²', 'μέτρα', 'ρολά', 'κουβάδες', 'σακιά', 'άλλο'];
     return units.map(unit => `<option value="${this.escape(unit)}" ${unit === selected ? 'selected' : ''}>${this.escape(unit)}</option>`).join('');
+  },
+
+  renderCategoryOptions(selected = 'Χρώμα') {
+    return MaterialIdentity.categoryOptions(selected);
   }
 };

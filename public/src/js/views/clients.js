@@ -298,6 +298,93 @@ window.ClientsView = {
     Toast.info('Η φόρμα καθαρίστηκε');
   },
 
+  getPaymentsForClient(clientId) {
+    const payments = State.read('jobPayments') || [];
+    const jobs = State.read('jobs') || [];
+    const jobsById = new Map(jobs.map(job => [Number(job.id), job]));
+
+    return payments
+      .filter(payment => {
+        const paymentClientId = payment.clientId || payment.client_id;
+        if (paymentClientId) {
+          return Number(paymentClientId) === Number(clientId);
+        }
+
+        const jobId = payment.jobId || payment.job_id;
+        const job = jobsById.get(Number(jobId));
+        const jobClientId = job?.clientId || job?.client_id;
+        return Number(jobClientId) === Number(clientId);
+      })
+      .map(payment => {
+        const jobId = payment.jobId || payment.job_id;
+        return {
+          ...payment,
+          job: jobsById.get(Number(jobId)) || null
+        };
+      })
+      .sort((a, b) => {
+        const dateCompare = String(b.paymentDate || b.payment_date || '').localeCompare(String(a.paymentDate || a.payment_date || ''));
+        if (dateCompare !== 0) return dateCompare;
+        return Number(b.id || 0) - Number(a.id || 0);
+      });
+  },
+
+  getJobsForClient(clientId) {
+    const jobs = State.read('jobs') || [];
+    return jobs.filter(job => Number(job.clientId || job.client_id) === Number(clientId));
+  },
+
+  getJobBillingAmount(job) {
+    if (!job) return 0;
+
+    const billingType = job.billingType || job.billing_type || 'hourly';
+    const agreedPrice = parseFloat(job.agreedPrice || job.agreed_price || 0) || 0;
+    if (billingType === 'fixed' && agreedPrice > 0) {
+      return agreedPrice;
+    }
+
+    const billingAmount = parseFloat(job.billingAmount || job.billing_amount || 0) || 0;
+    if (billingAmount > 0) {
+      return billingAmount;
+    }
+
+    const billingHours = parseFloat(job.billingHours || job.billing_hours || 0) || 0;
+    const billingRate = parseFloat(job.billingRate || job.billing_rate || 0) || 0;
+    const hourlyTotal = billingHours * billingRate;
+    if (hourlyTotal > 0) {
+      return hourlyTotal;
+    }
+
+    return parseFloat(job.totalCost || job.total_cost || 0) || 0;
+  },
+
+  getClientPaymentSummary(clientId) {
+    const payments = this.getPaymentsForClient(clientId);
+    const jobs = this.getJobsForClient(clientId);
+    const paidAmount = payments.reduce((sum, payment) => sum + (parseFloat(payment.amount) || 0), 0);
+    const billingAmount = jobs.reduce((sum, job) => sum + this.getJobBillingAmount(job), 0);
+
+    return {
+      paidAmount,
+      billingAmount,
+      balance: billingAmount - paidAmount,
+      hasFinancialActivity: payments.length > 0 || billingAmount > 0
+    };
+  },
+
+  renderClientPaymentCell(clientId) {
+    const summary = this.getClientPaymentSummary(clientId);
+    if (!summary.hasFinancialActivity) {
+      return '-';
+    }
+
+    const balance = Math.max(summary.balance, 0);
+    return `
+      <strong style="color: var(--success);">${Utils.formatCurrency(summary.paidAmount)}</strong>
+      ${balance > 0.005 ? `<br><small style="color: var(--warning, #f59e0b);">Υπόλοιπο: ${Utils.formatCurrency(balance)}</small>` : ''}
+    `;
+  },
+
   viewClient(id) {
     const client = State.data.clients.find(c => Number(c.id) === Number(id));
     if (!client) {
@@ -372,6 +459,7 @@ window.ClientsView = {
           </div>
         </div>
         ` : ''}
+
       </div>
     `;
 
@@ -439,6 +527,24 @@ window.ClientsView = {
       Toast.error('Σφάλμα: Μη έγκυρο ID πελάτη');
       return;
     }
+
+    const linkedJobs = this.getJobsForClient(id);
+    if (linkedJobs.length > 0) {
+      const modal = Modal.open({
+        title: '<i class="fas fa-exclamation-triangle"></i> Δεν επιτρέπεται η διαγραφή',
+        content: `
+          <div class="alert alert-warning">
+            <p><strong>Ο πελάτης δεν μπορεί να διαγραφεί.</strong></p>
+            <p>Υπάρχουν ${linkedJobs.length} συνδεδεμένες εργασίες με αυτόν τον πελάτη.</p>
+            <p class="text-muted" style="margin-bottom: 0;">Αν δεν τον χρειάζεστε πλέον, κρατήστε τον στο αρχείο ή αλλάξτε πρώτα τις συνδεδεμένες εργασίες.</p>
+          </div>
+        `,
+        footer: '<button class="btn-primary" id="clientDeleteBlockedOkBtn">OK</button>',
+        size: 'sm'
+      });
+      modal.querySelector('#clientDeleteBlockedOkBtn').onclick = () => Modal.close();
+      return;
+    }
     
     Modal.confirm({
       title: 'Διαγραφή Πελάτη',
@@ -502,28 +608,32 @@ window.ClientsView = {
               <th>Τηλ.</th>
               <th>Email</th>
               <th>Οδός</th>
+              <th>Πληρωμές</th>
             </tr>
           </thead>
           <tbody>
-            ${sortedClients.map(client => `
-              <tr>
-                <td class="actions">
-                  <button class="btn-icon view-client-btn" data-client-id="${client.id}" title="Προβολή">
-                    <i class="fas fa-eye"></i>
-                  </button>
-                  <button class="btn-icon edit-client-btn" data-client-id="${client.id}" title="Επεξεργασία">
-                    <i class="fas fa-edit"></i>
-                  </button>
-                  <button class="btn-icon btn-danger delete-client-btn" data-client-id="${client.id}" title="Διαγραφή">
-                    <i class="fas fa-trash"></i>
-                  </button>
-                </td>
-                <td title="${client.name}">${client.name}</td>
-                <td title="${client.phone || '-'}">${client.phone ? `<a href="tel:${client.phone}" style="color: var(--color-text); text-decoration: none;">${client.phone}</a>` : '-'}</td>
-                <td title="${client.email || '-'}">${client.email || '-'}</td>
-                <td title="${client.address || '-'}">${client.address || '-'}</td>
-              </tr>
-            `).join('')}
+            ${sortedClients.map(client => {
+              return `
+                <tr>
+                  <td class="actions">
+                    <button class="btn-icon view-client-btn" data-client-id="${client.id}" title="Προβολή">
+                      <i class="fas fa-eye"></i>
+                    </button>
+                    <button class="btn-icon edit-client-btn" data-client-id="${client.id}" title="Επεξεργασία">
+                      <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn-icon btn-danger delete-client-btn" data-client-id="${client.id}" title="Διαγραφή">
+                      <i class="fas fa-trash"></i>
+                    </button>
+                  </td>
+                  <td title="${client.name}">${client.name}</td>
+                  <td title="${client.phone || '-'}">${client.phone ? `<a href="tel:${client.phone}" style="color: var(--color-text); text-decoration: none;">${client.phone}</a>` : '-'}</td>
+                  <td title="${client.email || '-'}">${client.email || '-'}</td>
+                  <td title="${client.address || '-'}">${client.address || '-'}</td>
+                  <td>${this.renderClientPaymentCell(client.id)}</td>
+                </tr>
+              `;
+            }).join('')}
           </tbody>
         </table>
       </div>

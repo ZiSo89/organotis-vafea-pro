@@ -42,7 +42,7 @@ const Keyboard = {
 
     // ESC - Close modal/sidebar
     'escape': () => {
-      if (Modal.currentModal) {
+      if (Modal.currentModal && Modal.currentCloseOnEscape) {
         Modal.close();
       } else if (Sidebar.isMobile && Sidebar.element.classList.contains('open')) {
         Sidebar.close();
