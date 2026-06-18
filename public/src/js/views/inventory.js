@@ -25,7 +25,7 @@ window.SuppliersView = {
         <h1><i class="fas fa-store"></i> Προμηθευτές</h1>
       </div>
 
-      <div class="stats-grid" style="margin-bottom: 20px;">
+      <div class="stats-grid mb-3">
         <div class="stat-card">
           <div class="stat-icon"><i class="fas fa-shopping-cart"></i></div>
           <div class="stat-content">
@@ -127,7 +127,7 @@ window.SuppliersView = {
         </form>
       </div>
 
-      <div class="table-wrapper has-mobile-cards" style="margin-top: 20px;">
+      <div class="table-wrapper has-mobile-cards mt-3">
         <table class="data-table">
           <thead>
             <tr>
@@ -226,10 +226,10 @@ window.SuppliersView = {
             </div>
           </div>
 
-          <h4 style="margin-top: 20px;">Υλικά Αγοράς</h4>
-          <p class="text-muted" style="margin-bottom: 10px;">Προαιρετικά: αν προσθέσετε υλικά, θα ενημερωθεί και η φυσική Αποθήκη.</p>
+          <h4 class="mt-3">Υλικά Αγοράς</h4>
+          <p class="text-muted mb-1">Προαιρετικά: αν προσθέσετε υλικά, θα ενημερωθεί και η φυσική Αποθήκη.</p>
           <div id="purchaseItemsContainer"></div>
-          <button type="button" class="btn btn-secondary" id="addPurchaseItemBtn" style="margin-top: 10px;">
+          <button type="button" class="btn btn-secondary mt-1" id="addPurchaseItemBtn">
             <i class="fas fa-plus"></i> Προσθήκη Υλικού
           </button>
 
@@ -269,13 +269,13 @@ window.SuppliersView = {
             </div>
           </div>
 
-          <button type="submit" class="btn btn-primary" style="margin-top: 10px;">
+          <button type="submit" class="btn btn-primary mt-1">
             <i class="fas fa-save"></i> Καταχώρηση Αγοράς
           </button>
         </form>
       </div>
 
-      <div class="table-wrapper has-mobile-cards" style="margin-top: 25px;">
+      <div class="table-wrapper has-mobile-cards mt-3">
         <table class="data-table">
           <thead>
             <tr>
@@ -393,7 +393,7 @@ window.SuppliersView = {
         </form>
       </div>
 
-      <div class="table-wrapper has-mobile-cards" style="margin-top: 25px;">
+      <div class="table-wrapper has-mobile-cards mt-3">
         <table class="data-table">
           <thead>
             <tr>
@@ -971,7 +971,7 @@ window.SuppliersView = {
           <div class="detail-item"><label>Ημερομηνία:</label><span>${Utils.formatDate(purchase.purchaseDate || purchase.purchase_date)}</span></div>
           <div class="detail-item"><label>Σύνολο:</label><span><strong>${Utils.formatCurrency(purchase.totalCost || purchase.total_cost)}</strong></span></div>
         </div>
-        ${items.length ? `<div class="table-wrapper" style="margin-top: 15px;">
+        ${items.length ? `<div class="table-wrapper mt-2">
           <table class="data-table">
             <thead><tr><th>Υλικό</th><th>Ποσότητα</th><th>Μονάδα</th><th>Τιμή</th><th>Σύνολο</th></tr></thead>
             <tbody>
@@ -986,7 +986,7 @@ window.SuppliersView = {
               `).join('')}
             </tbody>
           </table>
-        </div>` : '<p class="text-muted" style="margin-top: 15px;">Η αγορά καταχωρήθηκε μόνο με συνολικό ποσό, χωρίς αναλυτικά υλικά.</p>'}
+        </div>` : '<p class="text-muted mt-2">Η αγορά καταχωρήθηκε μόνο με συνολικό ποσό, χωρίς αναλυτικά υλικά.</p>'}
       `,
       footer: '<button class="btn-primary" onclick="Modal.close()">Κλείσιμο</button>'
     });
@@ -1232,7 +1232,7 @@ const SettingsView = {
           <input type="number" value="25" />
         </div>
         <button class="btn-primary">Αποθήκευση</button>
-        <hr style="margin: 20px 0;">
+        <hr class="hr-spaced">
         <h3>Επικίνδυνη Ζώνη</h3>
         <button class="btn-danger" onclick="Storage.clear()">
           <i class="fas fa-trash"></i> Καθαρισμός Όλων των Δεδομένων

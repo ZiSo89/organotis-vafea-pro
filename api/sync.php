@@ -12,7 +12,7 @@ require_once __DIR__ . '/calendar_helpers.php';
 require_once __DIR__ . '/warehouse_schema.php';
 require_once __DIR__ . '/job_visits_schema.php';
 
-checkAuthentication();
+checkSyncAuthentication();
 
 // Enable debug mode for sync
 if (!defined('DEBUG_MODE')) {

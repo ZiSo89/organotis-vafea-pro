@@ -74,30 +74,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action']) && $_GET['ac
     exit;
 }
 
-// Check authentication status
+// Check authentication status (login απενεργοποιημένο)
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['action'] === 'check') {
-    $isAuthenticated = false;
-    
-    // Check session first
-    if (isset($_SESSION['authenticated']) && $_SESSION['authenticated'] === true) {
-        // Check session timeout
-        if (time() - $_SESSION['login_time'] < SESSION_TIMEOUT) {
-            $isAuthenticated = true;
-            $_SESSION['login_time'] = time(); // Refresh session
-        } else {
-            // Session expired
-            session_destroy();
-            session_start();
-        }
-    }
-    
-    if (!$isAuthenticated) {
-        $isAuthenticated = auth_try_remember_cookie();
-    }
-    
     echo json_encode([
         'success' => true,
-        'authenticated' => $isAuthenticated
+        'authenticated' => true
     ]);
     exit;
 }

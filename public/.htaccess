@@ -5,7 +5,7 @@ RewriteEngine On
 RewriteBase /public/
 
 # Default page
-DirectoryIndex login.html
+DirectoryIndex index.html
 
 # UTF-8 Encoding
 AddDefaultCharset UTF-8

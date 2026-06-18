@@ -296,3 +296,10 @@ th:not(:last-child) {
     height: 32px;
   }
 }
+
+/* Tablet: αποφυγή horizontal overflow σε desktop πίνακες */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .table-wrapper:not(.has-mobile-cards) {
+    overflow-x: auto;
+  }
+}

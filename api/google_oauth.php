@@ -22,18 +22,9 @@ function gjson($data, $code = 200) {
     exit;
 }
 
-/** Έλεγχος session για browser navigations (redirect στο login αντί για JSON 401) */
+/** Login απενεργοποιημένο — browser navigations επιτρέπονται απευθείας. */
 function require_session_or_redirect() {
-    $authed = isset($_SESSION['authenticated']) && $_SESSION['authenticated'] === true;
-    if (!$authed && isset($_COOKIE['remember_token']) && $_COOKIE['remember_token'] !== '') {
-        $_SESSION['authenticated'] = true;
-        $_SESSION['login_time'] = time();
-        $authed = true;
-    }
-    if (!$authed) {
-        header('Location: /login.html');
-        exit;
-    }
+    return true;
 }
 
 try {

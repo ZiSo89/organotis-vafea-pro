@@ -34,21 +34,54 @@ const AppShell = {
     calendar: { label: 'Νέα εργασία', icon: 'fas fa-briefcase', action: 'openJobsAdd' }
   },
 
+  lastFocusedTrigger: null,
+
   init() {
-    this.isMobile = window.innerWidth < 768;
+    this.isMobile = window.innerWidth <= 768;
     this.bindBottomNav();
     this.bindMoreSheet();
     this.bindSearch();
     this.bindFab();
+    this.bindEscKey();
     this.handleResize();
     this.onNavigate(State.currentSection || 'dashboard');
     document.body.classList.toggle('has-bottom-nav', this.isMobile);
   },
 
+  bindEscKey() {
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      if (this.searchOpen) {
+        this.closeSearch();
+      } else if (this.moreOpen) {
+        this.closeMoreSheet();
+      } else if (document.getElementById('appBottomSheet')?.classList.contains('is-open')) {
+        this.closeBottomSheet();
+      }
+    });
+  },
+
+  focusFirst(container) {
+    if (!container) return;
+    const focusable = container.querySelector(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    );
+    if (focusable) {
+      setTimeout(() => focusable.focus(), 120);
+    }
+  },
+
+  restoreFocus() {
+    if (this.lastFocusedTrigger && typeof this.lastFocusedTrigger.focus === 'function') {
+      this.lastFocusedTrigger.focus();
+    }
+    this.lastFocusedTrigger = null;
+  },
+
   handleResize() {
     window.addEventListener('resize', () => {
       const wasMobile = this.isMobile;
-      this.isMobile = window.innerWidth < 768;
+      this.isMobile = window.innerWidth <= 768;
       if (wasMobile !== this.isMobile) {
         document.body.classList.toggle('has-bottom-nav', this.isMobile);
         if (!this.isMobile) {
@@ -116,10 +149,14 @@ const AppShell = {
   },
 
   isFormModeOpen() {
+    if (document.body.classList.contains('form-open')) return true;
     const selectors = ['#jobForm', '#clientForm', '#workerForm'];
     return selectors.some(sel => {
       const el = document.querySelector(sel);
-      return el && el.style.display !== 'none' && getComputedStyle(el).display !== 'none';
+      if (!el) return false;
+      const styles = getComputedStyle(el);
+      if (styles.display === 'none' || styles.visibility === 'hidden') return false;
+      return el.offsetWidth > 0 || el.offsetHeight > 0 || el.getClientRects().length > 0;
     });
   },
 
@@ -174,19 +211,27 @@ const AppShell = {
     const sheet = document.getElementById('moreSheet');
     const backdrop = document.getElementById('moreSheetBackdrop');
     if (!sheet) return;
+    this.lastFocusedTrigger = document.activeElement;
     this.moreOpen = true;
     sheet.classList.add('is-open');
+    sheet.setAttribute('aria-hidden', 'false');
     backdrop?.classList.add('is-open');
+    backdrop?.setAttribute('aria-hidden', 'false');
     document.body.classList.add('more-sheet-open');
+    this.focusFirst(sheet);
   },
 
   closeMoreSheet() {
     const sheet = document.getElementById('moreSheet');
     const backdrop = document.getElementById('moreSheetBackdrop');
+    const wasOpen = this.moreOpen;
     this.moreOpen = false;
     sheet?.classList.remove('is-open');
+    sheet?.setAttribute('aria-hidden', 'true');
     backdrop?.classList.remove('is-open');
+    backdrop?.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('more-sheet-open');
+    if (wasOpen) this.restoreFocus();
   },
 
   bindSearch() {
@@ -201,20 +246,31 @@ const AppShell = {
 
   openSearch() {
     const overlay = document.getElementById('searchOverlay');
+    const backdrop = document.getElementById('searchOverlayBackdrop');
     const input = document.getElementById('globalSearchOverlay');
     if (!overlay) return;
+    this.lastFocusedTrigger = document.activeElement;
     this.searchOpen = true;
     overlay.classList.add('is-open');
+    overlay.setAttribute('aria-hidden', 'false');
+    backdrop?.classList.add('is-open');
+    backdrop?.setAttribute('aria-hidden', 'false');
     document.body.classList.add('search-open');
     setTimeout(() => input?.focus(), 120);
   },
 
   closeSearch() {
     const overlay = document.getElementById('searchOverlay');
+    const backdrop = document.getElementById('searchOverlayBackdrop');
+    const wasOpen = this.searchOpen;
     this.searchOpen = false;
     overlay?.classList.remove('is-open');
+    overlay?.setAttribute('aria-hidden', 'true');
+    backdrop?.classList.remove('is-open');
+    backdrop?.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('search-open');
     GlobalSearch?.hideResults();
+    if (wasOpen) this.restoreFocus();
   },
 
   bindFab() {
@@ -273,21 +329,31 @@ const AppShell = {
       });
     }
 
+    this.lastFocusedTrigger = document.activeElement;
     sheet.classList.add('is-open');
+    sheet.setAttribute('aria-hidden', 'false');
     backdrop?.classList.add('is-open');
+    backdrop?.setAttribute('aria-hidden', 'false');
     document.body.classList.add('bottom-sheet-open');
 
     const close = () => this.closeBottomSheet();
     backdrop?.addEventListener('click', close, { once: true });
     sheet.querySelector('.app-bottom-sheet-close')?.addEventListener('click', close, { once: true });
+    this.focusFirst(sheet);
 
     return { close: () => this.closeBottomSheet() };
   },
 
   closeBottomSheet() {
-    document.getElementById('appBottomSheet')?.classList.remove('is-open');
-    document.getElementById('appBottomSheetBackdrop')?.classList.remove('is-open');
+    const sheet = document.getElementById('appBottomSheet');
+    const wasOpen = sheet?.classList.contains('is-open');
+    sheet?.classList.remove('is-open');
+    sheet?.setAttribute('aria-hidden', 'true');
+    const backdrop = document.getElementById('appBottomSheetBackdrop');
+    backdrop?.classList.remove('is-open');
+    backdrop?.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('bottom-sheet-open');
+    if (wasOpen) this.restoreFocus();
   }
 };
 

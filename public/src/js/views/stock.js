@@ -21,7 +21,7 @@ window.InventoryView = {
         <h1><i class="fas fa-warehouse"></i> Αποθήκη</h1>
       </div>
 
-      <div class="stats-grid" style="margin-bottom: 20px;">
+      <div class="stats-grid mb-3">
         <div class="stat-card">
           <div class="stat-icon info"><i class="fas fa-boxes"></i></div>
           <div class="stat-content">
@@ -195,14 +195,14 @@ window.InventoryView = {
     const hasSearch = String(this.materialSearchTerm || '').trim().length > 0;
 
     return `
-      <div class="card" style="margin-top: 20px;">
+      <div class="card mt-3">
         <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
           <h3><i class="fas fa-list"></i> Υλικά στην αποθήκη</h3>
           <button type="button" class="btn btn-secondary" id="checkDuplicateMaterialsBtn">
             <i class="fas fa-object-group"></i> Έλεγχος διπλών
           </button>
         </div>
-        <div class="filters" style="margin-top: 12px;">
+        <div class="filters mt-2">
           <div class="search-box" style="width: min(100%, 420px);">
             <i class="fas fa-search"></i>
             <input type="text" id="stockMaterialsSearch" placeholder="Αναζήτηση υλικών..." value="${this.escapeAttribute(this.materialSearchTerm)}" autocomplete="off">
@@ -294,7 +294,7 @@ window.InventoryView = {
     const visibleMovements = lazy.items;
 
     return `
-      <div class="card" style="margin-top: 20px;">
+      <div class="card mt-3">
         <h3><i class="fas fa-history"></i> Ιστορικό κινήσεων</h3>
         <div class="table-wrapper has-mobile-cards">
           <table class="data-table">
@@ -859,7 +859,7 @@ window.InventoryView = {
               </tbody>
             </table>
           </div>
-          <button type="button" class="btn btn-primary merge-duplicate-group-btn" data-group-index="${index}" style="margin-top: 10px;">
+          <button type="button" class="btn btn-primary merge-duplicate-group-btn mt-1" data-group-index="${index}">
             Συγχώνευση ομάδας
           </button>
         </div>

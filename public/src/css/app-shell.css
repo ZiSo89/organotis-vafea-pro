@@ -16,7 +16,7 @@
   display: none;
 }
 
-@media (max-width: 767px) {
+@media (max-width: 768px) {
   :root {
     --bottom-nav-height: calc(64px + env(safe-area-inset-bottom, 0px));
     --mobile-scroll-padding: calc(var(--bottom-nav-height) + 88px);
@@ -379,7 +379,7 @@
   }
 }
 
-@media (min-width: 768px) {
+@media (min-width: 769px) {
   .desktop-global-search {
     display: flex;
     align-items: flex-start;
