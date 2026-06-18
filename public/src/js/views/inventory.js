@@ -5,6 +5,12 @@ window.SuppliersView = {
   activeTab: 'suppliers',
   editingSupplierId: null,
   editingPaymentId: null,
+  lazyBatchSize: 20,
+  lazyKeys: {
+    suppliers: 'suppliers-table',
+    purchases: 'supplier-purchases-table',
+    payments: 'supplier-payments-table'
+  },
 
   render(container) {
     const suppliers = State.read('suppliers') || [];
@@ -12,6 +18,7 @@ window.SuppliersView = {
     const payments = State.read('supplierPayments') || [];
     const inventory = State.read('inventory') || [];
     const summary = this.calculateSummary(suppliers, purchases, payments, inventory);
+    Utils.resetInfiniteList(this.lazyKeys[this.activeTab] || this.lazyKeys.suppliers, this.lazyBatchSize);
 
     container.innerHTML = `
       <div class="view-header">
@@ -43,7 +50,7 @@ window.SuppliersView = {
       </div>
 
       <div class="card">
-        <div class="tabs">
+        <div class="tabs segmented-control is-sticky ui-tab-nav">
           <button class="tab-btn ${this.activeTab === 'suppliers' ? 'active' : ''}" data-inventory-tab="suppliers">
             <i class="fas fa-store"></i> Καταστήματα
           </button>
@@ -55,13 +62,14 @@ window.SuppliersView = {
           </button>
         </div>
 
-        <div style="margin-top: 20px;">
+        <div id="suppliersActiveTabContent" style="margin-top: 20px;">
           ${this.renderActiveTab(suppliers, purchases, payments, inventory)}
         </div>
       </div>
     `;
 
     this.setupEventListeners(container);
+    this.setupLazyTable(container, suppliers, purchases, payments, inventory);
   },
 
   calculateSummary(suppliers, purchases, payments, inventory) {
@@ -87,6 +95,9 @@ window.SuppliersView = {
   },
 
   renderSuppliersTab(suppliers, purchases, payments) {
+    const lazy = Utils.getInfiniteSlice(this.lazyKeys.suppliers, suppliers, this.lazyBatchSize);
+    const visibleSuppliers = lazy.items;
+
     return `
       <div class="form-section">
         <h3>${this.editingSupplierId ? 'Επεξεργασία Καταστήματος' : 'Νέο Κατάστημα'}</h3>
@@ -116,7 +127,7 @@ window.SuppliersView = {
         </form>
       </div>
 
-      <div class="table-wrapper" style="margin-top: 20px;">
+      <div class="table-wrapper has-mobile-cards" style="margin-top: 20px;">
         <table class="data-table">
           <thead>
             <tr>
@@ -129,13 +140,13 @@ window.SuppliersView = {
             </tr>
           </thead>
           <tbody>
-            ${suppliers.length ? suppliers.map(supplier => {
+            ${visibleSuppliers.length ? visibleSuppliers.map(supplier => {
               const totals = this.getSupplierTotals(supplier.id, purchases, payments);
               return `
                 <tr>
                   <td class="actions">
-                    <button class="btn-icon edit-supplier-btn" data-id="${supplier.id}" title="Επεξεργασία"><i class="fas fa-edit"></i></button>
-                    <button class="btn-icon btn-danger delete-supplier-btn" data-id="${supplier.id}" title="Διαγραφή"><i class="fas fa-trash"></i></button>
+                    ${UIPrimitives.actionButton({ className: 'edit-supplier-btn', icon: 'fas fa-edit', title: 'Επεξεργασία', data: { id: supplier.id } })}
+                    ${UIPrimitives.actionButton({ className: 'btn-danger delete-supplier-btn', icon: 'fas fa-trash', title: 'Διαγραφή', data: { id: supplier.id } })}
                   </td>
                   <td><strong>${this.escape(supplier.name)}</strong><br><small>${this.escape(supplier.address || supplier.notes || '')}</small></td>
                   <td>${supplier.phone ? `<a href="tel:${supplier.phone}">${this.escape(supplier.phone)}</a>` : '-'}</td>
@@ -148,10 +159,46 @@ window.SuppliersView = {
           </tbody>
         </table>
       </div>
+      <div class="mobile-card-list" aria-label="Καταστήματα για κινητό">
+        ${visibleSuppliers.length ? visibleSuppliers.map(supplier => {
+          const totals = this.getSupplierTotals(supplier.id, purchases, payments);
+          return `
+            <article class="entity-mobile-card">
+              <div class="entity-mobile-card-header">
+                <div class="entity-mobile-card-title">
+                  <strong>${this.escape(supplier.name || '-')}</strong>
+                  <span>${this.escape(supplier.address || supplier.notes || '')}</span>
+                </div>
+                <div class="entity-mobile-card-actions">
+                  ${UIPrimitives.actionButton({ className: 'edit-supplier-btn', icon: 'fas fa-edit', title: 'Επεξεργασία', data: { id: supplier.id } })}
+                  ${UIPrimitives.actionButton({ className: 'btn-danger delete-supplier-btn', icon: 'fas fa-trash', title: 'Διαγραφή', data: { id: supplier.id } })}
+                </div>
+              </div>
+              <div class="entity-mobile-card-meta">
+                ${supplier.phone ? `<a href="tel:${this.escape(supplier.phone)}"><i class="fas fa-phone"></i>${this.escape(supplier.phone)}</a>` : '<span><i class="fas fa-phone"></i>Χωρίς τηλέφωνο</span>'}
+                <span><i class="fas fa-receipt"></i>Αγορές: ${Utils.formatCurrency(totals.totalPurchases)}</span>
+                <span><i class="fas fa-money-bill-wave"></i>Πληρωμένα: ${Utils.formatCurrency(totals.totalPaid)}</span>
+                <span style="color: ${totals.balance > 0 ? 'var(--error)' : 'var(--success)'};"><i class="fas fa-scale-balanced"></i>Υπόλοιπο: ${Utils.formatCurrency(totals.balance)}</span>
+              </div>
+            </article>
+          `;
+        }).join('') : UIPrimitives.emptyState({
+          icon: 'fas fa-store',
+          title: 'Δεν υπάρχουν καταστήματα',
+          description: 'Προσθέστε το πρώτο κατάστημα προμηθευτή.'
+        })}
+      </div>
+      ${Utils.renderInfiniteFooter(this.lazyKeys.suppliers, lazy.visible, lazy.total, this.lazyBatchSize)}
     `;
   },
 
   renderPurchasesTab(suppliers, purchases, inventory) {
+    const sortedPurchases = purchases
+      .slice()
+      .sort((a, b) => String(b.purchaseDate || b.purchase_date || '').localeCompare(String(a.purchaseDate || a.purchase_date || '')));
+    const lazy = Utils.getInfiniteSlice(this.lazyKeys.purchases, sortedPurchases, this.lazyBatchSize);
+    const visiblePurchases = lazy.items;
+
     return `
       <div class="form-section">
         <h3>Νέα Αγορά Υλικών</h3>
@@ -228,7 +275,7 @@ window.SuppliersView = {
         </form>
       </div>
 
-      <div class="table-wrapper" style="margin-top: 25px;">
+      <div class="table-wrapper has-mobile-cards" style="margin-top: 25px;">
         <table class="data-table">
           <thead>
             <tr>
@@ -242,11 +289,11 @@ window.SuppliersView = {
             </tr>
           </thead>
           <tbody>
-            ${purchases.length ? purchases.map(purchase => `
+            ${visiblePurchases.length ? visiblePurchases.map(purchase => `
               <tr>
                 <td class="actions">
-                  <button class="btn-icon view-purchase-btn" data-id="${purchase.id}" title="Προβολή"><i class="fas fa-eye"></i></button>
-                  <button class="btn-icon btn-danger delete-purchase-btn" data-id="${purchase.id}" title="Διαγραφή"><i class="fas fa-trash"></i></button>
+                  ${UIPrimitives.actionButton({ className: 'view-purchase-btn', icon: 'fas fa-eye', title: 'Προβολή', data: { id: purchase.id } })}
+                  ${UIPrimitives.actionButton({ className: 'btn-danger delete-purchase-btn', icon: 'fas fa-trash', title: 'Διαγραφή', data: { id: purchase.id } })}
                 </td>
                 <td>${Utils.formatDate(purchase.purchaseDate || purchase.purchase_date)}</td>
                 <td>${this.escape(purchase.supplierName || this.getSupplierName(purchase.supplierId || purchase.supplier_id, suppliers))}</td>
@@ -259,11 +306,50 @@ window.SuppliersView = {
           </tbody>
         </table>
       </div>
+      <div class="mobile-card-list" aria-label="Αγορές για κινητό">
+        ${visiblePurchases.length ? visiblePurchases.map(purchase => {
+          const supplierName = purchase.supplierName || this.getSupplierName(purchase.supplierId || purchase.supplier_id, suppliers);
+          const items = Array.isArray(purchase.items) ? purchase.items : DataMappers.parseJsonArray(purchase.items);
+          const totalCost = this.toNumber(purchase.totalCost || purchase.total_cost);
+          const paidAmount = this.toNumber(purchase.paidAmount || purchase.paid_amount);
+          const balance = this.toNumber(purchase.balance);
+          return `
+            <article class="entity-mobile-card">
+              <div class="entity-mobile-card-header">
+                <div class="entity-mobile-card-title">
+                  <strong>${this.escape(supplierName || '-')}</strong>
+                  <span>${Utils.formatDate(purchase.purchaseDate || purchase.purchase_date)} · ${items.length} υλικά</span>
+                </div>
+                <div class="entity-mobile-card-actions">
+                  ${UIPrimitives.actionButton({ className: 'view-purchase-btn', icon: 'fas fa-eye', title: 'Προβολή', data: { id: purchase.id } })}
+                  ${UIPrimitives.actionButton({ className: 'btn-danger delete-purchase-btn', icon: 'fas fa-trash', title: 'Διαγραφή', data: { id: purchase.id } })}
+                </div>
+              </div>
+              <div class="entity-mobile-card-meta">
+                <span><i class="fas fa-receipt"></i>Σύνολο: ${Utils.formatCurrency(totalCost)}</span>
+                <span><i class="fas fa-money-bill-wave"></i>Πληρωμένο: ${Utils.formatCurrency(paidAmount)}</span>
+                <span style="color: ${balance > 0 ? 'var(--error)' : 'var(--success)'};"><i class="fas fa-scale-balanced"></i>Υπόλοιπο: ${Utils.formatCurrency(balance)}</span>
+              </div>
+            </article>
+          `;
+        }).join('') : UIPrimitives.emptyState({
+          icon: 'fas fa-receipt',
+          title: 'Δεν υπάρχουν αγορές',
+          description: 'Οι αγορές υλικών θα εμφανίζονται εδώ.'
+        })}
+      </div>
+      ${Utils.renderInfiniteFooter(this.lazyKeys.purchases, lazy.visible, lazy.total, this.lazyBatchSize)}
 
     `;
   },
 
   renderPaymentsTab(suppliers, purchases, payments) {
+    const sortedPayments = payments
+      .slice()
+      .sort((a, b) => String(b.paymentDate || b.payment_date || '').localeCompare(String(a.paymentDate || a.payment_date || '')));
+    const lazy = Utils.getInfiniteSlice(this.lazyKeys.payments, sortedPayments, this.lazyBatchSize);
+    const visiblePayments = lazy.items;
+
     return `
       <div class="form-section">
         <h3>${this.editingPaymentId ? 'Επεξεργασία Πληρωμής' : 'Νέα Πληρωμή'}</h3>
@@ -307,7 +393,7 @@ window.SuppliersView = {
         </form>
       </div>
 
-      <div class="table-wrapper" style="margin-top: 25px;">
+      <div class="table-wrapper has-mobile-cards" style="margin-top: 25px;">
         <table class="data-table">
           <thead>
             <tr>
@@ -320,11 +406,11 @@ window.SuppliersView = {
             </tr>
           </thead>
           <tbody>
-            ${payments.length ? payments.map(payment => `
+            ${visiblePayments.length ? visiblePayments.map(payment => `
               <tr>
                 <td class="actions">
-                  <button class="btn-icon edit-payment-btn" data-id="${payment.id}" title="Επεξεργασία"><i class="fas fa-edit"></i></button>
-                  <button class="btn-icon btn-danger delete-payment-btn" data-id="${payment.id}" title="Διαγραφή"><i class="fas fa-trash"></i></button>
+                  ${UIPrimitives.actionButton({ className: 'edit-payment-btn', icon: 'fas fa-edit', title: 'Επεξεργασία', data: { id: payment.id } })}
+                  ${UIPrimitives.actionButton({ className: 'btn-danger delete-payment-btn', icon: 'fas fa-trash', title: 'Διαγραφή', data: { id: payment.id } })}
                 </td>
                 <td>${Utils.formatDate(payment.paymentDate || payment.payment_date)}</td>
                 <td>${this.escape(payment.supplierName || this.getSupplierName(payment.supplierId || payment.supplier_id, suppliers))}</td>
@@ -336,12 +422,41 @@ window.SuppliersView = {
           </tbody>
         </table>
       </div>
+      <div class="mobile-card-list" aria-label="Πληρωμές προμηθευτών για κινητό">
+        ${visiblePayments.length ? visiblePayments.map(payment => {
+          const supplierName = payment.supplierName || this.getSupplierName(payment.supplierId || payment.supplier_id, suppliers);
+          const purchaseId = payment.purchaseId || payment.purchase_id;
+          return `
+            <article class="entity-mobile-card">
+              <div class="entity-mobile-card-header">
+                <div class="entity-mobile-card-title">
+                  <strong>${this.escape(supplierName || '-')}</strong>
+                  <span>${Utils.formatDate(payment.paymentDate || payment.payment_date)} · ${purchaseId ? `Αγορά #${purchaseId}` : 'Έναντι'}</span>
+                </div>
+                <div class="entity-mobile-card-actions">
+                  ${UIPrimitives.actionButton({ className: 'edit-payment-btn', icon: 'fas fa-edit', title: 'Επεξεργασία', data: { id: payment.id } })}
+                  ${UIPrimitives.actionButton({ className: 'btn-danger delete-payment-btn', icon: 'fas fa-trash', title: 'Διαγραφή', data: { id: payment.id } })}
+                </div>
+              </div>
+              <div class="entity-mobile-card-meta">
+                <span><i class="fas fa-euro-sign"></i>Ποσό: ${Utils.formatCurrency(payment.amount)}</span>
+                ${payment.notes ? `<span><i class="fas fa-note-sticky"></i>${this.escape(payment.notes)}</span>` : ''}
+              </div>
+            </article>
+          `;
+        }).join('') : UIPrimitives.emptyState({
+          icon: 'fas fa-credit-card',
+          title: 'Δεν υπάρχουν πληρωμές',
+          description: 'Οι πληρωμές προμηθευτών θα εμφανίζονται εδώ.'
+        })}
+      </div>
+      ${Utils.renderInfiniteFooter(this.lazyKeys.payments, lazy.visible, lazy.total, this.lazyBatchSize)}
     `;
   },
 
   renderMaterialsTab(inventory) {
     return `
-      <div class="table-wrapper">
+      <div class="table-wrapper has-mobile-cards">
         <table class="data-table">
           <thead>
             <tr>
@@ -371,7 +486,65 @@ window.SuppliersView = {
           </tbody>
         </table>
       </div>
+      <div class="mobile-card-list" aria-label="Υλικά για κινητό">
+        ${inventory.length ? inventory.map(material => {
+          const unitPrice = this.toNumber(material.unitPrice || material.unit_price);
+          const stock = this.toNumber(material.stock);
+          return `
+            <article class="entity-mobile-card">
+              <div class="entity-mobile-card-header">
+                <div class="entity-mobile-card-title">
+                  <strong>${this.escape(material.name || '-')}</strong>
+                  <span>${this.escape(material.category || '-')}</span>
+                </div>
+              </div>
+              <div class="entity-mobile-card-meta">
+                <span><i class="fas fa-boxes-stacked"></i>${stock.toFixed(2)} ${this.escape(material.unit || '')}</span>
+                <span><i class="fas fa-tag"></i>${Utils.formatCurrency(unitPrice)} / μονάδα</span>
+                <span><i class="fas fa-coins"></i>Αξία: ${Utils.formatCurrency(unitPrice * stock)}</span>
+              </div>
+            </article>
+          `;
+        }).join('') : UIPrimitives.emptyState({
+          icon: 'fas fa-box-open',
+          title: 'Δεν υπάρχουν υλικά',
+          description: 'Τα υλικά θα εμφανίζονται εδώ όταν καταχωρηθούν.'
+        })}
+      </div>
     `;
+  },
+
+  renderActiveTabWithLazy(container, suppliers, purchases, payments, inventory, { reset = false } = {}) {
+    const key = this.lazyKeys[this.activeTab] || this.lazyKeys.suppliers;
+    if (reset) {
+      Utils.resetInfiniteList(key, this.lazyBatchSize);
+    }
+
+    const tabContent = container.querySelector('#suppliersActiveTabContent');
+    if (!tabContent) return;
+
+    tabContent.innerHTML = this.renderActiveTab(suppliers, purchases, payments, inventory);
+    this.setupSupplierForm(container);
+    this.setupPurchaseForm(container);
+    this.setupPaymentForm(container);
+    this.setupTableActions(container);
+    this.setupLazyTable(container, suppliers, purchases, payments, inventory);
+  },
+
+  setupLazyTable(container, suppliers, purchases, payments, inventory) {
+    const key = this.lazyKeys[this.activeTab] || this.lazyKeys.suppliers;
+    const totalByTab = {
+      suppliers: Array.isArray(suppliers) ? suppliers.length : 0,
+      purchases: Array.isArray(purchases) ? purchases.length : 0,
+      payments: Array.isArray(payments) ? payments.length : 0
+    };
+
+    Utils.setupInfiniteScroll({
+      key,
+      total: totalByTab[this.activeTab] || 0,
+      batchSize: this.lazyBatchSize,
+      onLoadMore: () => this.renderActiveTabWithLazy(container, suppliers, purchases, payments, inventory)
+    });
   },
 
   setupEventListeners(container) {

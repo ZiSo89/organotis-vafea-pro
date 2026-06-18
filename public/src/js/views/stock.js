@@ -4,11 +4,17 @@
 
 window.InventoryView = {
   editingMaterialId: null,
+  materialSearchTerm: '',
+  materialsLazyKey: 'stock-materials-table',
+  movementsLazyKey: 'stock-movements-table',
+  lazyBatchSize: 20,
 
   render(container) {
     const materials = State.read('inventory') || [];
     const movements = State.read('materialStockMovements') || [];
     const summary = this.calculateSummary(materials);
+    Utils.resetInfiniteList(this.materialsLazyKey, this.lazyBatchSize);
+    Utils.resetInfiniteList(this.movementsLazyKey, this.lazyBatchSize);
 
     container.innerHTML = `
       <div class="view-header">
@@ -132,12 +138,17 @@ window.InventoryView = {
         </div>
       </div>
 
-      ${this.renderMaterialsTable(materials)}
-      ${this.renderMovementsTable(movements)}
+      <div id="stockMaterialsTableContainer">
+        ${this.renderMaterialsTable(materials)}
+      </div>
+      <div id="stockMovementsTableContainer">
+        ${this.renderMovementsTable(movements)}
+      </div>
     `;
 
     this.setupEventListeners(container);
     this.populateEditForm(container);
+    this.setupLazyTables(container, materials, movements);
   },
 
   calculateSummary(materials) {
@@ -153,7 +164,36 @@ window.InventoryView = {
     }, { liters: 0, value: 0 });
   },
 
+  getFilteredStockMaterials(materials) {
+    const list = Array.isArray(materials) ? materials : [];
+    const term = String(this.materialSearchTerm || '').trim();
+    if (!term) return list;
+
+    const normalize = (value) => {
+      if (typeof MaterialIdentity !== 'undefined' && MaterialIdentity.normalizeSearchText) {
+        return MaterialIdentity.normalizeSearchText(value);
+      }
+      return String(value || '').toLowerCase();
+    };
+    const normalizedTerm = normalize(term);
+
+    return list.filter(material => {
+      const haystack = normalize([
+        material.name,
+        material.colorCode || material.color_code,
+        material.category,
+        material.unit
+      ].filter(Boolean).join(' '));
+      return haystack.includes(normalizedTerm);
+    });
+  },
+
   renderMaterialsTable(materials) {
+    const filteredMaterials = this.getFilteredStockMaterials(materials);
+    const lazy = Utils.getInfiniteSlice(this.materialsLazyKey, filteredMaterials, this.lazyBatchSize);
+    const visibleMaterials = lazy.items;
+    const hasSearch = String(this.materialSearchTerm || '').trim().length > 0;
+
     return `
       <div class="card" style="margin-top: 20px;">
         <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
@@ -162,7 +202,13 @@ window.InventoryView = {
             <i class="fas fa-object-group"></i> Έλεγχος διπλών
           </button>
         </div>
-        <div class="table-wrapper">
+        <div class="filters" style="margin-top: 12px;">
+          <div class="search-box" style="width: min(100%, 420px);">
+            <i class="fas fa-search"></i>
+            <input type="text" id="stockMaterialsSearch" placeholder="Αναζήτηση υλικών..." value="${this.escapeAttribute(this.materialSearchTerm)}" autocomplete="off">
+          </div>
+        </div>
+        <div class="table-wrapper has-mobile-cards">
           <table class="data-table">
             <thead>
               <tr>
@@ -177,15 +223,15 @@ window.InventoryView = {
               </tr>
             </thead>
             <tbody>
-              ${materials.length ? materials.map(material => {
+              ${visibleMaterials.length ? visibleMaterials.map(material => {
                 const stock = this.toNumber(material.stock);
                 const unitPrice = this.toNumber(material.unitPrice || material.unit_price);
                 return `
                   <tr>
                     <td class="actions">
-                      <button class="btn-icon quick-stock-remove-btn" data-id="${material.id}" title="Αφαίρεση από αποθήκη"><i class="fas fa-minus"></i></button>
-                      <button class="btn-icon edit-stock-material-btn" data-id="${material.id}" title="Επεξεργασία"><i class="fas fa-edit"></i></button>
-                      <button class="btn-icon btn-danger delete-stock-material-btn" data-id="${material.id}" title="Διαγραφή"><i class="fas fa-trash"></i></button>
+                      ${UIPrimitives.actionButton({ className: 'quick-stock-remove-btn', icon: 'fas fa-minus', title: 'Αφαίρεση από αποθήκη', data: { id: material.id } })}
+                      ${UIPrimitives.actionButton({ className: 'edit-stock-material-btn', icon: 'fas fa-edit', title: 'Επεξεργασία', data: { id: material.id } })}
+                      ${UIPrimitives.actionButton({ className: 'btn-danger delete-stock-material-btn', icon: 'fas fa-trash', title: 'Διαγραφή', data: { id: material.id } })}
                     </td>
                     <td><strong>${this.escape(material.name)}</strong></td>
                     <td>${this.escape(material.colorCode || material.color_code || '-')}</td>
@@ -196,28 +242,61 @@ window.InventoryView = {
                     <td>${Utils.formatCurrency(stock * unitPrice)}</td>
                   </tr>
                 `;
-              }).join('') : '<tr><td colspan="8" class="text-muted">Δεν υπάρχουν υλικά ακόμα.</td></tr>'}
+              }).join('') : `<tr><td colspan="8" class="text-muted">${hasSearch ? 'Δεν βρέθηκαν υλικά με αυτή την αναζήτηση.' : 'Δεν υπάρχουν υλικά ακόμα.'}</td></tr>`}
             </tbody>
           </table>
         </div>
+        <div class="mobile-card-list" aria-label="Υλικά αποθήκης για κινητό">
+          ${visibleMaterials.length ? visibleMaterials.map(material => {
+            const stock = this.toNumber(material.stock);
+            const unitPrice = this.toNumber(material.unitPrice || material.unit_price);
+            const code = material.colorCode || material.color_code || '-';
+            return `
+              <article class="entity-mobile-card">
+                <div class="entity-mobile-card-header">
+                  <div class="entity-mobile-card-title">
+                    <strong>${this.escape(material.name || '-')}</strong>
+                    <span>${this.escape(material.category || '-')} · ${this.escape(code)}</span>
+                  </div>
+                  <div class="entity-mobile-card-actions">
+                    ${UIPrimitives.actionButton({ className: 'quick-stock-remove-btn', icon: 'fas fa-minus', title: 'Αφαίρεση από αποθήκη', data: { id: material.id } })}
+                    ${UIPrimitives.actionButton({ className: 'edit-stock-material-btn', icon: 'fas fa-edit', title: 'Επεξεργασία', data: { id: material.id } })}
+                    ${UIPrimitives.actionButton({ className: 'btn-danger delete-stock-material-btn', icon: 'fas fa-trash', title: 'Διαγραφή', data: { id: material.id } })}
+                  </div>
+                </div>
+                <div class="entity-mobile-card-meta">
+                  <span><i class="fas fa-boxes-stacked"></i>${stock.toFixed(2)} ${this.escape(material.unit || '')}</span>
+                  <span><i class="fas fa-tag"></i>${Utils.formatCurrency(unitPrice)} / μονάδα</span>
+                  <span><i class="fas fa-coins"></i>Αξία: ${Utils.formatCurrency(stock * unitPrice)}</span>
+                </div>
+              </article>
+            `;
+          }).join('') : UIPrimitives.emptyState({
+            icon: 'fas fa-box-open',
+            title: hasSearch ? 'Δεν βρέθηκαν υλικά' : 'Δεν υπάρχουν υλικά',
+            description: hasSearch ? 'Δοκιμάστε άλλη αναζήτηση.' : 'Προσθέστε υλικά για να παρακολουθείτε την αποθήκη.'
+          })}
+        </div>
+        ${Utils.renderInfiniteFooter(this.materialsLazyKey, lazy.visible, lazy.total, this.lazyBatchSize)}
       </div>
     `;
   },
 
   renderMovementsTable(movements) {
-    const latestMovements = movements
+    const sortedMovements = movements
       .slice()
       .sort((a, b) => {
         const dateCompare = String(b.movementDate || b.movement_date || '').localeCompare(String(a.movementDate || a.movement_date || ''));
         if (dateCompare !== 0) return dateCompare;
         return Number(b.id || 0) - Number(a.id || 0);
-      })
-      .slice(0, 10);
+      });
+    const lazy = Utils.getInfiniteSlice(this.movementsLazyKey, sortedMovements, this.lazyBatchSize);
+    const visibleMovements = lazy.items;
 
     return `
       <div class="card" style="margin-top: 20px;">
         <h3><i class="fas fa-history"></i> Ιστορικό κινήσεων</h3>
-        <div class="table-wrapper">
+        <div class="table-wrapper has-mobile-cards">
           <table class="data-table">
             <thead>
               <tr>
@@ -231,7 +310,7 @@ window.InventoryView = {
               </tr>
             </thead>
             <tbody>
-              ${latestMovements.length ? latestMovements.map(movement => `
+              ${visibleMovements.length ? visibleMovements.map(movement => `
                 <tr>
                   <td>${Utils.formatDate(movement.movementDate || movement.movement_date)}</td>
                   <td><strong>${this.escape(movement.materialName || movement.material_name || '-')}</strong></td>
@@ -247,8 +326,73 @@ window.InventoryView = {
             </tbody>
           </table>
         </div>
+        <div class="mobile-card-list" aria-label="Ιστορικό κινήσεων αποθήκης για κινητό">
+          ${visibleMovements.length ? visibleMovements.map(movement => {
+            const quantity = this.toNumber(movement.quantity);
+            const previousStock = this.toNumber(movement.previousStock || movement.previous_stock);
+            const newStock = this.toNumber(movement.newStock || movement.new_stock);
+            return `
+              <article class="entity-mobile-card">
+                <div class="entity-mobile-card-header">
+                  <div class="entity-mobile-card-title">
+                    <strong>${this.escape(movement.materialName || movement.material_name || '-')}</strong>
+                    <span>${Utils.formatDate(movement.movementDate || movement.movement_date)} · ${this.movementLabel(movement.movementType || movement.movement_type)}</span>
+                  </div>
+                </div>
+                <div class="entity-mobile-card-meta">
+                  <span style="color: ${quantity < 0 ? 'var(--error)' : 'var(--success)'};"><i class="fas fa-right-left"></i>${quantity.toFixed(2)} ${this.escape(movement.unit || '')}</span>
+                  <span><i class="fas fa-warehouse"></i>${previousStock.toFixed(2)} → ${newStock.toFixed(2)}</span>
+                  ${movement.notes ? `<span><i class="fas fa-note-sticky"></i>${this.escape(movement.notes)}</span>` : ''}
+                </div>
+              </article>
+            `;
+          }).join('') : UIPrimitives.emptyState({
+            icon: 'fas fa-clock-rotate-left',
+            title: 'Δεν υπάρχουν κινήσεις',
+            description: 'Οι αλλαγές αποθήκης θα εμφανίζονται εδώ.'
+          })}
+        </div>
+        ${Utils.renderInfiniteFooter(this.movementsLazyKey, lazy.visible, lazy.total, this.lazyBatchSize)}
       </div>
     `;
+  },
+
+  renderMaterialsTableWithLazy(container, materials, { reset = false, focusSearch = false } = {}) {
+    if (reset) {
+      Utils.resetInfiniteList(this.materialsLazyKey, this.lazyBatchSize);
+    }
+    const tableContainer = container.querySelector('#stockMaterialsTableContainer');
+    if (!tableContainer) return;
+
+    tableContainer.innerHTML = this.renderMaterialsTable(materials);
+    this.setupStockTableActionListeners(container, { focusMaterialSearch: focusSearch });
+    this.setupLazyTables(container, materials, State.read('materialStockMovements') || []);
+  },
+
+  renderMovementsTableWithLazy(container, movements, { reset = false } = {}) {
+    if (reset) {
+      Utils.resetInfiniteList(this.movementsLazyKey, this.lazyBatchSize);
+    }
+    const tableContainer = container.querySelector('#stockMovementsTableContainer');
+    if (!tableContainer) return;
+
+    tableContainer.innerHTML = this.renderMovementsTable(movements);
+    this.setupLazyTables(container, State.read('inventory') || [], movements);
+  },
+
+  setupLazyTables(container, materials, movements) {
+    Utils.setupInfiniteScroll({
+      key: this.materialsLazyKey,
+      total: this.getFilteredStockMaterials(materials).length,
+      batchSize: this.lazyBatchSize,
+      onLoadMore: () => this.renderMaterialsTableWithLazy(container, materials)
+    });
+    Utils.setupInfiniteScroll({
+      key: this.movementsLazyKey,
+      total: Array.isArray(movements) ? movements.length : 0,
+      batchSize: this.lazyBatchSize,
+      onLoadMore: () => this.renderMovementsTableWithLazy(container, movements)
+    });
   },
 
   setupEventListeners(container) {
@@ -266,6 +410,40 @@ window.InventoryView = {
       this.editingMaterialId = null;
       this.render(container);
     });
+
+    this.setupStockTableActionListeners(container);
+    this.setupMovementMaterialAutocomplete(container);
+    if (!this.editingMaterialId) {
+      this.setupMaterialNameAutocomplete(container);
+    }
+    container.querySelector('#stockMovementType')?.addEventListener('change', () => this.updateMovementLabel(container));
+    container.querySelector('#stockMaterialCategory')?.addEventListener('change', () => this.updateColorCodeVisibility(container));
+    this.updateMovementUnit(container);
+    this.updateMovementLabel(container);
+    this.updateColorCodeVisibility(container);
+  },
+
+  setupStockTableActionListeners(container, { focusMaterialSearch = false } = {}) {
+    const searchInput = container.querySelector('#stockMaterialsSearch');
+    if (searchInput) {
+      searchInput.addEventListener('input', () => {
+        this.materialSearchTerm = searchInput.value;
+        this.renderMaterialsTableWithLazy(container, State.read('inventory') || [], {
+          reset: true,
+          focusSearch: true
+        });
+      });
+
+      if (focusMaterialSearch) {
+        requestAnimationFrame(() => {
+          const nextInput = container.querySelector('#stockMaterialsSearch');
+          if (!nextInput) return;
+          nextInput.focus();
+          const cursorPosition = nextInput.value.length;
+          nextInput.setSelectionRange(cursorPosition, cursorPosition);
+        });
+      }
+    }
 
     container.querySelectorAll('.edit-stock-material-btn').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -302,16 +480,7 @@ window.InventoryView = {
       });
     });
 
-    this.setupMovementMaterialAutocomplete(container);
-    if (!this.editingMaterialId) {
-      this.setupMaterialNameAutocomplete(container);
-    }
-    container.querySelector('#stockMovementType')?.addEventListener('change', () => this.updateMovementLabel(container));
-    container.querySelector('#stockMaterialCategory')?.addEventListener('change', () => this.updateColorCodeVisibility(container));
     container.querySelector('#checkDuplicateMaterialsBtn')?.addEventListener('click', () => this.showDuplicateMaterialsModal(container));
-    this.updateMovementUnit(container);
-    this.updateMovementLabel(container);
-    this.updateColorCodeVisibility(container);
   },
 
   populateEditForm(container) {
@@ -657,6 +826,22 @@ window.InventoryView = {
             <select class="duplicate-primary-select">
               ${group.materials.map(material => `<option value="${material.id}">#${material.id} - ${this.escape(material.name)} (${this.escape(material.category || 'Άλλο')}${material.colorCode || material.color_code ? ', ' + this.escape(material.colorCode || material.color_code) : ''})</option>`).join('')}
             </select>
+          </div>
+          <div class="duplicate-group-cards">
+            ${group.materials.map(material => `
+              <article class="entity-mobile-card">
+                <div class="entity-mobile-card-header">
+                  <div class="entity-mobile-card-title">
+                    <strong>#${material.id} — ${this.escape(material.name)}</strong>
+                    <span>${this.escape(material.category || 'Άλλο')}</span>
+                  </div>
+                </div>
+                <div class="entity-mobile-card-meta">
+                  <span><i class="fas fa-palette"></i> ${this.escape(material.colorCode || material.color_code || '-')}</span>
+                  <span><i class="fas fa-boxes"></i> ${this.toNumber(material.stock).toFixed(2)} ${this.escape(material.unit || '')}</span>
+                </div>
+              </article>
+            `).join('')}
           </div>
           <div class="table-wrapper">
             <table class="data-table">

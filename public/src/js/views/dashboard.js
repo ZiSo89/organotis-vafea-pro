@@ -9,116 +9,122 @@ window.DashboardView = {
   
   render(container) {
     const stats = this.calculateStats();
+    const companyName = State.data?.settings?.company_settings?.name || document.getElementById('sidebarCompanyName')?.textContent || 'Τέχνη και Χρώμα';
+    const isMobile = Utils.isMobile();
     
     container.innerHTML = `
       <div class="dashboard">
-        <h1>Αρχική Σελίδα</h1>
-        
-        <!-- Widgets - Single Row -->
-        <div class="dashboard-widgets-single-row">
-          <div class="widget-compact clickable" onclick="Router.navigate('jobs')">
-            <div class="widget-content">
-              <div class="widget-title">Εργασίες</div>
-              <div class="widget-value">${stats.totalJobs}</div>
-              <div class="widget-footer">${stats.activeJobs} ενεργές</div>
-            </div>
-            <div class="widget-icon primary">
-              <i class="fas fa-briefcase"></i>
-            </div>
-          </div>
-
-          <div class="widget-compact clickable" onclick="Router.navigate('clients')">
-            <div class="widget-content">
-              <div class="widget-title">Πελάτες</div>
-              <div class="widget-value">${stats.totalClients}</div>
-              <div class="widget-footer">${stats.newClientsThisMonth} νέοι</div>
-            </div>
-            <div class="widget-icon info">
-              <i class="fas fa-users"></i>
-            </div>
-          </div>
-
-          <div class="widget-compact clickable" onclick="Router.navigate('suppliers')">
-            <div class="widget-content">
-              <div class="widget-title">Προμηθευτές</div>
-              <div class="widget-value">${stats.totalSuppliers}</div>
-              <div class="widget-footer">Υπόλοιπο: ${Utils.formatCurrency(stats.supplierBalance)}</div>
-            </div>
-            <div class="widget-icon warning">
-              <i class="fas fa-store"></i>
-            </div>
-          </div>
-
-          <div class="widget-compact clickable" onclick="Router.navigate('inventory')">
-            <div class="widget-content">
-              <div class="widget-title">Αποθήκη</div>
-              <div class="widget-value">${stats.totalMaterials}</div>
-              <div class="widget-footer">Αξία: ${Utils.formatCurrency(stats.stockValue)}</div>
-            </div>
-            <div class="widget-icon info">
-              <i class="fas fa-boxes"></i>
-            </div>
-          </div>
-
-          <div class="widget-compact clickable" onclick="Router.navigate('statistics')">
-            <div class="widget-content">
-              <div class="widget-title">Καθαρά Κέρδη Μήνα</div>
-              <div id="monthlyProfitValue" class="widget-value" style="color: ${stats.monthlyProfit >= 0 ? 'var(--success)' : 'var(--error)'}">
-                ${stats.monthlyProfit >= 0 ? '+' : ''}${Utils.formatCurrency(stats.monthlyProfit)}
+          ${isMobile ? `<p class="dashboard-greeting">Καλημέρα, <strong>${Utils.escapeHtml(companyName)}</strong></p>` : `<h1>Αρχική Σελίδα</h1>`}
+          
+          <!-- Widgets - Single Row -->
+          <div class="dashboard-widgets-single-row ${isMobile ? 'is-mobile-scroll' : ''}">
+            <div class="widget-compact clickable" onclick="Router.navigate('jobs')">
+              <div class="widget-content">
+                <div class="widget-title">Εργασίες</div>
+                <div class="widget-value">${stats.totalJobs}</div>
+                <div class="widget-footer">${stats.activeJobs} ενεργές</div>
               </div>
-              <div class="widget-footer">${stats.completedThisMonth} ολοκληρωμένες</div>
+              <div class="widget-icon primary">
+                <i class="fas fa-briefcase"></i>
+              </div>
             </div>
-            <div class="widget-icon ${stats.monthlyProfit >= 0 ? 'success' : 'error'}">
-              <i class="fas fa-chart-line"></i>
-            </div>
-          </div>
-        </div>
 
-        <!-- Recent Activities & Charts -->
-        <div class="grid grid-2">
-          <div class="card">
-            <div class="card-header">
-              <h2 class="card-title">
-                <i class="fas fa-calendar-check"></i> Επόμενες Επισκέψεις
-              </h2>
+            <div class="widget-compact clickable" onclick="Router.navigate('clients')">
+              <div class="widget-content">
+                <div class="widget-title">Πελάτες</div>
+                <div class="widget-value">${stats.totalClients}</div>
+                <div class="widget-footer">${stats.newClientsThisMonth} νέοι</div>
+              </div>
+              <div class="widget-icon info">
+                <i class="fas fa-users"></i>
+              </div>
             </div>
-            <div class="card-body">
-              ${this.renderUpcomingVisits()}
+
+            <div class="widget-compact clickable" onclick="Router.navigate('suppliers')">
+              <div class="widget-content">
+                <div class="widget-title">Προμηθευτές</div>
+                <div class="widget-value">${stats.totalSuppliers}</div>
+                <div class="widget-footer">Υπόλοιπο: ${Utils.formatCurrency(stats.supplierBalance)}</div>
+              </div>
+              <div class="widget-icon warning">
+                <i class="fas fa-store"></i>
+              </div>
+            </div>
+
+            <div class="widget-compact clickable" onclick="Router.navigate('inventory')">
+              <div class="widget-content">
+                <div class="widget-title">Αποθήκη</div>
+                <div class="widget-value">${stats.totalMaterials}</div>
+                <div class="widget-footer">Αξία: ${Utils.formatCurrency(stats.stockValue)}</div>
+              </div>
+              <div class="widget-icon info">
+                <i class="fas fa-boxes"></i>
+              </div>
+            </div>
+
+            <div class="widget-compact clickable" onclick="Router.navigate('statistics')">
+              <div class="widget-content">
+                <div class="widget-title">Καθαρά Κέρδη Μήνα</div>
+                <div id="monthlyProfitValue" class="widget-value" style="color: ${stats.monthlyProfit >= 0 ? 'var(--success)' : 'var(--error)'}">
+                  ${stats.monthlyProfit >= 0 ? '+' : ''}${Utils.formatCurrency(stats.monthlyProfit)}
+                </div>
+                <div class="widget-footer">${stats.completedThisMonth} ολοκληρωμένες</div>
+              </div>
+              <div class="widget-icon ${stats.monthlyProfit >= 0 ? 'success' : 'error'}">
+                <i class="fas fa-chart-line"></i>
+              </div>
             </div>
           </div>
 
-          <div class="card">
-            <div class="card-header">
-              <h2 class="card-title">Πρόσφατες Ενέργειες</h2>
+          <!-- Recent Activities & Charts -->
+          <div class="grid grid-2">
+            <div class="card">
+              <div class="card-header">
+                <h2 class="card-title">
+                  <i class="fas fa-calendar-check"></i> Επόμενες Επισκέψεις
+                </h2>
+              </div>
+              <div class="card-body">
+                <div class="dashboard-visits-timeline">
+                ${this.renderUpcomingVisits()}
+                </div>
+              </div>
             </div>
-            <div class="card-body">
-              ${this.renderRecentActivities()}
-            </div>
-          </div>
-        </div>
 
-        <!-- Status Chart & Map -->
-        <div class="grid grid-2">
-          <div class="card">
-            <div class="card-header">
-              <h2 class="card-title">Κατάσταση Εργασιών</h2>
-            </div>
-            <div class="card-body">
-              <canvas id="statusChart" style="max-height: 300px;"></canvas>
+            <div class="card">
+              <div class="card-header">
+                <h2 class="card-title">Πρόσφατες Ενέργειες</h2>
+              </div>
+              <div class="card-body">
+                ${this.renderRecentActivities()}
+              </div>
             </div>
           </div>
 
-          <div class="card">
-            <div class="card-header">
-              <h2 class="card-title">
-                <i class="fas fa-map-marked-alt"></i> Χάρτης
-              </h2>
+          <!-- Status Chart & Map -->
+          <div class="grid grid-2">
+            <div class="card">
+              <div class="card-header">
+                <h2 class="card-title">Κατάσταση Εργασιών</h2>
+              </div>
+              <div class="card-body">
+                <canvas id="statusChart" style="max-height: 300px;"></canvas>
+              </div>
             </div>
-            <div class="card-body" style="padding: 0; position: relative;">
-              <div id="dashboardMap" style="height: 350px; width: 100%;"></div>
+
+            <div class="card">
+              <div class="card-header">
+                <h2 class="card-title">
+                  <i class="fas fa-map-marked-alt"></i> Χάρτης
+                </h2>
+              </div>
+              <div class="card-body dashboard-map-collapsible" style="padding: 0; position: relative;">
+                ${isMobile ? '<details open><summary style="padding: var(--spacing-md);">Εμφάνιση χάρτη</summary>' : ''}
+                <div id="dashboardMap" style="height: ${isMobile ? '280px' : '350px'}; width: 100%;"></div>
+                ${isMobile ? '</details>' : ''}
+              </div>
             </div>
           </div>
-        </div>
       </div>
       
       <!-- Scroll to Top Button -->
@@ -231,65 +237,19 @@ window.DashboardView = {
       const n = parseFloat(v);
       return Number.isFinite(n) ? n : 0;
     };
+    const payments = State.data.jobPayments || [];
+    const getPaymentsForJob = (jobId) => payments.filter(payment => Number(payment.jobId || payment.job_id) === Number(jobId));
 
     const monthlyRevenue = monthlyJobs.reduce((total, j) => {
-      // Prefer explicit billing fields
-      let billingAmount = parseNumber(j.billingAmount || j.billing_amount);
-
-      // Fallback: hours * rate
-      if (!billingAmount) {
-        const hours = parseNumber(j.billingHours || j.billing_hours);
-        const rate = parseNumber(j.billingRate || j.billing_rate);
-        if (hours && rate) billingAmount = hours * rate;
-      }
-
-      if (!billingAmount) {
-        const totalCost = parseNumber(j.totalCost || j.total_cost);
-        billingAmount = totalCost;
-      }
-
-      console.log('💰 Adding job billing to monthly revenue:', billingAmount, 'from job:', j.id);
-      return total + billingAmount;
+      const financials = window.JobFinancials.compute(j, { payments: getPaymentsForJob(j.id) });
+      console.log('💰 Adding job billing to monthly revenue:', financials.billingAmount, 'from job:', j.id);
+      return total + financials.billingAmount;
     }, 0);
 
     const monthlyProfit = monthlyJobs.reduce((total, j) => {
-      let billingAmount = parseNumber(j.billingAmount || j.billing_amount);
-      if (!billingAmount) {
-        const hours = parseNumber(j.billingHours || j.billing_hours);
-        const rate = parseNumber(j.billingRate || j.billing_rate);
-        if (hours && rate) billingAmount = hours * rate;
-      }
-      if (!billingAmount) {
-        const totalCost = parseNumber(j.totalCost || j.total_cost);
-        billingAmount = totalCost || 0;
-      }
-
-      const materialsCost = parseNumber(j.materialsCost || j.materials_cost);
-      const kilometers = parseNumber(j.kilometers || 0);
-      const costPerKm = parseNumber(j.costPerKm || j.cost_per_km || 0.5);
-      const travelCost = kilometers * costPerKm;
-
-      // Parse assignedWorkers for labor cost
-      let laborCost = 0;
-      let assignedWorkers = j.assignedWorkers || j.assigned_workers;
-      try {
-        if (typeof assignedWorkers === 'string' && assignedWorkers) assignedWorkers = JSON.parse(assignedWorkers);
-      } catch (e) {
-        assignedWorkers = [];
-      }
-      if (Array.isArray(assignedWorkers)) {
-        laborCost = assignedWorkers.reduce((s, w) => {
-          const type = w.workerType || w.worker_type || 'employee';
-          if (type === 'owner') return s;
-          return s + parseNumber(w.laborCost || w.labor_cost || 0);
-        }, 0);
-      }
-
-      const totalExpenses = materialsCost + laborCost + travelCost;
-      const profit = billingAmount - totalExpenses;
-
-      console.log('📈 Job', j.id, 'profit:', profit, '(revenue:', billingAmount, '- expenses:', totalExpenses, ')');
-      return total + profit;
+      const financials = window.JobFinancials.compute(j, { payments: getPaymentsForJob(j.id) });
+      console.log('📈 Job', j.id, 'profit:', financials.profit, '(revenue:', financials.billingAmount, '- expenses:', financials.totalExpenses, ')');
+      return total + financials.profit;
     }, 0);
 
     // NOTE: removed older fallback monthlyProfit calculation to avoid duplicate declaration.

@@ -190,27 +190,26 @@
   <script src="https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js" defer></script>
   
-  <!-- Styles - Critical CSS loaded synchronously, rest async -->
-  <link rel="stylesheet" href="src/css/variables.css?v=20260611g">
-  <link rel="stylesheet" href="src/css/base.css?v=20260611g">
+  <!-- Styles - Critical variables/base are loaded above, feature CSS follows -->
   <link rel="stylesheet" href="src/css/sidebar.css?v=20260611g">
-  <link rel="stylesheet" href="src/css/components.css?v=20260611g">
+  <link rel="stylesheet" href="src/css/components.css?v=20260618f">
+  <link rel="stylesheet" href="src/css/app-shell.css?v=20260618d">
   <!-- Non-critical CSS loaded asynchronously -->
   <link rel="preload" href="src/css/dashboard.css?v=20260611g" as="style" onload="this.onload=null;this.rel='stylesheet'">
-  <link rel="preload" href="src/css/tables.css?v=20260611g" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <link rel="preload" href="src/css/tables.css?v=20260618d" as="style" onload="this.onload=null;this.rel='stylesheet'">
   <link rel="preload" href="src/css/modals.css?v=20260611g" as="style" onload="this.onload=null;this.rel='stylesheet'">
   <link rel="preload" href="src/css/calendar.css?v=20260611g" as="style" onload="this.onload=null;this.rel='stylesheet'">
   <link rel="preload" href="src/css/animations.css?v=20260611g" as="style" onload="this.onload=null;this.rel='stylesheet'">
-  <link rel="preload" href="src/css/responsive.css?v=20260611g" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <link rel="preload" href="src/css/responsive.css?v=20260618d" as="style" onload="this.onload=null;this.rel='stylesheet'">
   <link rel="preload" href="src/css/print.css?v=20260611g" as="style" onload="this.onload=null;this.rel='stylesheet'" media="print">
   <link rel="preload" href="src/css/help.css?v=20260611g" as="style" onload="this.onload=null;this.rel='stylesheet'">
   <noscript>
     <link rel="stylesheet" href="src/css/dashboard.css?v=20260611g">
-    <link rel="stylesheet" href="src/css/tables.css?v=20260611g">
+    <link rel="stylesheet" href="src/css/tables.css?v=20260618d">
     <link rel="stylesheet" href="src/css/modals.css?v=20260611g">
     <link rel="stylesheet" href="src/css/calendar.css?v=20260611g">
     <link rel="stylesheet" href="src/css/animations.css?v=20260611g">
-    <link rel="stylesheet" href="src/css/responsive.css?v=20260611g">
+    <link rel="stylesheet" href="src/css/responsive.css?v=20260618d">
     <link rel="stylesheet" href="src/css/print.css?v=20260611g" media="print">
     <link rel="stylesheet" href="src/css/help.css?v=20260611g">
   </noscript>
@@ -299,7 +298,22 @@
       <button id="mobileMenuBtn" class="mobile-menu-btn" aria-label="Άνοιγμα μενού πλοήγησης" aria-expanded="false">
         <i class="fas fa-bars" aria-hidden="true"></i>
       </button>
+      <div class="mobile-top-bar-meta">
+        <h1 id="mobilePageTitle">Αρχική</h1>
+      </div>
       <img src="assets/icons/logo.png?v=techni-chroma-3" alt="Τέχνη και Χρώμα λογότυπο" class="header-logo" width="160" height="90" loading="eager">
+      <div class="desktop-global-search global-search-root">
+        <div class="search-box">
+          <i class="fas fa-search"></i>
+          <input type="search" id="globalSearch" placeholder="Αναζήτηση πελατών, εργασιών..." aria-label="Καθολική αναζήτηση" autocomplete="off" />
+        </div>
+        <div id="globalSearchResults" class="global-search-results" hidden></div>
+      </div>
+      <div class="mobile-header-actions">
+        <button type="button" id="mobileSearchBtn" class="mobile-icon-btn" aria-label="Αναζήτηση">
+          <i class="fas fa-search"></i>
+        </button>
+      </div>
     </header>
 
     <!-- Content Area -->
@@ -313,6 +327,79 @@
 
   <!-- Modal Container -->
   <div id="modalContainer" class="modal-container" role="dialog" aria-modal="true"></div>
+
+  <!-- Mobile Bottom Navigation -->
+  <nav class="bottom-nav" aria-label="Κύρια πλοήγηση">
+    <button type="button" class="bottom-nav-item is-active" data-route="dashboard" aria-label="Αρχική">
+      <i class="fas fa-home"></i>
+      <span>Αρχική</span>
+    </button>
+    <button type="button" class="bottom-nav-item" data-route="jobs" aria-label="Εργασίες">
+      <i class="fas fa-briefcase"></i>
+      <span>Εργασίες</span>
+    </button>
+    <button type="button" class="bottom-nav-item" data-route="calendar" aria-label="Ημερολόγιο">
+      <i class="fas fa-calendar-alt"></i>
+      <span>Ημερολόγιο</span>
+    </button>
+    <button type="button" class="bottom-nav-item" data-route="clients" aria-label="Πελάτες">
+      <i class="fas fa-users"></i>
+      <span>Πελάτες</span>
+    </button>
+    <button type="button" class="bottom-nav-item" data-route="more" aria-label="Περισσότερα">
+      <i class="fas fa-ellipsis-h"></i>
+      <span>Περισσότερα</span>
+    </button>
+  </nav>
+
+  <div id="moreSheetBackdrop" class="more-sheet-backdrop" aria-hidden="true"></div>
+  <aside id="moreSheet" class="more-sheet" aria-label="Περισσότερες επιλογές" aria-hidden="true">
+    <div class="more-sheet-header">
+      <h2>Περισσότερα</h2>
+      <button type="button" id="moreSheetCloseBtn" class="mobile-icon-btn" aria-label="Κλείσιμο">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div class="more-sheet-grid">
+      <button type="button" class="more-sheet-item" data-route="workers"><i class="fas fa-hard-hat"></i> Προσωπικό</button>
+      <button type="button" class="more-sheet-item" data-route="suppliers"><i class="fas fa-store"></i> Προμηθευτές</button>
+      <button type="button" class="more-sheet-item" data-route="inventory"><i class="fas fa-boxes"></i> Αποθήκη</button>
+      <button type="button" class="more-sheet-item" data-route="map"><i class="fas fa-map-marked-alt"></i> Χάρτης</button>
+      <button type="button" class="more-sheet-item" data-route="statistics"><i class="fas fa-chart-bar"></i> Στατιστικά</button>
+      <button type="button" class="more-sheet-item" data-route="settings"><i class="fas fa-cog"></i> Ρυθμίσεις</button>
+      <button type="button" class="more-sheet-item" data-route="help"><i class="fas fa-question-circle"></i> Βοήθεια</button>
+    </div>
+  </aside>
+
+  <div id="searchOverlayBackdrop" class="search-overlay-backdrop" aria-hidden="true"></div>
+  <div id="searchOverlay" class="search-overlay global-search-root" aria-hidden="true">
+    <div class="search-overlay-header">
+      <div class="search-overlay-input-wrap">
+        <i class="fas fa-search"></i>
+        <input type="search" id="globalSearchOverlay" placeholder="Αναζήτηση εργασιών, πελατών..." aria-label="Αναζήτηση" autocomplete="off" />
+      </div>
+      <button type="button" id="searchOverlayCloseBtn" class="mobile-icon-btn" aria-label="Κλείσιμο">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div id="globalSearchResultsMobile" class="global-search-results global-search-results-mobile" hidden></div>
+  </div>
+
+  <div id="appBottomSheetBackdrop" class="app-bottom-sheet-backdrop" aria-hidden="true"></div>
+  <aside id="appBottomSheet" class="app-bottom-sheet" aria-hidden="true">
+    <div class="app-bottom-sheet-header">
+      <h3 class="app-bottom-sheet-title"></h3>
+      <button type="button" class="mobile-icon-btn app-bottom-sheet-close" aria-label="Κλείσιμο">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div class="app-bottom-sheet-body"></div>
+    <div class="app-bottom-sheet-actions"></div>
+  </aside>
+
+  <button type="button" id="fab" hidden aria-label="Γρήγορη προσθήκη">
+    <i class="fas fa-plus"></i>
+  </button>
 
   <!-- Silence verbose console logging in packaged (non-dev) Electron builds -->
   <script>
@@ -340,8 +427,10 @@
   <script src="src/js/config.js?v=20260611g" defer></script>
   <script src="src/js/i18n.js?v=20260611g" defer></script>
   <script src="src/js/geocoding.js?v=20260611g" defer></script>
+  <script src="src/js/domain/data-mappers.js?v=20260615a" defer></script>
   <script src="src/js/state.js?v=20260611t" defer></script>
   <script src="src/js/utils.js?v=20260611g" defer></script>
+  <script src="src/js/ui-primitives.js?v=20260618c" defer></script>
   <script src="src/js/material-identity.js?v=20260611g" defer></script>
   <script src="src/js/validation.js?v=20260611g" defer></script>
   
@@ -353,35 +442,40 @@
   <script src="src/js/theme.js?v=20260611g" defer></script>
   <script src="src/js/help.js?v=20260611g" defer></script>
   <script src="src/js/sidebar.js?v=20260611g" defer></script>
-  <script src="src/js/router.js?v=20260611g" defer></script>
+  <script src="src/js/app-shell.js?v=20260618d" defer></script>
+  <script src="src/js/global-search.js?v=20260618d" defer></script>
+  <script src="src/js/router.js?v=20260618d" defer></script>
   <script src="src/js/search.js?v=20260611g" defer></script>
   <script src="src/js/table.js?v=20260611g" defer></script>
   <script src="src/js/pagination.js?v=20260611g" defer></script>
   
   <!-- Models -->
   <script src="src/js/models/timesheet.js?v=20260611g" defer></script>
+
+  <!-- Domain Helpers -->
+  <script src="src/js/domain/job-financials.js?v=20260615a" defer></script>
   
   <!-- Base View Class (load before views) -->
   <script src="src/js/views/base-view.js?v=20260611g" defer></script>
   
   <!-- Views -->
-  <script src="src/js/views/dashboard.js?v=20260611p" defer></script>
-  <script src="src/js/views/clients.js?v=20260611u" defer></script>
-  <script src="src/js/views/workers.js?v=20260611u" defer></script>
-  <script src="src/js/views/inventory.js?v=20260611g" defer></script>
-  <script src="src/js/views/stock.js?v=20260611n" defer></script>
-  <script src="src/js/views/jobs.js?v=20260611g" defer></script>
-  <script src="src/js/views/calendar.js?v=20260611m" defer></script>
-  <script src="src/js/views/map.js?v=20260611g" defer></script>
+  <script src="src/js/views/dashboard.js?v=20260618c" defer></script>
+  <script src="src/js/views/clients.js?v=20260618c" defer></script>
+  <script src="src/js/views/workers.js?v=20260618c" defer></script>
+  <script src="src/js/views/inventory.js?v=20260618c" defer></script>
+  <script src="src/js/views/stock.js?v=20260618c" defer></script>
+  <script src="src/js/views/jobs.js?v=20260618f" defer></script>
+  <script src="src/js/views/calendar.js?v=20260618c" defer></script>
+  <script src="src/js/views/map.js?v=20260618c" defer></script>
   <script src="src/js/views/offers.js?v=20260611g" defer></script>
   <script src="src/js/views/invoices.js?v=20260611g" defer></script>
-  <script src="src/js/views/statistics.js?v=20260611g" defer></script>
+  <script src="src/js/views/statistics.js?v=20260618c" defer></script>
   <script src="src/js/views/templates.js?v=20260611g" defer></script>
-  <script src="src/js/views/settings.js?v=20260611g" defer></script>
-  <script src="src/js/views/help.js?v=20260611g" defer></script>
+  <script src="src/js/views/settings.js?v=20260618c" defer></script>
+  <script src="src/js/views/help.js?v=20260618c" defer></script>
   
   <!-- App Initialization -->
-  <script src="src/js/app.js?v=20260611g" defer></script>
+  <script src="src/js/app.js?v=20260618d" defer></script>
 
 </body>
 </html>

@@ -1018,7 +1018,7 @@ window.SettingsView = {
         <h1><i class="fas fa-cog"></i> Ρυθμίσεις</h1>
       </div>
 
-      <div class="settings-grid">
+      <div class="settings-grid settings-accordion">
         <div class="card">
           <h3><i class="fas fa-building"></i> Στοιχεία Επιχείρησης</h3>
           <form class="form-grid" id="companyForm">
@@ -1191,6 +1191,7 @@ window.SettingsView = {
     // Load saved company data
     this.loadCompanyData();
     this.loadPricingData();
+    this.setupSettingsAccordion(container);
     
     // Attach event listeners (remove old ones first to prevent duplicates)
     const companyForm = document.getElementById('companyForm');
@@ -1638,5 +1639,33 @@ window.SettingsView = {
     } catch (error) {
       Toast.error('❌ Μη έγκυρο URL');
     }
+  },
+
+  setupSettingsAccordion(container) {
+    if (!Utils.isMobile()) return;
+
+    container.querySelectorAll('.settings-grid > .card').forEach((card, index) => {
+      if (card.dataset.accordionInit === '1') return;
+      card.dataset.accordionInit = '1';
+
+      const heading = card.querySelector('h3');
+      if (!heading) return;
+
+      const bodyNodes = Array.from(card.childNodes).filter(node => node !== heading);
+      const body = document.createElement('div');
+      body.className = 'settings-card-body';
+      bodyNodes.forEach(node => body.appendChild(node));
+
+      const details = document.createElement('details');
+      details.className = 'ui-accordion-item';
+      if (index === 0) details.open = true;
+
+      const summary = document.createElement('summary');
+      summary.className = 'ui-accordion-summary';
+      summary.innerHTML = heading.innerHTML;
+
+      details.append(summary, body);
+      card.replaceChildren(details);
+    });
   }
 };

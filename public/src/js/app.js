@@ -4,22 +4,11 @@
 
 // Αναμονή για DOM ready
 document.addEventListener('DOMContentLoaded', async () => {
-  // Skip authentication check in Electron
   const isElectron = typeof window.electronAPI !== 'undefined';
   
   if (isElectron) {
     console.log('🖥️ Running in Electron - Offline Mode');
     console.log('📱 SQLite Database Active');
-  }
-  
-  if (!isElectron) {
-    // Check authentication only for web version
-    const isAuthenticated = await API.checkAuth();
-    
-    if (!isAuthenticated) {
-      window.location.href = 'login.html';
-      return;
-    }
   }
 
   // Initialize theme FIRST (before anything else)
@@ -37,6 +26,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   i18n.init();
   Sidebar.init();
+  AppShell.init();
+  GlobalSearch.init();
   Keyboard.init();
   Toast.init();
   Modal.init();
@@ -84,16 +75,9 @@ async function loadCompanyName() {
 }
 
 function setupGlobalEventListeners() {
-  // Floating Action Button
-  const fab = document.getElementById('fab');
-  if (fab) {
-    fab.addEventListener('click', () => {
-      showQuickAddModal();
-    });
-  }
+  // Floating Action Button — handled by AppShell.bindFab()
 
-  // Global Search
-  setupGlobalSearch();
+  // Global search — handled by GlobalSearch.init()
   
   // Απενεργοποίηση scroll στα number inputs
   document.addEventListener('wheel', (e) => {
@@ -109,17 +93,6 @@ function setupGlobalEventListeners() {
       }, { passive: false });
     }
   }, true);
-}
-
-function setupGlobalSearch() {
-  const searchInput = document.getElementById('globalSearch');
-  if (searchInput) {
-    searchInput.addEventListener('input', Utils.debounce((e) => {
-      State.searchQuery = e.target.value;
-      // Refresh current view
-      Router.navigate(State.currentSection);
-    }, 300));
-  }
 }
 
 function showQuickAddModal() {
@@ -186,7 +159,7 @@ if ('serviceWorker' in navigator) {
 
   window.addEventListener('load', async () => {
     try {
-      const registration = await navigator.serviceWorker.register('sw.js?v=20260611g', { scope: './' });
+      const registration = await navigator.serviceWorker.register('sw.js?v=20260615a', { scope: './' });
       registration.update();
     } catch (error) {
       console.warn('[PWA] Service worker registration failed:', error);

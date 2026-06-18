@@ -22,23 +22,12 @@ $method = $_SERVER['REQUEST_METHOD'];
 
 // Εξασφάλισε τα πεδία ώρας επίσκεψης (ενοποίηση εργασίας ↔ ημερολογίου)
 ensure_job_visit_columns($db);
-// Εξασφάλισε job_visits / job_payments + billing_type / agreed_price
+// Εξασφάλισε job_payments + billing_type / agreed_price
 ensure_job_visits_schema($db);
 
-/**
- * Aggregated totals από job_visits ανά εργασία.
- * @return array map: job_id => ['total_hours','employee_hours','owner_hours','labor_cost','visit_count']
- */
-function fetch_all_job_visit_totals($db) {
-    static $cache = null;
-    if ($cache !== null) return $cache;
-    $cache = job_financial_fetch_visit_totals($db);
-    return $cache;
-}
-
 // Helper: compute job-level financials (billing, net profit)
-function compute_job_financials_job($job, $visitTotals = null) {
-    return job_financial_compute($job, $visitTotals);
+function compute_job_financials_job($job) {
+    return job_financial_compute($job);
 }
 
 function encode_job_json_field($input, $key) {
@@ -89,12 +78,10 @@ try {
                     if (isset($job['assignedWorkers'])) $job['assignedWorkers'] = json_decode($job['assignedWorkers'], true);
                     if (isset($job['paints'])) $job['paints'] = json_decode($job['paints'], true);
                     // Add computed financials
-                    $visitTotalsMap = fetch_all_job_visit_totals($db);
-                    $fin = compute_job_financials_job($job, $visitTotalsMap[(int)$job['id']] ?? null);
+                    $fin = compute_job_financials_job($job);
                     $job['billing_amount'] = (float)$fin['billing'];
                     $job['net_profit'] = (float)$fin['profit'];
                     $job['actual_hours'] = (float)$fin['actual_hours'];
-                    $job['visit_count'] = (int)$fin['visit_count'];
                     sendSuccess($job);
                 } else {
                     sendError('Η εργασία δεν βρέθηκε', 404);
@@ -109,18 +96,16 @@ try {
                     LEFT JOIN clients c ON j.client_id = c.id
                     ORDER BY j.created_at DESC
                 ");
-                $visitTotalsMap = fetch_all_job_visit_totals($db);
-                $jobs = array_map(function($job) use ($visitTotalsMap) {
+                $jobs = array_map(function($job) {
                     $job = convertKeys($job);
                     if (isset($job['coordinates'])) $job['coordinates'] = json_decode($job['coordinates'], true);
                     if (isset($job['assignedWorkers'])) $job['assignedWorkers'] = json_decode($job['assignedWorkers'], true);
                     if (isset($job['paints'])) $job['paints'] = json_decode($job['paints'], true);
                     // Add computed financials
-                    $fin = compute_job_financials_job($job, $visitTotalsMap[(int)$job['id']] ?? null);
+                    $fin = compute_job_financials_job($job);
                     $job['billing_amount'] = (float)$fin['billing'];
                     $job['net_profit'] = (float)$fin['profit'];
                     $job['actual_hours'] = (float)$fin['actual_hours'];
-                    $job['visit_count'] = (int)$fin['visit_count'];
                     return $job;
                 }, $stmt->fetchAll());
                 sendSuccess($jobs);

@@ -445,6 +445,116 @@ const Utils = {
   },
 
   /**
+   * Reset one infinite list back to the first page.
+   */
+  resetInfiniteList(key, batchSize = 20) {
+    this.infiniteLists = this.infiniteLists || {};
+    const existing = this.infiniteLists[key];
+    if (existing?.scrollHandler) {
+      window.removeEventListener('scroll', existing.scrollHandler);
+    }
+    if (existing?.clickHandler && existing.button) {
+      existing.button.removeEventListener('click', existing.clickHandler);
+    }
+    this.infiniteLists[key] = {
+      visible: batchSize,
+      batchSize,
+      scrollHandler: null,
+      clickHandler: null,
+      button: null
+    };
+  },
+
+  getInfiniteListState(key, batchSize = 20) {
+    this.infiniteLists = this.infiniteLists || {};
+    if (!this.infiniteLists[key]) {
+      this.infiniteLists[key] = {
+        visible: batchSize,
+        batchSize,
+        scrollHandler: null,
+        clickHandler: null,
+        button: null
+      };
+    }
+    return this.infiniteLists[key];
+  },
+
+  getInfiniteSlice(key, items, batchSize = 20) {
+    const list = Array.isArray(items) ? items : [];
+    const state = this.getInfiniteListState(key, batchSize);
+    const visible = Math.min(state.visible || batchSize, list.length);
+    state.visible = visible || batchSize;
+
+    return {
+      items: list.slice(0, visible || batchSize),
+      visible: Math.min(visible || batchSize, list.length),
+      total: list.length,
+      hasMore: list.length > (visible || batchSize)
+    };
+  },
+
+  renderInfiniteFooter(key, visible, total, batchSize = 20) {
+    if (total <= batchSize) return '';
+
+    const hasMore = visible < total;
+    return `
+      <div class="lazy-load-footer" data-infinite-key="${key}" style="display: flex; justify-content: center; align-items: center; gap: 12px; flex-wrap: wrap; padding: 16px; color: var(--text-muted);">
+        <span>Εμφανίζονται <strong>${visible}</strong> από <strong>${total}</strong> εγγραφές</span>
+        ${hasMore ? `
+          <button type="button" class="btn btn-secondary" data-infinite-load-more="${key}">
+            Φόρτωση άλλων ${batchSize}
+          </button>
+        ` : '<span style="color: var(--success);">Φορτώθηκαν όλες οι εγγραφές</span>'}
+      </div>
+    `;
+  },
+
+  setupInfiniteScroll({ key, total, onLoadMore, batchSize = 20, threshold = 320 }) {
+    const state = this.getInfiniteListState(key, batchSize);
+
+    if (state.scrollHandler) {
+      window.removeEventListener('scroll', state.scrollHandler);
+      state.scrollHandler = null;
+    }
+    if (state.clickHandler && state.button) {
+      state.button.removeEventListener('click', state.clickHandler);
+      state.clickHandler = null;
+      state.button = null;
+    }
+
+    if (!total || state.visible >= total) return;
+
+    const loadMore = () => {
+      const nextVisible = Math.min((state.visible || batchSize) + batchSize, total);
+      if (nextVisible === state.visible) return;
+      state.visible = nextVisible;
+      if (typeof onLoadMore === 'function') {
+        onLoadMore();
+      }
+    };
+
+    state.scrollHandler = this.throttle(() => {
+      const doc = document.documentElement;
+      const scrollBottom = window.scrollY + window.innerHeight;
+      const pageBottom = Math.max(doc.scrollHeight, document.body.scrollHeight);
+      if (scrollBottom >= pageBottom - threshold) {
+        loadMore();
+      }
+    }, 150);
+
+    window.addEventListener('scroll', state.scrollHandler, { passive: true });
+
+    state.button = document.querySelector(`[data-infinite-load-more="${key}"]`);
+    if (state.button) {
+      state.clickHandler = (event) => {
+        event.preventDefault();
+        loadMore();
+      };
+      state.button.addEventListener('click', state.clickHandler);
+    }
+  },
+
+  /**
    * Open address in Google Maps in new tab
    * @param {string} address - Address to search
    */
