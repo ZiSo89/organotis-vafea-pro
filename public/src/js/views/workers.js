@@ -386,7 +386,7 @@ window.WorkersView = {
         <table class="data-table">
           <thead>
             <tr>
-              <th style="text-align: left;">Ενέργειες</th>
+              <th class="text-left">Ενέργειες</th>
               <th>Όνομα</th>
               <th>Ωρομίσθιο</th>
               <th>Τηλέφωνο</th>
@@ -786,7 +786,7 @@ window.WorkersView = {
           <div class="alert alert-warning">
             <p><strong>Ο εργάτης δεν μπορεί να διαγραφεί.</strong></p>
             <p>Είναι συνδεδεμένος με ${blockers.assignedJobs.length} εργασίες.</p>
-            <p class="text-muted" style="margin-bottom: 0;">Αν δεν εργάζεται πλέον, αλλάξτε την κατάστασή του σε <strong>Ανενεργός</strong> για να διατηρηθεί σωστά το ιστορικό.</p>
+            <p class="text-muted mb-0">Αν δεν εργάζεται πλέον, αλλάξτε την κατάστασή του σε <strong>Ανενεργός</strong> για να διατηρηθεί σωστά το ιστορικό.</p>
           </div>
         `,
         footer: '<button class="btn-primary" id="workerDeleteBlockedOkBtn">OK</button>',

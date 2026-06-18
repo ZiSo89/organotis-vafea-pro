@@ -402,6 +402,9 @@ label {
 .p-3 { padding: var(--spacing-lg); }
 .p-4 { padding: var(--spacing-xl); }
 
+.w-fit { width: fit-content; }
+.hr-spaced { margin: var(--spacing-lg) 0; }
+
 .hidden { display: none !important; }
 .visible { display: block !important; }
 

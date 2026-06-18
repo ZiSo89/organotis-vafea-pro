@@ -46,8 +46,12 @@ RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^api/([a-zA-Z_]+)$ api/$1.php [L,QSA]
 
-# Redirect root to public folder
-RewriteRule ^$ public/login.html [L]
+# Redirect root to app (login απενεργοποιημένο)
+RewriteRule ^$ public/index.html [L]
+
+# Παλιό login URL -> dashboard (PWA / σελιδοδείκτες)
+RewriteRule ^public/login\.html$ public/index.html [L,R=302]
+RewriteRule ^login\.html$ public/index.html [L,R=302]
 
 # Allow direct access to /public/ and /api/
 RewriteCond %{REQUEST_URI} !^/public/

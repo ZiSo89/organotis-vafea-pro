@@ -582,7 +582,7 @@ window.ClientsView = {
           <div class="alert alert-warning">
             <p><strong>Ο πελάτης δεν μπορεί να διαγραφεί.</strong></p>
             <p>Υπάρχουν ${linkedJobs.length} συνδεδεμένες εργασίες με αυτόν τον πελάτη.</p>
-            <p class="text-muted" style="margin-bottom: 0;">Αν δεν τον χρειάζεστε πλέον, κρατήστε τον στο αρχείο ή αλλάξτε πρώτα τις συνδεδεμένες εργασίες.</p>
+            <p class="text-muted mb-0">Αν δεν τον χρειάζεστε πλέον, κρατήστε τον στο αρχείο ή αλλάξτε πρώτα τις συνδεδεμένες εργασίες.</p>
           </div>
         `,
         footer: '<button class="btn-primary" id="clientDeleteBlockedOkBtn">OK</button>',
@@ -651,7 +651,7 @@ window.ClientsView = {
         <table class="data-table">
           <thead>
             <tr>
-              <th style="text-align: left;">Ενέργειες</th>
+              <th class="text-left">Ενέργειες</th>
               <th>Όνομα</th>
               <th>Τηλ.</th>
               <th>Email</th>
