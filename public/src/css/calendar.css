@@ -568,6 +568,19 @@
 }
 
 @media (max-width: 640px) {
+  .calendar-container-mobile .fc .fc-toolbar {
+    gap: 6px;
+  }
+
+  .calendar-container-mobile .fc .fc-toolbar-chunk {
+    flex-wrap: wrap;
+  }
+
+  .calendar-container-mobile .fc .fc-button {
+    padding: 5px 8px;
+    font-size: 0.6875rem;
+  }
+
   .calendar-container {
     flex-direction: column;
     padding: 0;

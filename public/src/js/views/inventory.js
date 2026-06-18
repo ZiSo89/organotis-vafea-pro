@@ -49,7 +49,7 @@ window.SuppliersView = {
         </div>
       </div>
 
-      <div class="card">
+      <div class="card card-with-tabs">
         <div class="tabs segmented-control is-sticky ui-tab-nav">
           <button class="tab-btn ${this.activeTab === 'suppliers' ? 'active' : ''}" data-inventory-tab="suppliers">
             <i class="fas fa-store"></i> Καταστήματα
@@ -62,7 +62,7 @@ window.SuppliersView = {
           </button>
         </div>
 
-        <div id="suppliersActiveTabContent" style="margin-top: 20px;">
+        <div id="suppliersActiveTabContent" class="suppliers-tab-content">
           ${this.renderActiveTab(suppliers, purchases, payments, inventory)}
         </div>
       </div>

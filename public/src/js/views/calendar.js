@@ -52,9 +52,12 @@ window.CalendarView = {
       
       <div class="calendar-container ${isMobile ? 'calendar-container-mobile' : ''}">
         ${isMobile ? `
-          <div id="upcomingVisitsList" class="upcoming-visits-list calendar-mobile-agenda" aria-label="Επόμενες επισκέψεις">
-            <div class="loading">Φόρτωση...</div>
-          </div>
+          <details class="calendar-mobile-agenda-wrap">
+            <summary><i class="fas fa-clock"></i> Επόμενες επισκέψεις</summary>
+            <div id="upcomingVisitsList" class="upcoming-visits-list calendar-mobile-agenda" aria-label="Επόμενες επισκέψεις">
+              <div class="loading">Φόρτωση...</div>
+            </div>
+          </details>
         ` : `
         <!-- Λίστα Επόμενων Επισκέψεων -->
         <div class="upcoming-visits-panel">
@@ -122,9 +125,9 @@ window.CalendarView = {
     this.calendar = new FullCalendar.Calendar(calendarEl, {
       locale: 'el',
       timeZone: 'local',
-      initialView: isMobile ? 'listWeek' : 'dayGridMonth',
+      initialView: 'dayGridMonth',
       headerToolbar: isMobile
-        ? { left: 'prev,next', center: 'title', right: 'today' }
+        ? { left: 'prev,next', center: 'title', right: 'dayGridMonth,listWeek today' }
         : {
           left: 'prev,next today',
           center: 'title',
@@ -134,15 +137,18 @@ window.CalendarView = {
         today: 'Σήμερα',
         month: 'Μήνας',
         week: 'Εβδομάδα',
-        day: 'Ημέρα'
+        day: 'Ημέρα',
+        list: 'Λίστα',
+        listWeek: 'Λίστα'
       },
       height: 'auto',
       firstDay: 1,
-      weekNumbers: true,
+      weekNumbers: !isMobile,
       weekText: 'Εβδ.',
       editable: !isMobile,
       selectable: false,
-      dayMaxEvents: true,
+      dayMaxEvents: isMobile ? 2 : true,
+      moreLinkText: (num) => `+${num}`,
       moreLinkClick: 'popover',
       eventMaxStack: 2,
       

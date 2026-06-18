@@ -8,14 +8,79 @@ window.JobsView = {
   lazyBatchSize: 20,
   formSteps: [
     { id: 'basic', label: 'Βασικά', icon: 'fas fa-info-circle' },
-    { id: 'details', label: 'Υλικά', icon: 'fas fa-paint-roller' },
-    { id: 'costs', label: 'Οικονομικά', icon: 'fas fa-euro-sign' },
-    { id: 'notes', label: 'Σημειώσεις', icon: 'fas fa-sticky-note' }
+    { id: 'details', label: 'Εργασία & Υλικά', icon: 'fas fa-paint-roller' },
+    { id: 'workers', label: 'Συνεργείο', icon: 'fas fa-users' },
+    { id: 'expenses', label: 'Έξοδα', icon: 'fas fa-arrow-down' },
+    { id: 'billing', label: 'Χρέωση', icon: 'fas fa-receipt' },
+    { id: 'payments', label: 'Πληρωμές', icon: 'fas fa-hand-holding-usd' },
+    { id: 'notes', label: 'Σύνοψη & Σημειώσεις', icon: 'fas fa-clipboard-check' }
   ],
+  financialStepIds: ['workers', 'expenses', 'billing', 'payments', 'notes'],
   currentStepIndex: 0,
   draftPayments: [],
   formDirty: false,
-  activeCostSection: 'workers',
+
+  isFinancialStep(stepId) {
+    return this.financialStepIds.includes(stepId);
+  },
+
+  updateKpiStripVisibility() {
+    const strip = document.getElementById('jobFormKpiStrip');
+    if (!strip) return;
+    const step = this.formSteps[this.currentStepIndex];
+    strip.hidden = !(step && this.isFinancialStep(step.id));
+  },
+
+  updateStepNavButtons() {
+    const prevBtn = document.getElementById('jobFormPrevStepBtn');
+    const nextBtn = document.getElementById('jobFormNextStepBtn');
+    const prev = this.formSteps[this.currentStepIndex - 1];
+    const next = this.formSteps[this.currentStepIndex + 1];
+
+    if (prevBtn) {
+      prevBtn.disabled = !prev;
+      prevBtn.innerHTML = prev
+        ? `<i class="fas fa-arrow-left"></i> ${Utils.escapeHtml(prev.label)}`
+        : '<i class="fas fa-arrow-left"></i> Πίσω';
+    }
+    if (nextBtn) {
+      nextBtn.disabled = !next;
+      nextBtn.innerHTML = next
+        ? `${Utils.escapeHtml(next.label)} <i class="fas fa-arrow-right"></i>`
+        : 'Επόμενο <i class="fas fa-arrow-right"></i>';
+    }
+  },
+
+  renderJobFormKpiStrip() {
+    return `
+      <section id="jobFormKpiStrip" class="cost-kpi-strip cost-kpi-strip-compact job-form-kpi-strip" hidden aria-label="Σύνοψη κόστους και χρέωσης">
+        <div class="cost-kpi cost-kpi-primary">
+          <span>Χρέωση</span>
+          <strong id="billingAmountKpiDisplay">0.00 €</strong>
+        </div>
+        <div class="cost-kpi profit">
+          <span>Καθαρό κέρδος</span>
+          <strong id="profitDisplay">0.00 €</strong>
+        </div>
+        <div class="cost-kpi">
+          <span>Δουλεμένες</span>
+          <strong id="workedHoursDisplay">0.0 ώρες</strong>
+        </div>
+        <div class="cost-kpi">
+          <span>Χρεωμένες</span>
+          <strong id="chargedHoursDisplay">0.0 ώρες</strong>
+        </div>
+        <div class="cost-kpi warning">
+          <span>Μη χρεωμένες</span>
+          <strong id="unbilledHoursDisplay">0.0 ώρες</strong>
+        </div>
+        <div class="cost-kpi danger">
+          <span>Χαμένη αξία</span>
+          <strong id="lostBillingValueDisplay">0.00 €</strong>
+        </div>
+      </section>
+    `;
+  },
 
   getJobField(job, ...keys) {
     if (!job) return '';
@@ -113,7 +178,7 @@ window.JobsView = {
     this.currentStepIndex = 0;
     this.draftPayments = [];
     this.formDirty = false;
-    this.updateJobFormStepper();
+    this.goToJobStep('basic');
     this.updateJobFormBanner();
   },
 
@@ -164,6 +229,8 @@ window.JobsView = {
       const current = this.formSteps[this.currentStepIndex];
       label.textContent = current ? `Βήμα ${this.currentStepIndex + 1}/${this.formSteps.length}: ${current.label}` : '';
     }
+
+    this.updateStepNavButtons();
   },
 
   goToJobStep(stepRef) {
@@ -187,8 +254,10 @@ window.JobsView = {
     });
 
     this.updateJobFormStepper();
-    if (step.id === 'costs') {
-      this.switchCostSection(this.activeCostSection || 'workers');
+    this.updateKpiStripVisibility();
+
+    if (this.isFinancialStep(step.id)) {
+      this.calculateCost();
     }
     if (step.id === 'notes') {
       this.updateJobFormReview();
@@ -198,31 +267,6 @@ window.JobsView = {
     if (jobForm) {
       jobForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-  },
-
-  switchCostSection(section = 'workers') {
-    const allowed = ['workers', 'billing', 'expenses', 'payments', 'summary'];
-    const nextSection = allowed.includes(section) ? section : 'workers';
-    this.activeCostSection = nextSection;
-
-    const cockpit = document.querySelector('#tab-costs .cost-cockpit');
-    if (cockpit) {
-      cockpit.dataset.costView = nextSection;
-    }
-
-    document.querySelectorAll('.cost-section-btn').forEach(btn => {
-      btn.classList.toggle('is-active', btn.dataset.costSection === nextSection);
-    });
-  },
-
-  setupCostSectionNav() {
-    document.querySelectorAll('.cost-section-btn').forEach(btn => {
-      btn.onclick = (e) => {
-        e.preventDefault();
-        this.switchCostSection(btn.dataset.costSection);
-      };
-    });
-    this.switchCostSection(this.activeCostSection || 'workers');
   },
 
   getDraftPaymentsTotal() {
@@ -313,27 +357,19 @@ window.JobsView = {
             </button>
           `).join('')}
         </nav>
+
+        ${this.renderJobFormKpiStrip()}
         
         <form id="jobFormElement">
           
           <!-- Tab Navigation (desktop) -->
           <div class="tabs-nav job-form-tabs-nav">
-            <button type="button" class="tab-btn active" data-tab="basic">
-              <i class="fas fa-info-circle"></i>
-              <span>Βασικά</span>
-            </button>
-            <button type="button" class="tab-btn" data-tab="details">
-              <i class="fas fa-paint-roller"></i>
-              <span>Εργασία & Υλικά</span>
-            </button>
-            <button type="button" class="tab-btn" data-tab="costs">
-              <i class="fas fa-euro-sign"></i>
-              <span>Κόστος & Εργάτες</span>
-            </button>
-            <button type="button" class="tab-btn" data-tab="notes">
-              <i class="fas fa-sticky-note"></i>
-              <span>Σημειώσεις</span>
-            </button>
+            ${this.formSteps.map((step, index) => `
+              <button type="button" class="tab-btn ${index === 0 ? 'active' : ''}" data-tab="${step.id}">
+                <i class="${step.icon}"></i>
+                <span>${step.label}</span>
+              </button>
+            `).join('')}
           </div>
 
           <!-- Tab: Βασικά Στοιχεία -->
@@ -408,13 +444,6 @@ window.JobsView = {
               </div>
 
             </div>
-            
-            <!-- Navigation Buttons -->
-            <div class="form-actions" style="margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--border-color); gap: 12px;">
-              <button type="button" class="btn btn-primary" id="nextToDetailsBtn">
-                Επόμενο: Εργασία & Υλικά <i class="fas fa-arrow-right"></i>
-              </button>
-            </div>
           </div>
 
           <!-- Tab: Εργασία & Υλικά -->
@@ -441,226 +470,159 @@ window.JobsView = {
                 </div>
               </div>
             </div>
-            
-            <!-- Navigation Buttons -->
-            <div class="form-actions" style="margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--border-color); gap: 12px;">
-              <button type="button" class="btn btn-ghost" id="backToBasicBtn">
-                <i class="fas fa-arrow-left"></i> Πίσω: Βασικά
-              </button>
-              <button type="button" class="btn btn-primary" id="nextToCostsBtn">
-                Επόμενο: Κόστος & Εργάτες <i class="fas fa-arrow-right"></i>
-              </button>
-            </div>
           </div>
 
-          <!-- Tab: Κόστος & Εργάτες -->
-          <div class="tab-content" id="tab-costs">
-            <div class="cost-cockpit" data-cost-view="workers">
-              <section class="cost-kpi-strip cost-kpi-strip-compact" aria-label="Σύνοψη κόστους και χρέωσης">
-                <div class="cost-kpi cost-kpi-primary">
-                  <span>Χρέωση</span>
-                  <strong id="billingAmountKpiDisplay">0.00 €</strong>
+          <!-- Tab: Συνεργείο -->
+          <div class="tab-content" id="tab-workers">
+            <section class="cost-workers-panel cost-step-panel">
+              <div class="cost-panel-header">
+                <div>
+                  <h4><i class="fas fa-users"></i> Συνεργείο</h4>
+                  <p class="cost-panel-lead">Ποιος δούλεψε, πόσες ώρες και τι κόστος έφερε στην εργασία.</p>
                 </div>
-                <div class="cost-kpi profit">
-                  <span>Καθαρό κέρδος</span>
-                  <strong id="profitDisplay">0.00 €</strong>
-                </div>
-                <div class="cost-kpi">
-                  <span>Δουλεμένες</span>
-                  <strong id="workedHoursDisplay">0.0 ώρες</strong>
-                </div>
-                <div class="cost-kpi">
-                  <span>Χρεωμένες</span>
-                  <strong id="chargedHoursDisplay">0.0 ώρες</strong>
-                </div>
-                <div class="cost-kpi warning">
-                  <span>Μη χρεωμένες</span>
-                  <strong id="unbilledHoursDisplay">0.0 ώρες</strong>
-                </div>
-                <div class="cost-kpi danger">
-                  <span>Χαμένη αξία</span>
-                  <strong id="lostBillingValueDisplay">0.00 €</strong>
-                </div>
-              </section>
-
-              <nav class="cost-section-nav" aria-label="Ενότητες οικονομικών">
-                <button type="button" class="cost-section-btn is-active" data-cost-section="workers">
-                  <i class="fas fa-users"></i> Εργάτες
+                <button type="button" class="btn btn-secondary" id="addWorkerToJobBtn">
+                  <i class="fas fa-user-plus"></i> Προσθήκη
                 </button>
-                <button type="button" class="cost-section-btn" data-cost-section="billing">
-                  <i class="fas fa-receipt"></i> Χρέωση
-                </button>
-                <button type="button" class="cost-section-btn" data-cost-section="expenses">
-                  <i class="fas fa-arrow-down"></i> Έξοδα
-                </button>
-                <button type="button" class="cost-section-btn" data-cost-section="payments">
-                  <i class="fas fa-hand-holding-usd"></i> Πληρωμές
-                </button>
-                <button type="button" class="cost-section-btn" data-cost-section="summary">
-                  <i class="fas fa-chart-line"></i> Σύνοψη
-                </button>
-              </nav>
-
-              <section class="cost-workers-panel">
-                <div class="cost-panel-header">
-                  <div>
-                    <h4><i class="fas fa-users"></i> Εργάτες</h4>
-                    <p class="cost-panel-lead">Ποιος δούλεψε, πόσες ώρες και τι κόστος έφερε στην εργασία.</p>
-                  </div>
-                  <button type="button" class="btn btn-secondary" id="addWorkerToJobBtn">
-                    <i class="fas fa-user-plus"></i> Προσθήκη
-                  </button>
-                </div>
-                <div id="assignedWorkersContainer" class="worker-compact-list">
-                  <!-- Workers rows will appear here -->
-                </div>
-              </section>
-
-              <aside class="cost-side-panel">
-                <section class="cost-panel">
-                  <div class="cost-panel-header compact">
-                    <h4><i class="fas fa-receipt"></i> Χρέωση</h4>
-                  </div>
-                  <div class="billing-option-list compact" role="radiogroup" aria-label="Τρόπος Χρέωσης">
-                    <label class="billing-option is-active">
-                      <input type="radio" name="jobBillingType" value="hourly" checked>
-                      <span class="billing-option-icon"><i class="fas fa-clock"></i></span>
-                      <span class="billing-option-content">
-                        <span class="billing-option-title">Με ώρες</span>
-                        <span class="billing-option-meta">Ώρες × τιμή/ώρα</span>
-                      </span>
-                    </label>
-                    <label class="billing-option">
-                      <input type="radio" name="jobBillingType" value="fixed">
-                      <span class="billing-option-icon"><i class="fas fa-handshake"></i></span>
-                      <span class="billing-option-content">
-                        <span class="billing-option-title">Συμφωνημένη</span>
-                        <span class="billing-option-meta">Σταθερό ποσό</span>
-                      </span>
-                    </label>
-                  </div>
-
-                  <div class="cost-input-grid">
-                    <div class="form-group" id="jobBillingHoursGroup">
-                      <label title="Οι ώρες που θα χρεωθούν στον πελάτη. Μπορούν να είναι λιγότερες από τις δουλεμένες ώρες.">
-                        Ώρες Χρέωσης <i class="fas fa-info-circle" style="font-size: 0.8em; color: var(--text-muted);"></i>
-                      </label>
-                      <input type="number" id="jobBillingHours" min="0" value="0"
-                             title="Μπορείτε να χρεώσετε λιγότερες ή περισσότερες ώρες από τις δουλεμένες">
-                    </div>
-
-                    <div class="form-group" id="jobBillingRateGroup">
-                      <label title="Η τιμή ανά ώρα που χρεώνεις τον πελάτη για αυτή την εργασία">
-                        Τιμή/Ώρα (€) <i class="fas fa-info-circle" style="font-size: 0.8em; color: var(--text-muted);"></i>
-                      </label>
-                      <input type="number" id="jobBillingRate" min="0" value="50"
-                             title="Προτείνεται από τις ρυθμίσεις, αλλά αλλάζει ανά εργασία">
-                    </div>
-
-                    <div class="form-group span-2" id="jobAgreedPriceGroup" style="display: none;">
-                      <label title="Η τιμή που συμφωνήθηκε με τον πελάτη για όλο το έργο">
-                        Συμφωνημένη Τιμή (€) <i class="fas fa-info-circle" style="font-size: 0.8em; color: var(--text-muted);"></i>
-                      </label>
-                      <input type="number" id="jobAgreedPrice" min="0" step="0.01" value="0"
-                             title="Σταθερή τιμή για όλο το έργο">
-                    </div>
-                  </div>
-                </section>
-              </aside>
-
-              <section class="cost-financial-row">
-                <section class="cost-panel cost-expenses-panel">
-                  <div class="cost-panel-header compact">
-                    <h4><i class="fas fa-arrow-down"></i> Έξοδα</h4>
-                  </div>
-                  <div class="cost-input-grid">
-                    <div class="form-group">
-                      <label title="Συμπληρώνεται αυτόματα από τα υλικά και μπορεί να αυξηθεί για έξτρα κόστος">
-                        Υλικά (€) <i class="fas fa-info-circle" style="font-size: 0.8em; color: var(--text-muted);"></i>
-                      </label>
-                      <input type="number" id="jobMaterialsCost" min="0" value="0"
-                             title="Δεν μπορεί να είναι μικρότερο από το άθροισμα των υλικών">
-                    </div>
-
-                    <div class="form-group">
-                      <label title="Χιλιόμετρα μετακίνησης για την εργασία">
-                        Χιλιόμετρα <i class="fas fa-info-circle" style="font-size: 0.8em; color: var(--text-muted);"></i>
-                      </label>
-                      <input type="number" id="jobKilometers" min="0" value="0"
-                             title="Χιλιόμετρα μετακίνησης για την εργασία (έξοδα)">
-                    </div>
-                  </div>
-                  <div class="cost-metric-list">
-                    <div class="financial-row">
-                      <span>Υπάλληλοι</span>
-                      <strong id="laborCostDisplay">0.00 €</strong>
-                    </div>
-                    <div class="financial-row">
-                      <span>Υλικά</span>
-                      <strong id="materialsCostDisplay">0.00 €</strong>
-                    </div>
-                    <div class="financial-row">
-                      <span>Μετακίνηση</span>
-                      <strong id="travelCostDisplay">0.00 €</strong>
-                    </div>
-                    <div class="financial-row total">
-                      <span>Σύνολο εξόδων</span>
-                      <strong id="totalExpensesDisplay">0.00 €</strong>
-                    </div>
-                  </div>
-                </section>
-
-                <section class="cost-panel cost-payments-panel" id="jobPaymentsFormSection">
-                  ${this.renderPaymentsSection(null, 'edit')}
-                </section>
-
-                <section class="cost-panel result">
-                  <div class="cost-panel-header compact">
-                    <h4><i class="fas fa-chart-line"></i> Τελικό αποτέλεσμα</h4>
-                  </div>
-                  <div class="cost-result-main">
-                    <span>Σύνολο χρέωσης</span>
-                    <strong id="billingAmountDisplay">0.00 €</strong>
-                  </div>
-                  <div class="cost-metric-list">
-                    <div class="financial-row total">
-                      <span>Έσοδα</span>
-                      <strong id="totalCostDisplay">0.00 €</strong>
-                    </div>
-                    <div class="financial-row">
-                      <span>Κέρδος ανά ώρα</span>
-                      <strong id="profitPerHourDisplay">-</strong>
-                    </div>
-                    <div class="financial-row">
-                      <span>Αξία χρόνου ιδιοκτήτη</span>
-                      <strong id="ownerOpportunityCostDisplay">0.00 €</strong>
-                    </div>
-                    <div class="financial-row total">
-                      <span>Μετά την αξία χρόνου</span>
-                      <strong id="economicProfitDisplay">0.00 €</strong>
-                    </div>
-                  </div>
-                </section>
-              </section>
-            </div>
-            
-            <!-- Navigation Buttons -->
-            <div class="form-actions" style="margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--border-color); gap: 12px;">
-              <button type="button" class="btn btn-ghost" id="backToDetailsBtn">
-                <i class="fas fa-arrow-left"></i> Πίσω: Εργασία & Υλικά
-              </button>
-              <button type="button" class="btn btn-primary" id="nextToNotesBtn">
-                Επόμενο: Σημειώσεις <i class="fas fa-arrow-right"></i>
-              </button>
-            </div>
+              </div>
+              <div id="assignedWorkersContainer" class="worker-compact-list"></div>
+            </section>
           </div>
 
-          <!-- Tab: Σημειώσεις -->
+          <!-- Tab: Έξοδα -->
+          <div class="tab-content" id="tab-expenses">
+            <section class="cost-panel cost-expenses-panel cost-step-panel">
+              <div class="cost-panel-header compact">
+                <h4><i class="fas fa-arrow-down"></i> Έξοδα</h4>
+              </div>
+              <div class="cost-input-grid">
+                <div class="form-group">
+                  <label title="Μπορείτε να το αυξήσετε χειροκίνητα για έξτρα έξοδα· δεν μπορεί να είναι μικρότερο από το άθροισμα των υλικών">
+                    Συνολικό κόστος υλικών (€) <i class="fas fa-info-circle" style="font-size: 0.8em; color: var(--text-muted);"></i>
+                  </label>
+                  <input type="number" id="jobMaterialsCost" min="0" step="0.01" value="0"
+                         title="Ελάχιστο: άθροισμα καταχωρημένων υλικών. Μπορείτε να το αυξήσετε χειροκίνητα.">
+                  <small class="text-muted">Ελάχιστο: <span id="materialsLineTotalHint">0.00 €</span> (άθροισμα γραμμών υλικών)</small>
+                </div>
+                <div class="form-group">
+                  <label title="Χιλιόμετρα μετακίνησης για την εργασία">
+                    Χιλιόμετρα <i class="fas fa-info-circle" style="font-size: 0.8em; color: var(--text-muted);"></i>
+                  </label>
+                  <input type="number" id="jobKilometers" min="0" value="0"
+                         title="Χιλιόμετρα μετακίνησης για την εργασία (έξοδα)">
+                </div>
+              </div>
+              <div class="cost-metric-list">
+                <div class="financial-row">
+                  <span>Υπάλληλοι</span>
+                  <strong id="laborCostDisplay">0.00 €</strong>
+                </div>
+                <div class="financial-row">
+                  <span>Υλικά</span>
+                  <strong id="materialsCostDisplay">0.00 €</strong>
+                </div>
+                <div class="financial-row">
+                  <span>Μετακίνηση</span>
+                  <strong id="travelCostDisplay">0.00 €</strong>
+                </div>
+                <div class="financial-row total">
+                  <span>Σύνολο εξόδων</span>
+                  <strong id="totalExpensesDisplay">0.00 €</strong>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <!-- Tab: Χρέωση -->
+          <div class="tab-content" id="tab-billing">
+            <section class="cost-panel cost-step-panel">
+              <div class="cost-panel-header compact">
+                <h4><i class="fas fa-receipt"></i> Χρέωση</h4>
+              </div>
+              <div class="billing-option-list compact" role="radiogroup" aria-label="Τρόπος Χρέωσης">
+                <label class="billing-option is-active">
+                  <input type="radio" name="jobBillingType" value="hourly" checked>
+                  <span class="billing-option-icon"><i class="fas fa-clock"></i></span>
+                  <span class="billing-option-content">
+                    <span class="billing-option-title">Με ώρες</span>
+                    <span class="billing-option-meta">Ώρες × τιμή/ώρα</span>
+                  </span>
+                </label>
+                <label class="billing-option">
+                  <input type="radio" name="jobBillingType" value="fixed">
+                  <span class="billing-option-icon"><i class="fas fa-handshake"></i></span>
+                  <span class="billing-option-content">
+                    <span class="billing-option-title">Συμφωνημένη</span>
+                    <span class="billing-option-meta">Σταθερό ποσό</span>
+                  </span>
+                </label>
+              </div>
+              <div class="cost-input-grid">
+                <div class="form-group" id="jobBillingHoursGroup">
+                  <label title="Οι ώρες που θα χρεωθούν στον πελάτη. Μπορούν να είναι λιγότερες από τις δουλεμένες ώρες.">
+                    Ώρες Χρέωσης <i class="fas fa-info-circle" style="font-size: 0.8em; color: var(--text-muted);"></i>
+                  </label>
+                  <input type="number" id="jobBillingHours" min="0" value="0"
+                         title="Μπορείτε να χρεώσετε λιγότερες ή περισσότερες ώρες από τις δουλεμένες">
+                </div>
+                <div class="form-group" id="jobBillingRateGroup">
+                  <label title="Η τιμή ανά ώρα που χρεώνεις τον πελάτη για αυτή την εργασία">
+                    Τιμή/Ώρα (€) <i class="fas fa-info-circle" style="font-size: 0.8em; color: var(--text-muted);"></i>
+                  </label>
+                  <input type="number" id="jobBillingRate" min="0" value="50"
+                         title="Προτείνεται από τις ρυθμίσεις, αλλά αλλάζει ανά εργασία">
+                </div>
+                <div class="form-group span-2" id="jobAgreedPriceGroup" style="display: none;">
+                  <label title="Η τιμή που συμφωνήθηκε με τον πελάτη για όλο το έργο">
+                    Συμφωνημένη Τιμή (€) <i class="fas fa-info-circle" style="font-size: 0.8em; color: var(--text-muted);"></i>
+                  </label>
+                  <input type="number" id="jobAgreedPrice" min="0" step="0.01" value="0"
+                         title="Σταθερή τιμή για όλο το έργο">
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <!-- Tab: Πληρωμές -->
+          <div class="tab-content" id="tab-payments">
+            <section class="cost-panel cost-payments-panel cost-step-panel" id="jobPaymentsFormSection">
+              ${this.renderPaymentsSection(null, 'edit')}
+            </section>
+          </div>
+
+          <!-- Tab: Σύνοψη & Σημειώσεις -->
           <div class="tab-content" id="tab-notes">
+            <section class="cost-panel result cost-step-panel">
+              <div class="cost-panel-header compact">
+                <h4><i class="fas fa-chart-line"></i> Τελικό αποτέλεσμα</h4>
+              </div>
+              <div class="cost-result-main">
+                <span>Σύνολο χρέωσης</span>
+                <strong id="billingAmountDisplay">0.00 €</strong>
+              </div>
+              <div class="cost-metric-list">
+                <div class="financial-row total">
+                  <span>Έσοδα</span>
+                  <strong id="totalCostDisplay">0.00 €</strong>
+                </div>
+                <div class="financial-row">
+                  <span>Κέρδος ανά ώρα</span>
+                  <strong id="profitPerHourDisplay">-</strong>
+                </div>
+                <div class="financial-row">
+                  <span>Αξία χρόνου ιδιοκτήτη</span>
+                  <strong id="ownerOpportunityCostDisplay">0.00 €</strong>
+                </div>
+                <div class="financial-row total">
+                  <span>Μετά την αξία χρόνου</span>
+                  <strong id="economicProfitDisplay">0.00 €</strong>
+                </div>
+              </div>
+            </section>
+
             <div class="form-grid">
               <div class="form-group span-2">
                 <label>Σημειώσεις</label>
-                <textarea id="jobNotes" rows="8"></textarea>
+                <textarea id="jobNotes" rows="6"></textarea>
               </div>
             </div>
 
@@ -668,17 +630,10 @@ window.JobsView = {
               <h4><i class="fas fa-clipboard-check"></i> Έλεγχος πριν την αποθήκευση</h4>
               <div class="job-mobile-info-list" id="jobFormReviewContent"></div>
             </section>
-            
-            <!-- Navigation Buttons -->
-            <div class="form-actions" style="margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--border-color); gap: 12px;">
-              <button type="button" class="btn btn-ghost" id="backToCostsBtn">
-                <i class="fas fa-arrow-left"></i> Πίσω: Κόστος & Εργάτες
-              </button>
-            </div>
           </div>
 
-          <div class="mobile-job-edit-sticky" aria-label="Σύνοψη και ενέργειες εργασίας">
-            <div class="mobile-edit-summary">
+          <div class="job-form-footer" aria-label="Ενέργειες φόρμας">
+            <div class="job-form-footer-summary">
               <div>
                 <span>Χρέωση</span>
                 <strong id="mobileEditBillingDisplay">0.00 €</strong>
@@ -692,24 +647,22 @@ window.JobsView = {
                 <strong id="mobileEditLostDisplay">0.00 €</strong>
               </div>
             </div>
-            <div class="mobile-edit-actions">
-              <button type="button" class="btn btn-ghost" id="mobileCancelJobFormBtn">
-                Ακύρωση
+            <div class="job-form-footer-nav" id="jobFormStepNav">
+              <button type="button" class="btn btn-ghost" id="jobFormPrevStepBtn" disabled>
+                <i class="fas fa-arrow-left"></i> Πίσω
               </button>
-              <button type="submit" class="btn btn-primary">
+              <button type="button" class="btn btn-primary" id="jobFormNextStepBtn">
+                Επόμενο <i class="fas fa-arrow-right"></i>
+              </button>
+            </div>
+            <div class="job-form-footer-actions">
+              <button type="button" class="btn btn-ghost" id="cancelJobFormBtn">
+                <i class="fas fa-times"></i> Ακύρωση
+              </button>
+              <button type="submit" class="btn btn-primary" id="saveJobFormBtn">
                 <i class="fas fa-save"></i> Αποθήκευση
               </button>
             </div>
-          </div>
-
-          <!-- Actions -->
-          <div class="form-actions job-form-desktop-actions" style="gap: 12px;">
-            <button type="submit" class="btn btn-primary">
-              <i class="fas fa-save"></i> Αποθήκευση
-            </button>
-            <button type="button" class="btn btn-ghost" id="cancelJobFormBtn">
-              <i class="fas fa-times"></i> Ακύρωση
-            </button>
           </div>
 
         </form>
@@ -755,15 +708,13 @@ window.JobsView = {
   },
   
   setupEventListeners() {
-    // Tab navigation with event delegation
-    const formElement = document.getElementById('jobFormElement');
-    if (formElement) {
-      // Remove old tab handler
+    // Tab/step navigation — delegate on #jobForm (stepper sits outside #jobFormElement)
+    const jobFormShell = document.getElementById('jobForm');
+    if (jobFormShell) {
       if (this.tabClickHandler) {
-        formElement.removeEventListener('click', this.tabClickHandler);
+        jobFormShell.removeEventListener('click', this.tabClickHandler);
       }
-      
-      // Create new handler with delegation
+
       this.tabClickHandler = (e) => {
         const stepBtn = e.target.closest('.job-form-step');
         if (stepBtn) {
@@ -778,8 +729,8 @@ window.JobsView = {
           this.goToJobStep(tabBtn.dataset.tab);
         }
       };
-      
-      formElement.addEventListener('click', this.tabClickHandler);
+
+      jobFormShell.addEventListener('click', this.tabClickHandler);
     }
 
     document.getElementById('jobFormHeaderCloseBtn')?.addEventListener('click', () => {
@@ -834,15 +785,12 @@ window.JobsView = {
     }
     
     // Cancel button - remove old listener first
-    const cancelButtons = [
-      document.getElementById('cancelJobFormBtn'),
-      document.getElementById('mobileCancelJobFormBtn')
-    ].filter(Boolean);
+    const cancelBtn = document.getElementById('cancelJobFormBtn');
     this.cancelBtnHandler = this.cancelBtnHandler || (() => this.cancelForm());
-    cancelButtons.forEach(cancelBtn => {
+    if (cancelBtn) {
       cancelBtn.removeEventListener('click', this.cancelBtnHandler);
       cancelBtn.addEventListener('click', this.cancelBtnHandler);
-    });
+    }
     
     // Search input - remove old listener first
     const searchInput = document.getElementById('jobSearch');
@@ -885,9 +833,8 @@ window.JobsView = {
       jobStatus.addEventListener('change', () => this.updateProgressBar());
     }
 
-    // Navigation buttons
+    // Step navigation (footer prev/next)
     this.setupNavigationButtons();
-    this.setupCostSectionNav();
 
     // Add Worker button
     const addWorkerBtn = document.getElementById('addWorkerToJobBtn');
@@ -1096,12 +1043,6 @@ window.JobsView = {
     formTitle.textContent = 'Νέα Εργασία';
     jobForm.style.display = 'block';
     window.AppShell?.refreshFab();
-    
-    // Reset to first tab
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-    document.querySelector('.tab-btn[data-tab="basic"]').classList.add('active');
-    document.getElementById('tab-basic').classList.add('active');
     
     // Reset form and set defaults
     document.getElementById('jobFormElement').reset();
@@ -1713,13 +1654,21 @@ window.JobsView = {
   applyMinimumCostFields(enforce = false) {
     const materialTotal = this.getMaterialCostTotal();
     const materialsInput = document.getElementById('jobMaterialsCost');
+    const lineTotalHint = document.getElementById('materialsLineTotalHint');
+
+    if (lineTotalHint) {
+      lineTotalHint.textContent = this.formatMaterialCurrency(materialTotal);
+    }
 
     if (materialsInput) {
       materialsInput.min = String(materialTotal);
-      const shouldAdjust = enforce || document.activeElement !== materialsInput;
-      const currentMaterials = parseFloat(materialsInput.value || 0) || 0;
-      if (shouldAdjust && Math.abs(currentMaterials - materialTotal) > 0.005) {
-        materialsInput.value = materialTotal ? materialTotal.toFixed(2) : '0';
+      const isEditingField = document.activeElement === materialsInput;
+      if (enforce || !isEditingField) {
+        const currentMaterials = parseFloat(materialsInput.value || 0) || 0;
+        // Μόνο ελάχιστο — επιτρέπεται χειροκίνητη αύξηση πάνω από το άθροισμα γραμμών
+        if (currentMaterials + 0.005 < materialTotal) {
+          materialsInput.value = materialTotal ? materialTotal.toFixed(2) : '0';
+        }
       }
     }
   },
@@ -1865,11 +1814,7 @@ window.JobsView = {
     if (!jobClient) {
       console.warn('[Jobs] Missing client');
       Toast.error('Παρακαλώ επιλέξτε πελάτη');
-      // Switch to basic tab
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-      document.querySelector('.tab-btn[data-tab="basic"]').classList.add('active');
-      document.getElementById('tab-basic').classList.add('active');
+      this.goToJobStep('basic');
       if (!Utils.isMobile()) {
         document.getElementById('jobClient').focus();
       }
@@ -1879,11 +1824,7 @@ window.JobsView = {
     if (!jobStatus) {
       console.warn('[Jobs] Missing status');
       Toast.error('Παρακαλώ επιλέξτε κατάσταση');
-      // Switch to basic tab
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-      document.querySelector('.tab-btn[data-tab="basic"]').classList.add('active');
-      document.getElementById('tab-basic').classList.add('active');
+      this.goToJobStep('basic');
       if (!Utils.isMobile()) {
         document.getElementById('jobStatus').focus();
       }
@@ -1911,10 +1852,7 @@ window.JobsView = {
 
     if (visitEndConverted && !nextVisitConverted) {
       Toast.error('Συμπληρώστε πρώτα την Επόμενη Επίσκεψη πριν βάλετε Λήξη Επίσκεψης.');
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-      document.querySelector('.tab-btn[data-tab="basic"]').classList.add('active');
-      document.getElementById('tab-basic').classList.add('active');
+      this.goToJobStep('basic');
       if (!Utils.isMobile()) {
         document.getElementById('jobNextVisit')?.focus();
       }
@@ -1923,10 +1861,7 @@ window.JobsView = {
 
     if (nextVisitConverted && visitEndConverted && visitEndConverted < nextVisitConverted) {
       Toast.error('Η Λήξη Επίσκεψης δεν μπορεί να είναι πριν από την Επόμενη Επίσκεψη.');
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-      document.querySelector('.tab-btn[data-tab="basic"]').classList.add('active');
-      document.getElementById('tab-basic').classList.add('active');
+      this.goToJobStep('basic');
       if (!Utils.isMobile()) {
         document.getElementById('jobVisitEndDate')?.focus();
       }
@@ -2731,12 +2666,6 @@ window.JobsView = {
     document.getElementById('jobForm').style.display = 'block';
     window.AppShell?.refreshFab();
 
-    // Reset to first tab
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-    document.querySelector('.tab-btn[data-tab="basic"]').classList.add('active');
-    document.getElementById('tab-basic').classList.add('active');
-
     // Fill form - convert dates from YYYY-MM-DD to DD/MM/YYYY
     document.getElementById('jobClient').value = job.clientId;
     document.getElementById('jobTitle').value = job.title || job.type || '';
@@ -2899,18 +2828,15 @@ window.JobsView = {
 
 
   filterJobs() {
-    const searchTerm = document.getElementById('jobSearch').value.toLowerCase();
+    const searchTerm = document.getElementById('jobSearch').value;
     const statusFilter = document.getElementById('statusFilter').value;
 
     let jobs = State.data.jobs;
 
-    // Filter by search
     if (searchTerm) {
       jobs = jobs.filter(job => {
-        const clientName = this.getClientName(job.clientId).toLowerCase();
-        const jobIdStr = String(job.id).toLowerCase();
-        return jobIdStr.includes(searchTerm) ||
-               clientName.includes(searchTerm);
+        const clientName = this.getClientName(job.clientId);
+        return Utils.matchesSearch([job.id, job.title, job.type, job.status, job.address, clientName], searchTerm);
       });
     }
 
@@ -3032,20 +2958,21 @@ window.JobsView = {
 
   // Setup Navigation Buttons
   setupNavigationButtons() {
-    const stepNavMap = {
-      nextToDetailsBtn: 'details',
-      backToBasicBtn: 'basic',
-      nextToCostsBtn: 'costs',
-      backToDetailsBtn: 'details',
-      nextToNotesBtn: 'notes',
-      backToCostsBtn: 'costs'
-    };
+    const prevBtn = document.getElementById('jobFormPrevStepBtn');
+    const nextBtn = document.getElementById('jobFormNextStepBtn');
 
-    Object.entries(stepNavMap).forEach(([buttonId, stepId]) => {
-      const button = document.getElementById(buttonId);
-      if (!button) return;
-      button.onclick = () => this.goToJobStep(stepId);
-    });
+    if (prevBtn) {
+      prevBtn.onclick = () => {
+        const prev = this.formSteps[this.currentStepIndex - 1];
+        if (prev) this.goToJobStep(prev.id);
+      };
+    }
+    if (nextBtn) {
+      nextBtn.onclick = () => {
+        const next = this.formSteps[this.currentStepIndex + 1];
+        if (next) this.goToJobStep(next.id);
+      };
+    }
   },
 
   // Switch Tab Helper
@@ -3756,7 +3683,6 @@ window.JobsView = {
     document.getElementById('jobFormElement')?.removeEventListener('submit', this.formSubmitHandler);
     document.getElementById('jobForm')?.removeEventListener('click', this.tabClickHandler);
     document.getElementById('cancelJobFormBtn')?.removeEventListener('click', this.cancelBtnHandler);
-    document.getElementById('mobileCancelJobFormBtn')?.removeEventListener('click', this.cancelBtnHandler);
     document.getElementById('jobSearch')?.removeEventListener('input', this.searchInputHandler);
     document.getElementById('statusFilter')?.removeEventListener('change', this.statusFilterHandler);
     document.getElementById('jobClient')?.removeEventListener('change', this.clientSelectHandler);

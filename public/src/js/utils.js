@@ -564,6 +564,47 @@ const Utils = {
   },
 
   /**
+   * Normalize text for search: lowercase, no accents/tonos, greeklish→Greek, collapsed spaces.
+   * @param {string} value
+   * @returns {string}
+   */
+  normalizeSearchText(value) {
+    if (typeof MaterialIdentity !== 'undefined' && typeof MaterialIdentity.normalizeSearchText === 'function') {
+      return MaterialIdentity.normalizeSearchText(value);
+    }
+
+    return String(value || '')
+      .trim()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}]+/gu, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  },
+
+  /**
+   * Accent/case/greeklish-insensitive match against one or more field values.
+   * @param {string|string[]} fields
+   * @param {string} query
+   * @returns {boolean}
+   */
+  matchesSearch(fields, query) {
+    const normalizedQuery = Utils.normalizeSearchText(query);
+    if (!normalizedQuery) return true;
+
+    const haystack = Utils.normalizeSearchText(
+      (Array.isArray(fields) ? fields : [fields])
+        .filter(value => value !== undefined && value !== null && value !== '')
+        .join(' ')
+    );
+    if (!haystack) return false;
+
+    const words = normalizedQuery.split(' ').filter(Boolean);
+    return words.every(word => haystack.includes(word));
+  },
+
+  /**
    * Check if user is on mobile device
    * @returns {boolean} True if mobile device
    */

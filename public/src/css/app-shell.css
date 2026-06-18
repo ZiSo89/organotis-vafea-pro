@@ -42,7 +42,7 @@
     padding-bottom: var(--mobile-scroll-padding);
   }
 
-  body.has-bottom-nav .mobile-job-edit-sticky {
+  body.has-bottom-nav .job-form-footer {
     bottom: var(--bottom-nav-height);
   }
 

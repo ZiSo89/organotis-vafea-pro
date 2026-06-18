@@ -610,16 +610,12 @@ window.ClientsView = {
   },
 
   filterClients() {
-    const searchTerm = document.getElementById('clientSearch').value.toLowerCase();
+    const searchTerm = document.getElementById('clientSearch').value;
     let clients = State.data.clients;
 
-    // Filter by search
     if (searchTerm) {
-      clients = clients.filter(client => 
-        client.name.toLowerCase().includes(searchTerm) ||
-        (client.phone || '').includes(searchTerm) ||
-        (client.email || '').toLowerCase().includes(searchTerm) ||
-        (client.city || '').toLowerCase().includes(searchTerm)
+      clients = clients.filter(client =>
+        Utils.matchesSearch([client.name, client.phone, client.email, client.city, client.address], searchTerm)
       );
     }
 

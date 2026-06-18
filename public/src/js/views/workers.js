@@ -831,17 +831,14 @@ window.WorkersView = {
   },
 
   filterWorkers() {
-    const searchTerm = document.getElementById('workerSearch').value.toLowerCase();
+    const searchTerm = document.getElementById('workerSearch').value;
     const statusFilter = document.getElementById('statusFilter').value;
 
     let workers = State.data.workers;
 
-    // Filter by search
     if (searchTerm) {
       workers = workers.filter(worker =>
-        worker.name.toLowerCase().includes(searchTerm) ||
-        (worker.phone || '').includes(searchTerm) ||
-        (worker.specialty || '').toLowerCase().includes(searchTerm)
+        Utils.matchesSearch([worker.name, worker.phone, worker.specialty, worker.workerType], searchTerm)
       );
     }
 

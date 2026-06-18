@@ -39,7 +39,7 @@ window.StatisticsView = {
           </div>
         </div>
 
-        <div class="statistics-filters card ${Utils.isMobile() ? 'is-collapsed' : ''}" id="statisticsFiltersPanel">
+        <div class="statistics-filters card ${window.innerWidth <= 768 ? 'is-collapsed' : ''}" id="statisticsFiltersPanel">
           <button type="button" class="statistics-filters-toggle" id="statisticsFiltersToggle" aria-expanded="false">
             <span><i class="fas fa-filter"></i> Φίλτρα</span>
             <i class="fas fa-chevron-down"></i>
