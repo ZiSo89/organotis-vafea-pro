@@ -36,18 +36,23 @@ window.JobsView = {
     const nextBtn = document.getElementById('jobFormNextStepBtn');
     const prev = this.formSteps[this.currentStepIndex - 1];
     const next = this.formSteps[this.currentStepIndex + 1];
+    const compactNav = Utils.isMobile();
 
     if (prevBtn) {
       prevBtn.disabled = !prev;
-      prevBtn.innerHTML = prev
-        ? `<i class="fas fa-arrow-left"></i> ${Utils.escapeHtml(prev.label)}`
-        : '<i class="fas fa-arrow-left"></i> Πίσω';
+      prevBtn.innerHTML = !prev
+        ? '<i class="fas fa-arrow-left"></i> Πίσω'
+        : compactNav
+          ? '<i class="fas fa-arrow-left"></i> Πίσω'
+          : `<i class="fas fa-arrow-left"></i> ${Utils.escapeHtml(prev.label)}`;
     }
     if (nextBtn) {
       nextBtn.disabled = !next;
-      nextBtn.innerHTML = next
-        ? `${Utils.escapeHtml(next.label)} <i class="fas fa-arrow-right"></i>`
-        : 'Επόμενο <i class="fas fa-arrow-right"></i>';
+      nextBtn.innerHTML = !next
+        ? 'Επόμενο <i class="fas fa-arrow-right"></i>'
+        : compactNav
+          ? 'Επόμενο <i class="fas fa-arrow-right"></i>'
+          : `${Utils.escapeHtml(next.label)} <i class="fas fa-arrow-right"></i>`;
     }
   },
 
@@ -656,11 +661,11 @@ window.JobsView = {
               </button>
             </div>
             <div class="job-form-footer-actions">
-              <button type="button" class="btn btn-ghost" id="cancelJobFormBtn">
-                <i class="fas fa-times"></i> Ακύρωση
+              <button type="button" class="btn btn-ghost btn-compact-mobile" id="cancelJobFormBtn">
+                <i class="fas fa-times"></i> <span class="btn-text">Ακύρωση</span>
               </button>
-              <button type="submit" class="btn btn-primary" id="saveJobFormBtn">
-                <i class="fas fa-save"></i> Αποθήκευση
+              <button type="submit" class="btn btn-primary btn-compact-mobile" id="saveJobFormBtn">
+                <i class="fas fa-save"></i> <span class="btn-text">Αποθήκευση</span>
               </button>
             </div>
           </div>

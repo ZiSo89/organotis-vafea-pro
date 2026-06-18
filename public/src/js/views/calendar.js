@@ -125,7 +125,7 @@ window.CalendarView = {
     this.calendar = new FullCalendar.Calendar(calendarEl, {
       locale: 'el',
       timeZone: 'local',
-      initialView: 'dayGridMonth',
+      initialView: isMobile ? 'listWeek' : 'dayGridMonth',
       headerToolbar: isMobile
         ? { left: 'prev,next', center: 'title', right: 'dayGridMonth,listWeek today' }
         : {

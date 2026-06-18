@@ -1322,41 +1322,109 @@
 }
 
 @media (max-width: 768px) {
+  :root {
+    --job-form-footer-height: 142px;
+  }
+
   #jobForm .job-form-tabs-nav {
     display: none;
   }
 
+  .job-form-shell {
+    overflow: visible;
+  }
+
   #jobForm {
-    padding-bottom: 200px;
+    padding-bottom: 0;
+  }
+
+  #jobFormElement {
+    padding-bottom: calc(var(--job-form-footer-height) + var(--spacing-sm));
   }
 
   .job-form-footer {
-    position: sticky;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "summary summary"
+      "nav actions";
+    gap: 6px;
+    position: fixed;
+    left: 0;
+    right: 0;
     bottom: 0;
-    z-index: 5;
-    margin: var(--spacing-lg) calc(-1 * var(--spacing-md)) calc(-1 * var(--spacing-md));
-    padding: var(--spacing-md);
+    z-index: calc(var(--z-sticky, 100) + 1);
+    margin: 0;
+    padding: 8px 10px;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
     background: var(--color-surface);
     border-top: 1px solid var(--color-border);
-    box-shadow: var(--shadow-lg);
-    flex-direction: column;
+    box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.1);
     align-items: stretch;
   }
 
   .job-form-footer-summary {
-    justify-content: space-around;
+    grid-area: summary;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
+    justify-content: stretch;
     text-align: center;
+    min-width: 0;
   }
 
-  .job-form-footer-nav,
+  .job-form-footer-summary > div {
+    gap: 0;
+    align-items: center;
+  }
+
+  .job-form-footer-summary span {
+    font-size: 0.625rem;
+    line-height: 1.1;
+  }
+
+  .job-form-footer-summary strong {
+    font-size: 0.8125rem;
+    line-height: 1.2;
+  }
+
+  .job-form-footer-nav {
+    grid-area: nav;
+    width: auto;
+    gap: 6px;
+  }
+
   .job-form-footer-actions {
-    width: 100%;
+    grid-area: actions;
+    width: auto;
+    gap: 6px;
+    justify-content: flex-end;
   }
 
   .job-form-footer-nav button,
   .job-form-footer-actions button {
     flex: 1;
-    min-height: 46px;
+    min-height: 36px;
+    padding: 6px 8px;
+    font-size: 0.8125rem;
+    border-radius: var(--radius-sm);
+  }
+
+  .job-form-footer-actions .btn-compact-mobile .btn-text {
+    display: none;
+  }
+
+  .job-form-footer-actions .btn-compact-mobile {
+    min-width: 36px;
+    padding-inline: 10px;
+  }
+
+  .job-form-footer-actions .btn-compact-mobile#saveJobFormBtn {
+    flex: 1.4;
+  }
+
+  .job-form-footer-actions .btn-compact-mobile#saveJobFormBtn .btn-text {
+    display: inline;
   }
 
   .job-form-kpi-strip:not([hidden]) {
@@ -1488,7 +1556,7 @@
 
   #jobForm .job-form-footer-nav button,
   #jobForm .job-form-footer-actions button {
-    min-height: 46px;
+    min-height: 36px;
   }
 
   .cost-section-nav {

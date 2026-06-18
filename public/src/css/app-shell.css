@@ -46,8 +46,12 @@
     bottom: var(--bottom-nav-height);
   }
 
+  body.has-bottom-nav #jobFormElement {
+    padding-bottom: calc(var(--job-form-footer-height) + var(--bottom-nav-height) + var(--spacing-sm));
+  }
+
   body.has-bottom-nav #jobForm {
-    padding-bottom: calc(var(--mobile-scroll-padding) + 24px);
+    padding-bottom: 0;
   }
 
   body.has-bottom-nav .form-actions.is-sticky,
