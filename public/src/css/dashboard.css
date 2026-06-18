@@ -69,6 +69,36 @@
   font-size: var(--font-size-3xl);
 }
 
+.dashboard-greeting {
+  margin: 0 0 var(--spacing-lg);
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg, rgba(74, 144, 226, 0.14) 0%, rgba(38, 198, 218, 0.08) 100%);
+  border: 1px solid rgba(74, 144, 226, 0.18);
+  box-shadow: var(--shadow-sm);
+}
+
+.dashboard-greeting-label {
+  display: block;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 4px;
+}
+
+.dashboard-greeting-name {
+  display: block;
+  font-size: clamp(1.35rem, 4vw, 1.75rem);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.2;
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-paint-teal, #26c6da) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
 /* Modern Compact Stats Grid - Always 5 in a row */
 .dashboard-widgets {
   display: grid;
@@ -418,11 +448,19 @@
   gap: var(--spacing-xs);
 }
 
-/* Dashboard Map - Round Corners */
+/* Dashboard Map - preview only (click → full map page) */
 #dashboardMap {
   border-radius: var(--radius-lg);
   overflow: hidden;
   box-shadow: var(--shadow-sm);
+}
+
+.dashboard-map-preview {
+  cursor: pointer;
+}
+
+.dashboard-map-static .leaflet-control-container {
+  display: none;
 }
 
 #dashboardMap .gm-style {
@@ -486,7 +524,7 @@
   
   .dashboard-widgets,
   .dashboard-widgets-single-row {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--spacing-sm);
   }
   

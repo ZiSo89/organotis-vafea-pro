@@ -535,12 +535,9 @@ const State = {
 
     // Search
     if (this.searchQuery) {
-      const query = this.searchQuery.toLowerCase();
-      filtered = filtered.filter(item => {
-        return Object.values(item).some(value => 
-          String(value).toLowerCase().includes(query)
-        );
-      });
+      filtered = filtered.filter(item =>
+        Utils.matchesSearch(Object.values(item), this.searchQuery)
+      );
     }
 
     // Filters

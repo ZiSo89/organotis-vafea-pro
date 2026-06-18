@@ -61,8 +61,11 @@
   
   .stats-grid,
   .charts-grid {
-    grid-template-columns: 1fr;
     width: 100%;
+  }
+
+  .charts-grid {
+    grid-template-columns: 1fr;
   }
   
   .form-row {
@@ -129,7 +132,13 @@
   .content-area {
     padding: var(--spacing-sm);
   }
-  
+
+  .stats-grid .stat-card {
+    flex-direction: row;
+    text-align: left;
+    padding: var(--spacing-sm);
+  }
+
   .stat-card {
     flex-direction: column;
     text-align: center;

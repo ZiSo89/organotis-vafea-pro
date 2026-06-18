@@ -14,10 +14,13 @@ window.DashboardView = {
     
     container.innerHTML = `
       <div class="dashboard">
-          ${isMobile ? `<p class="dashboard-greeting">Καλημέρα, <strong>${Utils.escapeHtml(companyName)}</strong></p>` : `<h1>Αρχική Σελίδα</h1>`}
+          ${isMobile ? `<div class="dashboard-greeting">
+            <span class="dashboard-greeting-label">Καλημέρα,</span>
+            <span class="dashboard-greeting-name">${Utils.escapeHtml(companyName)}</span>
+          </div>` : `<h1>Αρχική Σελίδα</h1>`}
           
-          <!-- Widgets - Single Row -->
-          <div class="dashboard-widgets-single-row ${isMobile ? 'is-mobile-scroll' : ''}">
+          <!-- Widgets -->
+          <div class="dashboard-widgets-single-row">
             <div class="widget-compact clickable" onclick="Router.navigate('jobs')">
               <div class="widget-content">
                 <div class="widget-title">Εργασίες</div>
@@ -118,9 +121,9 @@ window.DashboardView = {
                   <i class="fas fa-map-marked-alt"></i> Χάρτης
                 </h2>
               </div>
-              <div class="card-body dashboard-map-collapsible" style="padding: 0; position: relative;">
+              <div class="card-body dashboard-map-collapsible dashboard-map-preview" style="padding: 0; position: relative;">
                 ${isMobile ? '<details open><summary style="padding: var(--spacing-md);">Εμφάνιση χάρτη</summary>' : ''}
-                <div id="dashboardMap" style="height: ${isMobile ? '280px' : '350px'}; width: 100%;"></div>
+                <div id="dashboardMap" class="dashboard-map-static" style="height: ${isMobile ? '280px' : '350px'}; width: 100%;" role="link" aria-label="Άνοιγμα πλήρους χάρτη"></div>
                 ${isMobile ? '</details>' : ''}
               </div>
             </div>
@@ -893,12 +896,16 @@ window.DashboardView = {
         center: { lat: 40.8475, lng: 25.8747 },
         zoom: 13,
         mapTypeControl: false,
-        fullscreenControl: true,
+        fullscreenControl: false,
         streetViewControl: false,
-        gestureHandling: 'greedy'
+        zoomControl: false,
+        draggable: false,
+        scrollwheel: false,
+        disableDoubleClickZoom: true,
+        gestureHandling: 'none',
+        keyboardShortcuts: false
       });
 
-      // Add click event to navigate to full map
       mapElement.style.cursor = 'pointer';
       map.addListener('click', () => {
         window.location.hash = 'map';
@@ -1034,21 +1041,20 @@ window.DashboardView = {
 
       // Create Leaflet map
       const map = L.map(mapElement, {
-        zoomControl: true,
+        zoomControl: false,
         attributionControl: false,
-        scrollWheelZoom: false, // Disable scroll zoom
-        dragging: true
+        scrollWheelZoom: false,
+        dragging: false,
+        doubleClickZoom: false,
+        touchZoom: false,
+        boxZoom: false,
+        keyboard: false,
+        tap: false
       }).setView([40.8475, 25.8747], 13);
 
-      // Add click event to navigate to full map
       mapElement.style.cursor = 'pointer';
-      mapElement.addEventListener('click', (e) => {
-        // Only navigate if clicking on the map, not on controls
-        if (e.target.classList.contains('leaflet-container') || 
-            e.target.classList.contains('leaflet-tile') ||
-            e.target.closest('.leaflet-tile-pane')) {
-          window.location.hash = 'map';
-        }
+      map.on('click', () => {
+        window.location.hash = 'map';
       });
 
       // Add OpenStreetMap tiles

@@ -20,7 +20,6 @@ window.MapView = {
   showClientsHandler: null,
   showUpcomingHandler: null,
   showTodayHandler: null,
-  scrollBtnHandler: null,
   // Geocode queue to process addresses in the background (throttled)
   geocodeQueue: [],
   geocodeQueueSet: new Set(),
@@ -30,7 +29,7 @@ window.MapView = {
 
   render(container) {
     const isMobile = Utils.isMobile();
-    const mapHeight = isMobile ? 'calc(100vh - 180px)' : '600px';
+    const mapHeight = isMobile ? 'calc(100dvh - 300px)' : '600px';
     
     container.innerHTML = `
       <style>
@@ -96,13 +95,13 @@ window.MapView = {
       </div>
 
       <!-- Map Controls -->
-      <div class="card map-controls-card" style="margin-bottom: 1rem;">
-        <div class="map-controls-desktop" style="display: flex; gap: 1.5rem; flex-wrap: wrap; align-items: center;">
+      <div class="card map-controls-card">
+        <div class="map-controls-list">
           <label class="toggle-switch" title="Εμφάνιση όλων των πελατών με διεύθυνση">
             <input type="checkbox" id="showClients" checked>
             <span class="toggle-slider"></span>
             <span class="toggle-label">
-              <span style="color: #2196F3; font-size: 1.2rem;">⬤</span> Πελάτες
+              <span class="map-layer-dot map-layer-dot-clients" aria-hidden="true"></span> Πελάτες
             </span>
           </label>
           
@@ -110,7 +109,7 @@ window.MapView = {
             <input type="checkbox" id="showUpcoming" checked>
             <span class="toggle-slider"></span>
             <span class="toggle-label">
-              <span style="color: #4CAF50; font-size: 1.2rem;">⬤</span> Επόμενες Επισκέψεις
+              <span class="map-layer-dot map-layer-dot-upcoming" aria-hidden="true"></span> Επόμενες Επισκέψεις
             </span>
           </label>
           
@@ -118,7 +117,7 @@ window.MapView = {
             <input type="checkbox" id="showToday" checked>
             <span class="toggle-slider"></span>
             <span class="toggle-label">
-              <span style="color: #F44336; font-size: 1.2rem;">⬤</span> Σημερινές Επισκέψεις
+              <span class="map-layer-dot map-layer-dot-today" aria-hidden="true"></span> Σημερινές Επισκέψεις
             </span>
           </label>
         </div>
@@ -127,35 +126,6 @@ window.MapView = {
       <!-- Map Container -->
       <div class="card map-container-card" style="padding: 0; overflow: hidden; position: relative;">
         <div id="map" style="width: 100%; height: ${mapHeight};"></div>
-        ${isMobile ? `
-          <div class="map-layer-chip-bar" aria-label="Επίπεδα χάρτη">
-            <button type="button" class="map-layer-chip is-active" data-map-layer="showClients">Πελάτες</button>
-            <button type="button" class="map-layer-chip is-active" data-map-layer="showUpcoming">Επόμενες</button>
-            <button type="button" class="map-layer-chip is-active" data-map-layer="showToday">Σήμερα</button>
-          </div>
-        ` : ''}
-        ${isMobile ? `
-          <button id="scrollToTopBtn" style="
-            position: absolute;
-            bottom: 20px;
-            right: 20px;
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            background: var(--color-primary);
-            color: white;
-            border: none;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.3rem;
-            z-index: 1000;
-          " title="Πήγαινε στην αρχή">
-            <i class="fas fa-arrow-up"></i>
-          </button>
-        ` : ''}
       </div>
     `;
 
@@ -186,27 +156,6 @@ window.MapView = {
       if (this.showTodayHandler) showTodayEl.removeEventListener('change', this.showTodayHandler);
       this.showTodayHandler = () => this.toggleLayer('today');
       showTodayEl.addEventListener('change', this.showTodayHandler);
-    }
-
-    document.querySelectorAll('.map-layer-chip').forEach(chip => {
-      chip.addEventListener('click', () => {
-        const inputId = chip.dataset.mapLayer;
-        const input = document.getElementById(inputId);
-        if (!input) return;
-        input.checked = !input.checked;
-        chip.classList.toggle('is-active', input.checked);
-        input.dispatchEvent(new Event('change'));
-      });
-    });
-    
-    // Scroll to top button (mobile only)
-    if (isMobile) {
-      const scrollBtn = document.getElementById('scrollToTopBtn');
-      if (scrollBtn) {
-        if (this.scrollBtnHandler) scrollBtn.removeEventListener('click', this.scrollBtnHandler);
-        this.scrollBtnHandler = () => window.scrollTo({ top: 0, behavior: 'smooth' });
-        scrollBtn.addEventListener('click', this.scrollBtnHandler);
-      }
     }
 
     // Note: geocodeCache is now only used for this session, not persisted
@@ -1097,7 +1046,6 @@ window.MapView = {
     document.getElementById('showClients')?.removeEventListener('change', this.showClientsHandler);
     document.getElementById('showUpcoming')?.removeEventListener('change', this.showUpcomingHandler);
     document.getElementById('showToday')?.removeEventListener('change', this.showTodayHandler);
-    document.getElementById('scrollToTopBtn')?.removeEventListener('click', this.scrollBtnHandler);
 
     if (this.currentInfoWindow?.close) {
       this.currentInfoWindow.close();
@@ -1115,7 +1063,6 @@ window.MapView = {
     this.showClientsHandler = null;
     this.showUpcomingHandler = null;
     this.showTodayHandler = null;
-    this.scrollBtnHandler = null;
   }
 };
 

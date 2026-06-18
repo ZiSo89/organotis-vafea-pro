@@ -65,7 +65,6 @@ const GlobalSearch = {
   },
 
   searchAll(query) {
-    const q = query.toLowerCase();
     const results = [];
 
     const push = (item) => {
@@ -73,10 +72,10 @@ const GlobalSearch = {
       results.push(item);
     };
 
+    const matches = (fields) => Utils.matchesSearch(fields, query);
+
     (State.data.clients || []).forEach(client => {
-      const haystack = [client.id, client.name, client.phone, client.email, client.address, client.city]
-        .filter(Boolean).join(' ').toLowerCase();
-      if (!haystack.includes(q)) return;
+      if (!matches([client.id, client.name, client.phone, client.email, client.address, client.city])) return;
       push({
         type: 'client',
         icon: 'fas fa-user',
@@ -88,9 +87,7 @@ const GlobalSearch = {
 
     (State.data.jobs || []).forEach(job => {
       const client = (State.data.clients || []).find(c => Number(c.id) === Number(job.clientId));
-      const haystack = [job.id, job.title, job.type, job.status, job.address, client?.name]
-        .filter(Boolean).join(' ').toLowerCase();
-      if (!haystack.includes(q)) return;
+      if (!matches([job.id, job.title, job.type, job.status, job.address, client?.name, client?.phone, client?.city])) return;
       push({
         type: 'job',
         icon: 'fas fa-briefcase',
@@ -101,9 +98,7 @@ const GlobalSearch = {
     });
 
     (State.data.workers || []).forEach(worker => {
-      const haystack = [worker.id, worker.name, worker.phone, worker.specialty, worker.workerType]
-        .filter(Boolean).join(' ').toLowerCase();
-      if (!haystack.includes(q)) return;
+      if (!matches([worker.id, worker.name, worker.phone, worker.specialty, worker.workerType])) return;
       push({
         type: 'worker',
         icon: 'fas fa-hard-hat',
@@ -114,9 +109,7 @@ const GlobalSearch = {
     });
 
     (State.data.inventory || []).forEach(material => {
-      const haystack = [material.id, material.name, material.category, material.colorCode, material.color_code]
-        .filter(Boolean).join(' ').toLowerCase();
-      if (!haystack.includes(q)) return;
+      if (!matches([material.id, material.name, material.category, material.colorCode, material.color_code])) return;
       push({
         type: 'material',
         icon: 'fas fa-boxes',
@@ -127,9 +120,7 @@ const GlobalSearch = {
     });
 
     (State.data.suppliers || []).forEach(supplier => {
-      const haystack = [supplier.id, supplier.name, supplier.phone, supplier.email]
-        .filter(Boolean).join(' ').toLowerCase();
-      if (!haystack.includes(q)) return;
+      if (!matches([supplier.id, supplier.name, supplier.phone, supplier.email, supplier.address])) return;
       push({
         type: 'supplier',
         icon: 'fas fa-store',
