@@ -3,9 +3,6 @@
  * Shared job financial helpers.
  * Keeps billing, labor, travel, and net-profit calculations consistent.
  */
-
-require_once __DIR__ . '/job_visits_schema.php';
-
 function job_financial_to_float($value) {
     if ($value === null || $value === '') return 0.0;
     return (float)$value;
@@ -24,68 +21,7 @@ function job_financial_decode_json($value) {
     return is_array($decoded) ? $decoded : null;
 }
 
-function job_financial_fetch_visit_totals(PDO $db) {
-    $totals = [];
-    try {
-        $stmt = $db->query("SELECT job_id, workers FROM job_visits");
-        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            $jobId = (int)$row['job_id'];
-            $visit = job_visit_totals($row['workers']);
-            if (!isset($totals[$jobId])) {
-                $totals[$jobId] = [
-                    'total_hours' => 0.0,
-                    'employee_hours' => 0.0,
-                    'owner_hours' => 0.0,
-                    'labor_cost' => 0.0,
-                    'visit_count' => 0
-                ];
-            }
-            $totals[$jobId]['total_hours'] += job_financial_to_float($visit['total_hours'] ?? 0);
-            $totals[$jobId]['employee_hours'] += job_financial_to_float($visit['employee_hours'] ?? 0);
-            $totals[$jobId]['owner_hours'] += job_financial_to_float($visit['owner_hours'] ?? 0);
-            $totals[$jobId]['labor_cost'] += job_financial_to_float($visit['labor_cost'] ?? 0);
-            $totals[$jobId]['visit_count'] += 1;
-        }
-    } catch (Exception $e) {
-        error_log('job_financial_fetch_visit_totals: ' . $e->getMessage());
-    }
-
-    return $totals;
-}
-
-function job_financial_fetch_visit_totals_for_jobs(PDO $db, array $jobIds) {
-    $ids = array_values(array_unique(array_filter(array_map('intval', $jobIds))));
-    if (count($ids) === 0) return [];
-
-    $totals = [];
-    foreach (array_chunk($ids, 500) as $chunk) {
-        $placeholders = implode(',', array_fill(0, count($chunk), '?'));
-        $stmt = $db->prepare("SELECT job_id, workers FROM job_visits WHERE job_id IN ($placeholders)");
-        $stmt->execute($chunk);
-        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            $jobId = (int)$row['job_id'];
-            $visit = job_visit_totals($row['workers']);
-            if (!isset($totals[$jobId])) {
-                $totals[$jobId] = [
-                    'total_hours' => 0.0,
-                    'employee_hours' => 0.0,
-                    'owner_hours' => 0.0,
-                    'labor_cost' => 0.0,
-                    'visit_count' => 0
-                ];
-            }
-            $totals[$jobId]['total_hours'] += job_financial_to_float($visit['total_hours'] ?? 0);
-            $totals[$jobId]['employee_hours'] += job_financial_to_float($visit['employee_hours'] ?? 0);
-            $totals[$jobId]['owner_hours'] += job_financial_to_float($visit['owner_hours'] ?? 0);
-            $totals[$jobId]['labor_cost'] += job_financial_to_float($visit['labor_cost'] ?? 0);
-            $totals[$jobId]['visit_count'] += 1;
-        }
-    }
-
-    return $totals;
-}
-
-function job_financial_compute($job, $visitTotals = null) {
+function job_financial_compute($job) {
     $billing = 0.0;
     $billingType = $job['billing_type'] ?? $job['billingType'] ?? 'hourly';
     $agreedPrice = job_financial_to_float($job['agreed_price'] ?? $job['agreedPrice'] ?? 0);
@@ -123,20 +59,14 @@ function job_financial_compute($job, $visitTotals = null) {
 
     $labor = 0.0;
     $actualHours = 0.0;
-    $hasVisits = is_array($visitTotals) && ($visitTotals['visit_count'] ?? 0) > 0;
-    if ($hasVisits) {
-        $labor = job_financial_to_float($visitTotals['labor_cost'] ?? 0);
-        $actualHours = job_financial_to_float($visitTotals['total_hours'] ?? 0);
-    } else {
-        $assigned = $job['assigned_workers'] ?? $job['assignedWorkers'] ?? $job['workers'] ?? null;
-        $workers = job_financial_decode_json($assigned);
-        if (is_array($workers)) {
-            foreach ($workers as $worker) {
-                $workerType = $worker['worker_type'] ?? $worker['workerType'] ?? 'employee';
-                $actualHours += job_financial_to_float($worker['hours_allocated'] ?? $worker['hoursAllocated'] ?? 0);
-                if ($workerType === 'owner') continue;
-                $labor += job_financial_to_float($worker['labor_cost'] ?? $worker['laborCost'] ?? $worker['cost'] ?? 0);
-            }
+    $assigned = $job['assigned_workers'] ?? $job['assignedWorkers'] ?? $job['workers'] ?? null;
+    $workers = job_financial_decode_json($assigned);
+    if (is_array($workers)) {
+        foreach ($workers as $worker) {
+            $workerType = $worker['worker_type'] ?? $worker['workerType'] ?? 'employee';
+            $actualHours += job_financial_to_float($worker['hours_allocated'] ?? $worker['hoursAllocated'] ?? 0);
+            if ($workerType === 'owner') continue;
+            $labor += job_financial_to_float($worker['labor_cost'] ?? $worker['laborCost'] ?? $worker['cost'] ?? 0);
         }
     }
 
@@ -149,8 +79,7 @@ function job_financial_compute($job, $visitTotals = null) {
         'travel' => $travel,
         'expenses' => $expenses,
         'profit' => $billing - $expenses,
-        'actual_hours' => $actualHours,
-        'visit_count' => $hasVisits ? (int)$visitTotals['visit_count'] : 0
+        'actual_hours' => $actualHours
     ];
 }
 

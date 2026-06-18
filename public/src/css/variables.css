@@ -48,6 +48,30 @@
   
   --color-hover: #F7FAFC;
   --color-active: #EDF2F7;
+
+  /* Temporary legacy aliases used by older views/styles during refactor */
+  --bg: var(--color-card);
+  --bg-secondary: var(--color-hover);
+  --background: var(--color-bg);
+  --surface: var(--color-surface);
+  --card: var(--color-card);
+  --text: var(--color-text);
+  --text-primary: var(--color-text);
+  --text-secondary: var(--color-text-light);
+  --text-muted: var(--color-text-muted);
+  --border: var(--color-border);
+  --border-color: var(--color-border);
+  --divider: var(--color-divider);
+  --success: var(--color-success);
+  --warning: var(--color-warning);
+  --error: var(--color-danger);
+  --danger: var(--color-danger);
+  --info: var(--color-info);
+  --primary: var(--color-primary);
+  --primary-dark: var(--color-primary-dark);
+  --primary-light: var(--color-primary-light);
+  --color-background: var(--color-bg);
+  --color-text-secondary: var(--color-text-light);
   
   /* Enhanced Shadows - More Depth */
   --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
@@ -141,6 +165,30 @@
   
   --color-hover: #2A3244;
   --color-active: #323B52;
+
+  /* Temporary legacy aliases used by older views/styles during refactor */
+  --bg: var(--color-card);
+  --bg-secondary: var(--color-hover);
+  --background: var(--color-bg);
+  --surface: var(--color-surface);
+  --card: var(--color-card);
+  --text: var(--color-text);
+  --text-primary: var(--color-text);
+  --text-secondary: var(--color-text-light);
+  --text-muted: var(--color-text-muted);
+  --border: var(--color-border);
+  --border-color: var(--color-border);
+  --divider: var(--color-divider);
+  --success: var(--color-success);
+  --warning: var(--color-warning);
+  --error: var(--color-danger);
+  --danger: var(--color-danger);
+  --info: var(--color-info);
+  --primary: var(--color-primary);
+  --primary-dark: var(--color-primary-dark);
+  --primary-light: var(--color-primary-light);
+  --color-background: var(--color-bg);
+  --color-text-secondary: var(--color-text-light);
   
   /* Enhanced Dark Mode Shadows */
   --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.3);

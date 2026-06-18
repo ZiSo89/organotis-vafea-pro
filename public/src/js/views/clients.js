@@ -11,9 +11,12 @@ window.ClientsView = {
   addBtnHandler: null,
   searchHandler: null,
   tableClickHandler: null,
+  lazyTableKey: 'clients-table',
+  lazyBatchSize: 20,
 
-  render(container) {
+  render(container, params = {}) {
     const clients = State.read('clients') || [];
+    Utils.resetInfiniteList(this.lazyTableKey, this.lazyBatchSize);
 
     container.innerHTML = `
       <div class="view-header">
@@ -110,6 +113,11 @@ window.ClientsView = {
     `;
 
     this.setupEventListeners();
+    this.setupLazyTable(clients);
+
+    if (params?.clientId) {
+      setTimeout(() => this.viewClient(params.clientId), 0);
+    }
   },
 
   setupEventListeners() {
@@ -277,10 +285,27 @@ window.ClientsView = {
 
   refreshTable() {
     const clients = State.read('clients') || [];
+    this.renderTableWithLazy(clients, { reset: true });
+  },
+
+  renderTableWithLazy(clients, { reset = false } = {}) {
     const container = document.getElementById('clientsTableContainer');
     if (container) {
+      if (reset) {
+        Utils.resetInfiniteList(this.lazyTableKey, this.lazyBatchSize);
+      }
       container.innerHTML = this.renderTable(clients);
+      this.setupLazyTable(clients);
     }
+  },
+
+  setupLazyTable(clients) {
+    Utils.setupInfiniteScroll({
+      key: this.lazyTableKey,
+      total: Array.isArray(clients) ? clients.length : 0,
+      batchSize: this.lazyBatchSize,
+      onLoadMore: () => this.renderTableWithLazy(clients)
+    });
   },
 
   cancelForm() {
@@ -337,25 +362,7 @@ window.ClientsView = {
   getJobBillingAmount(job) {
     if (!job) return 0;
 
-    const billingType = job.billingType || job.billing_type || 'hourly';
-    const agreedPrice = parseFloat(job.agreedPrice || job.agreed_price || 0) || 0;
-    if (billingType === 'fixed' && agreedPrice > 0) {
-      return agreedPrice;
-    }
-
-    const billingAmount = parseFloat(job.billingAmount || job.billing_amount || 0) || 0;
-    if (billingAmount > 0) {
-      return billingAmount;
-    }
-
-    const billingHours = parseFloat(job.billingHours || job.billing_hours || 0) || 0;
-    const billingRate = parseFloat(job.billingRate || job.billing_rate || 0) || 0;
-    const hourlyTotal = billingHours * billingRate;
-    if (hourlyTotal > 0) {
-      return hourlyTotal;
-    }
-
-    return parseFloat(job.totalCost || job.total_cost || 0) || 0;
+    return window.JobFinancials.compute(job).billingAmount;
   },
 
   getClientPaymentSummary(clientId) {
@@ -385,12 +392,28 @@ window.ClientsView = {
     `;
   },
 
+  getClientJobs(clientId) {
+    return (State.data.jobs || []).filter(job => Number(job.clientId) === Number(clientId));
+  },
+
   viewClient(id) {
     const client = State.data.clients.find(c => Number(c.id) === Number(id));
     if (!client) {
       console.error('❌ Client not found:', id);
       return;
     }
+
+    const clientJobs = this.getClientJobs(client.id).slice(0, 8);
+    const jobsHtml = clientJobs.length
+      ? `<ul class="activities-list">${clientJobs.map(job => `
+          <li class="activity-item" style="cursor:pointer;" onclick="Router.navigate('jobs?jobId=${job.id}')">
+            <div class="activity-content">
+              <div class="activity-title">#${Utils.escapeHtml(String(job.id))} — ${Utils.escapeHtml(job.title || job.type || 'Εργασία')}</div>
+              <div class="activity-time">${Utils.escapeHtml(job.status || '-')} · ${job.nextVisit ? Utils.formatDate(job.nextVisit) : 'Χωρίς επίσκεψη'}</div>
+            </div>
+          </li>
+        `).join('')}</ul>`
+      : '<p class="text-muted">Δεν υπάρχουν εργασίες για αυτόν τον πελάτη.</p>';
 
     const content = `
       <div class="job-details">
@@ -460,6 +483,17 @@ window.ClientsView = {
         </div>
         ` : ''}
 
+        <div class="detail-section">
+          <h4><i class="fas fa-briefcase"></i> Εργασίες</h4>
+          ${jobsHtml}
+        </div>
+
+        <div class="client-detail-actions">
+          <button type="button" class="btn btn-primary" id="newJobForClientBtn">
+            <i class="fas fa-plus"></i> Νέα εργασία για αυτόν τον πελάτη
+          </button>
+        </div>
+
       </div>
     `;
 
@@ -469,15 +503,27 @@ window.ClientsView = {
       </button>
     `;
 
+    const modalSize = Utils.isMobile() ? 'xl' : 'lg';
     const modal = Modal.open({
       title: `${client.name}`,
       content: content,
       footer: footer,
-      size: 'lg'
+      size: modalSize
     });
 
     // Add event listener for edit button
     setTimeout(() => {
+      document.getElementById('newJobForClientBtn')?.addEventListener('click', () => {
+        Modal.close();
+        Router.navigate(`jobs?clientId=${client.id}`);
+        setTimeout(() => {
+          const addBtn = document.getElementById('addJobBtn');
+          if (addBtn) addBtn.click();
+          const clientSelect = document.getElementById('jobClient');
+          if (clientSelect) clientSelect.value = String(client.id);
+        }, 150);
+      });
+
       const editBtn = document.getElementById('editClientFromModalBtn');
       if (editBtn) {
         editBtn.onclick = () => {
@@ -577,7 +623,7 @@ window.ClientsView = {
       );
     }
 
-    document.getElementById('clientsTableContainer').innerHTML = this.renderTable(clients);
+    this.renderTableWithLazy(clients, { reset: true });
   },
 
   renderTable(clients) {
@@ -588,18 +634,20 @@ window.ClientsView = {
     }
     
     if (clients.length === 0) {
-      return Utils.renderEmptyState(
-        'fa-users',
-        'Δεν υπάρχουν πελάτες',
-        'Δημιουργήστε τον πρώτο σας πελάτη!'
-      );
+      return UIPrimitives.emptyState({
+        icon: 'fas fa-users',
+        title: 'Δεν υπάρχουν πελάτες',
+        description: 'Δημιουργήστε τον πρώτο σας πελάτη!'
+      });
     }
 
     // Sort by createdAt timestamp - latest first
     const sortedClients = Utils.sortBy(clients, 'createdAt', 'desc');
+    const lazy = Utils.getInfiniteSlice(this.lazyTableKey, sortedClients, this.lazyBatchSize);
+    const visibleClients = lazy.items;
 
     return `
-      <div class="table-wrapper">
+      <div class="table-wrapper has-mobile-cards">
         <table class="data-table">
           <thead>
             <tr>
@@ -612,19 +660,13 @@ window.ClientsView = {
             </tr>
           </thead>
           <tbody>
-            ${sortedClients.map(client => {
+            ${visibleClients.map(client => {
               return `
                 <tr>
                   <td class="actions">
-                    <button class="btn-icon view-client-btn" data-client-id="${client.id}" title="Προβολή">
-                      <i class="fas fa-eye"></i>
-                    </button>
-                    <button class="btn-icon edit-client-btn" data-client-id="${client.id}" title="Επεξεργασία">
-                      <i class="fas fa-edit"></i>
-                    </button>
-                    <button class="btn-icon btn-danger delete-client-btn" data-client-id="${client.id}" title="Διαγραφή">
-                      <i class="fas fa-trash"></i>
-                    </button>
+                    ${UIPrimitives.actionButton({ className: 'view-client-btn', icon: 'fas fa-eye', title: 'Προβολή', data: { 'client-id': client.id } })}
+                    ${UIPrimitives.actionButton({ className: 'edit-client-btn', icon: 'fas fa-edit', title: 'Επεξεργασία', data: { 'client-id': client.id } })}
+                    ${UIPrimitives.actionButton({ className: 'btn-danger delete-client-btn', icon: 'fas fa-trash', title: 'Διαγραφή', data: { 'client-id': client.id } })}
                   </td>
                   <td title="${client.name}">${client.name}</td>
                   <td title="${client.phone || '-'}">${client.phone ? `<a href="tel:${client.phone}" style="color: var(--color-text); text-decoration: none;">${client.phone}</a>` : '-'}</td>
@@ -637,11 +679,56 @@ window.ClientsView = {
           </tbody>
         </table>
       </div>
+      <div class="mobile-card-list" aria-label="Λίστα πελατών για κινητό">
+        ${visibleClients.map(client => {
+          const phone = client.phone || '';
+          const email = client.email || '';
+          const addressParts = [client.address, client.city, client.postal].filter(Boolean);
+          const address = addressParts.join(', ');
+
+          return `
+            <article class="entity-mobile-card">
+              <div class="entity-mobile-card-header">
+                <div class="entity-mobile-card-title">
+                  <strong>${Utils.escapeHtml(client.name || '-')}</strong>
+                  <span>${this.renderClientPaymentCell(client.id)}</span>
+                </div>
+                <div class="entity-mobile-card-actions">
+                  ${UIPrimitives.actionButton({ className: 'view-client-btn', icon: 'fas fa-eye', title: 'Προβολή', data: { 'client-id': client.id } })}
+                  ${UIPrimitives.actionButton({ className: 'edit-client-btn', icon: 'fas fa-edit', title: 'Επεξεργασία', data: { 'client-id': client.id } })}
+                  ${UIPrimitives.actionButton({ className: 'btn-danger delete-client-btn', icon: 'fas fa-trash', title: 'Διαγραφή', data: { 'client-id': client.id } })}
+                </div>
+              </div>
+              <div class="entity-mobile-card-meta">
+                ${phone ? `<a href="tel:${Utils.escapeHtml(phone)}"><i class="fas fa-phone"></i>${Utils.escapeHtml(phone)}</a>` : '<span><i class="fas fa-phone"></i>Χωρίς τηλέφωνο</span>'}
+                ${email ? `<a href="mailto:${Utils.escapeHtml(email)}"><i class="fas fa-envelope"></i>${Utils.escapeHtml(email)}</a>` : ''}
+                ${address ? `<span><i class="fas fa-location-dot"></i>${Utils.escapeHtml(address)}</span>` : ''}
+              </div>
+            </article>
+          `;
+        }).join('')}
+      </div>
+      ${Utils.renderInfiniteFooter(this.lazyTableKey, lazy.visible, lazy.total, this.lazyBatchSize)}
     `;
   },
 
   openInMaps(address) {
     Utils.openInMaps(address);
+  },
+
+  cleanup() {
+    document.getElementById('addClientBtn')?.removeEventListener('click', this.addBtnHandler);
+    document.getElementById('clientFormElement')?.removeEventListener('submit', this.formSubmitHandler);
+    document.getElementById('cancelClientFormBtn')?.removeEventListener('click', this.cancelBtnHandler);
+    document.getElementById('clientSearch')?.removeEventListener('input', this.searchHandler);
+    document.getElementById('contentArea')?.removeEventListener('click', this.tableClickHandler);
+
+    this.formSubmitHandler = null;
+    this.clearBtnHandler = null;
+    this.cancelBtnHandler = null;
+    this.addBtnHandler = null;
+    this.searchHandler = null;
+    this.tableClickHandler = null;
   }
 };
 

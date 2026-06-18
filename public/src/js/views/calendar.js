@@ -43,13 +43,19 @@ window.CalendarView = {
      Render - Κύρια Συνάρτηση
      ======================================== */
   async render(container, params = {}) {
+    const isMobile = Utils.isMobile();
     
     container.innerHTML = `
       <div class="view-header">
         <h1><i class="fas fa-calendar-alt"></i> Ημερολόγιο Επισκέψεων</h1>
       </div>
       
-      <div class="calendar-container">
+      <div class="calendar-container ${isMobile ? 'calendar-container-mobile' : ''}">
+        ${isMobile ? `
+          <div id="upcomingVisitsList" class="upcoming-visits-list calendar-mobile-agenda" aria-label="Επόμενες επισκέψεις">
+            <div class="loading">Φόρτωση...</div>
+          </div>
+        ` : `
         <!-- Λίστα Επόμενων Επισκέψεων -->
         <div class="upcoming-visits-panel">
           <div class="upcoming-visits-header">
@@ -62,6 +68,7 @@ window.CalendarView = {
             <div class="loading">Φόρτωση...</div>
           </div>
         </div>
+        `}
         
         <!-- FullCalendar -->
         <div class="calendar-main">
@@ -110,16 +117,19 @@ window.CalendarView = {
      ======================================== */
   async initCalendar() {
     const calendarEl = document.getElementById('calendar');
+    const isMobile = Utils.isMobile();
     
     this.calendar = new FullCalendar.Calendar(calendarEl, {
       locale: 'el',
-      timeZone: 'local', // Use local timezone to prevent date shifts
-      initialView: 'dayGridMonth',
-      headerToolbar: {
-        left: 'prev,next today',
-        center: 'title',
-        right: 'dayGridMonth,timeGridWeek,timeGridDay'
-      },
+      timeZone: 'local',
+      initialView: isMobile ? 'listWeek' : 'dayGridMonth',
+      headerToolbar: isMobile
+        ? { left: 'prev,next', center: 'title', right: 'today' }
+        : {
+          left: 'prev,next today',
+          center: 'title',
+          right: 'dayGridMonth,timeGridWeek,timeGridDay'
+        },
       buttonText: {
         today: 'Σήμερα',
         month: 'Μήνας',
@@ -130,7 +140,7 @@ window.CalendarView = {
       firstDay: 1,
       weekNumbers: true,
       weekText: 'Εβδ.',
-      editable: true,
+      editable: !isMobile,
       selectable: false,
       dayMaxEvents: true,
       moreLinkClick: 'popover',
@@ -177,6 +187,16 @@ window.CalendarView = {
         this.showEventDetails(info.event);
       },
       
+      eventDrop: isMobile ? undefined : (info) => {
+        console.log('📅 Event dropped:', info.event);
+        this.updateEventDates(info.event);
+      },
+      
+      eventResize: isMobile ? undefined : (info) => {
+        console.log('📅 Event resized:', info.event);
+        this.updateEventDates(info.event);
+      },
+      
       // Event mouse enter - show tooltip
       eventMouseEnter: (info) => {
         const props = info.event.extendedProps || {};
@@ -184,18 +204,6 @@ window.CalendarView = {
         const title = props.original_title || info.event.title;
         const tooltip = `${title}${props.client_name ? '\n👤 ' + props.client_name : ''}${props.address ? '\n📍 ' + props.address : ''}`;
         info.el.title = tooltip;
-      },
-      
-      // Event drop - update dates on drag & drop
-      eventDrop: (info) => {
-        console.log('📅 Event dropped:', info.event);
-        this.updateEventDates(info.event);
-      },
-      
-      // Event resize - update dates on resize
-      eventResize: (info) => {
-        console.log('📅 Event resized:', info.event);
-        this.updateEventDates(info.event);
       }
     });
     
@@ -227,7 +235,7 @@ window.CalendarView = {
         `;
         
         const response = await window.electronAPI.db.query(sql, [startStr, endStr]);
-        const result = response.success ? response.data : [];
+        const result = DataMappers.extractCollection(response, []);
         
         console.log('📅 loadEvents SQL result:', result.length, 'events');
         if (result.length > 0) {
@@ -238,9 +246,6 @@ window.CalendarView = {
         // Transform database results to FullCalendar format
         events = result.map(event => this.transformEventFromDB(event));
 
-        const recordedVisits = await this.loadRecordedVisitEventsFromSQLite(startStr, endStr);
-        events = [...events, ...recordedVisits];
-        
         console.log('📅 After transformation:', events.length, 'events');
         if (events.length > 0) {
           console.log('📅 First transformed event:', events[0]);
@@ -259,12 +264,8 @@ window.CalendarView = {
         }
         
         const payload = await response.json();
-        events = Array.isArray(payload)
-          ? payload
-          : (Array.isArray(payload.data) ? payload.data : []);
+        events = DataMappers.extractCollection(payload, []);
 
-        const recordedVisits = await this.loadRecordedVisitEventsFromApi(startStr, endStr);
-        events = this.mergeRecordedVisitEvents(events, recordedVisits);
       }
       
       // Προσθήκη ελληνικών αργιών
@@ -394,118 +395,6 @@ window.CalendarView = {
     };
   },
 
-  getRecordedVisitTotals(workers) {
-    if (typeof workers === 'string') {
-      try {
-        workers = JSON.parse(workers);
-      } catch (error) {
-        workers = [];
-      }
-    }
-    if (!Array.isArray(workers)) workers = [];
-
-    return workers.reduce((totals, worker) => {
-      const hours = parseFloat(worker.hours ?? worker.hoursAllocated ?? worker.hours_allocated ?? 0) || 0;
-      const rate = parseFloat(worker.hourlyRate ?? worker.hourly_rate ?? 0) || 0;
-      const type = (worker.workerType || worker.worker_type) === 'owner' ? 'owner' : 'employee';
-      totals.totalHours += hours;
-      if (type !== 'owner') {
-        totals.laborCost += (worker.laborCost !== undefined || worker.labor_cost !== undefined)
-          ? (parseFloat(worker.laborCost ?? worker.labor_cost) || 0)
-          : hours * rate;
-      }
-      return totals;
-    }, { totalHours: 0, laborCost: 0 });
-  },
-
-  transformRecordedVisitFromDB(visit) {
-    const totals = this.getRecordedVisitTotals(visit.workers);
-    const who = visit.clientName || visit.jobTitle || 'Επίσκεψη';
-    const hoursLabel = totals.totalHours > 0
-      ? ` (${Number(totals.totalHours.toFixed(1)).toString()}ω)`
-      : '';
-    const visitDate = String(visit.visitDate || visit.visit_date || '').substring(0, 10);
-
-    return {
-      id: `jobvisit-${visit.id}`,
-      title: `✔ ${who}${hoursLabel}`,
-      start: visitDate,
-      allDay: true,
-      editable: false,
-      backgroundColor: '#64748b',
-      borderColor: '#64748b',
-      extendedProps: {
-        readonly_visit: true,
-        visit_id: Number(visit.id),
-        job_id: Number(visit.jobId || visit.job_id),
-        job_title: visit.jobTitle || visit.job_title || '',
-        client_name: visit.clientName || visit.client_name || '',
-        description: visit.notes || '',
-        total_hours: totals.totalHours,
-        labor_cost: totals.laborCost,
-        status: 'completed'
-      }
-    };
-  },
-
-  mergeRecordedVisitEvents(events, recordedVisits) {
-    const merged = [...events];
-    const existingIds = new Set(merged.map(event => String(event.id)));
-
-    recordedVisits.forEach(visitEvent => {
-      if (!existingIds.has(String(visitEvent.id))) {
-        merged.push(visitEvent);
-        existingIds.add(String(visitEvent.id));
-      }
-    });
-
-    return merged;
-  },
-
-  async loadRecordedVisitEventsFromApi(start, end) {
-    try {
-      const response = await fetch('/api/job_visits.php', { credentials: 'include' });
-      if (!response.ok) return [];
-
-      const payload = await response.json();
-      const visits = Array.isArray(payload)
-        ? payload
-        : (Array.isArray(payload.data) ? payload.data : []);
-
-      return visits
-        .filter(visit => {
-          const visitDate = String(visit.visitDate || visit.visit_date || '').substring(0, 10);
-          return visitDate && visitDate >= start && visitDate <= end;
-        })
-        .map(visit => this.transformRecordedVisitFromDB(visit));
-    } catch (error) {
-      console.error('Error loading recorded job visits:', error);
-      return [];
-    }
-  },
-
-  async loadRecordedVisitEventsFromSQLite(start, end) {
-    const sql = `
-      SELECT
-        jv.id,
-        jv.job_id,
-        jv.visit_date,
-        jv.workers,
-        jv.notes,
-        j.title as jobTitle,
-        c.name as clientName
-      FROM job_visits jv
-      INNER JOIN jobs j ON j.id = jv.job_id
-      LEFT JOIN clients c ON c.id = j.client_id
-      WHERE jv.visit_date >= ? AND jv.visit_date <= ?
-      ORDER BY jv.visit_date ASC
-    `;
-
-    const response = await window.electronAPI.db.query(sql, [start, end]);
-    const visits = response.success ? response.data : [];
-    return visits.map(visit => this.transformRecordedVisitFromDB(visit));
-  },
-  
   /* ========================================
      Get Status Color
      ======================================== */
@@ -556,7 +445,7 @@ window.CalendarView = {
         
         const response = await window.electronAPI.db.query(sql, [start, end]);
         console.log('📅 SQLite response:', response);
-        const result = response.success ? response.data : [];
+        const result = DataMappers.extractCollection(response, []);
         console.log('📅 Calendar events from DB:', result);
         
         // Log first event to see ALL field names
@@ -570,8 +459,7 @@ window.CalendarView = {
         
         // Transform database results
         events = result.map(event => this.transformEventFromDB(event));
-        const recordedVisits = await this.loadRecordedVisitEventsFromSQLite(start, end);
-        events = this.mergeRecordedVisitEvents(events, recordedVisits)
+        events = events
           .sort((a, b) => new Date(a.start) - new Date(b.start))
           .slice(0, 10);
         console.log('📅 Transformed events:', events);
@@ -580,12 +468,7 @@ window.CalendarView = {
         const url = `/api/calendar.php?start=${start}&end=${end}`;
         const response = await fetch(url, { credentials: 'include' });
         const payload = await response.json();
-        events = Array.isArray(payload)
-          ? payload
-          : (Array.isArray(payload.data) ? payload.data : []);
-
-        const recordedVisits = await this.loadRecordedVisitEventsFromApi(start, end);
-        events = this.mergeRecordedVisitEvents(events, recordedVisits);
+        events = DataMappers.extractCollection(payload, []);
         
         // Filter future events and sort by date
         events = events
@@ -776,11 +659,6 @@ window.CalendarView = {
     
     const props = visitData.extendedProps || {};
 
-    if (props.readonly_visit || String(visitData.id).startsWith('jobvisit-')) {
-      this.showRecordedVisitDetails(visitData, props);
-      return;
-    }
-    
     console.log('📦 extendedProps:', props);
     
     // Get status from multiple possible sources
@@ -1083,49 +961,139 @@ window.CalendarView = {
     }
   },
 
-  /* ========================================
-     Read-only modal για καταγεγραμμένη επίσκεψη εργασίας
-     ======================================== */
-  showRecordedVisitDetails(event, props) {
-    const dateText = event.start ? Utils.formatDate(event.start) : '-';
-    const hours = parseFloat(props.total_hours || 0) || 0;
-    const content = `
-      <div class="detail-grid">
-        <div class="detail-item">
-          <label>Πελάτης:</label>
-          <span>${props.client_name || '-'}</span>
+  buildEventDetailsContent(event, displayEndDate, props, normalizedStatus, status, displayTitle, clientName, clientPhone) {
+    return `
+      <div class="event-details">
+        <div class="detail-row">
+          <strong><i class="fas fa-calendar"></i> Ημερομηνία:</strong>
+          <span>${this.formatDateTime(event.start)}</span>
         </div>
-        <div class="detail-item">
-          <label>Ημερομηνία:</label>
-          <span>${dateText}</span>
-        </div>
-        <div class="detail-item">
-          <label>Σύνολο ωρών:</label>
-          <span>${hours ? hours + ' ώρες' : '-'}</span>
-        </div>
-        ${props.description ? `
-        <div class="detail-item span-2">
-          <label>Σημειώσεις:</label>
-          <span>${props.description}</span>
-        </div>
+        ${displayEndDate ? `
+          <div class="detail-row">
+            <strong><i class="fas fa-calendar-check"></i> Λήξη:</strong>
+            <span>${this.formatDateTime(displayEndDate)}</span>
+          </div>
         ` : ''}
-        <div class="detail-item span-2">
-          <small class="text-muted">
-            <i class="fas fa-info-circle"></i> Η καταγεγραμμένη επίσκεψη επεξεργάζεται από την αντίστοιχη καρτέλα.
-          </small>
+        ${!event.allDay && (props.startTime || props.start_time || props.endTime || props.end_time) ? `
+          <div class="detail-row">
+            <strong><i class="fas fa-clock"></i> Ώρα:</strong>
+            <span>${this.formatTime(props.startTime || props.start_time) || ''}${(props.endTime || props.end_time) ? ' - ' + this.formatTime(props.endTime || props.end_time) : ''}</span>
+          </div>
+        ` : ''}
+        ${clientName ? `
+          <div class="detail-row">
+            <strong><i class="fas fa-user"></i> Πελάτης:</strong>
+            <span>${clientName}</span>
+          </div>
+        ` : ''}
+        ${clientPhone ? `
+          <div class="detail-row">
+            <strong><i class="fas fa-phone"></i> Τηλέφωνο:</strong>
+            <span><a href="tel:${clientPhone}">${clientPhone}</a></span>
+          </div>
+        ` : ''}
+        ${props.address ? `
+          <div class="detail-row">
+            <strong><i class="fas fa-map-marker-alt"></i> Διεύθυνση:</strong>
+            <span>${props.address}</span>
+          </div>
+        ` : ''}
+        ${props.description ? `
+          <div class="detail-row">
+            <strong><i class="fas fa-info-circle"></i> Περιγραφή:</strong>
+            <span>${props.description}</span>
+          </div>
+        ` : ''}
+        <div class="detail-row">
+          <strong><i class="fas fa-flag"></i> Κατάσταση:</strong>
+          <span class="status-badge status-${normalizedStatus}">${this.getStatusText(status)}</span>
         </div>
+        ${props.total_cost ? `
+          <div class="detail-row">
+            <strong><i class="fas fa-euro-sign"></i> Κόστος:</strong>
+            <span>${Utils.formatCurrency(parseFloat(props.total_cost))}</span>
+          </div>
+        ` : ''}
+        ${props.job_id || props.jobId ? `
+          <div class="detail-row">
+            <button type="button" class="btn btn-secondary btn-sm" id="calendarGoToJobBtn">
+              <i class="fas fa-briefcase"></i> Μετάβαση στην εργασία
+            </button>
+          </div>
+        ` : ''}
       </div>
     `;
-    const footer = props.job_id ? `
-      <button class="btn-primary" onclick="Modal.close(); Router.navigate('jobs'); setTimeout(() => window.JobsView && window.JobsView.viewJob(${props.job_id}), 300);">
-        <i class="fas fa-briefcase"></i> Άνοιγμα
-      </button>
-    ` : '';
-    Modal.open({
-      title: '<i class="fas fa-clock"></i> Καταγεγραμμένη Επίσκεψη',
+  },
+
+  openEventDetailsPresentation({ title, content, event, onEdit, onDelete }) {
+    if (Utils.isMobile() && window.AppShell) {
+      AppShell.openBottomSheet({
+        title,
+        content,
+        actions: [
+          {
+            id: 'edit',
+            label: 'Επεξεργασία',
+            className: 'btn-primary',
+            icon: 'fas fa-edit',
+            onClick: () => {
+              AppShell.closeBottomSheet();
+              onEdit?.();
+            }
+          },
+          {
+            id: 'delete',
+            label: 'Διαγραφή',
+            className: 'btn-danger',
+            icon: 'fas fa-trash',
+            onClick: () => {
+              AppShell.closeBottomSheet();
+              onDelete?.();
+            }
+          }
+        ]
+      });
+
+      const jobId = event?.extendedProps?.job_id || event?.extendedProps?.jobId;
+      document.getElementById('calendarGoToJobBtn')?.addEventListener('click', () => {
+        AppShell.closeBottomSheet();
+        if (jobId) Router.navigate(`jobs?jobId=${jobId}`);
+      });
+      return;
+    }
+
+    Modal.show({
+      title,
       content,
-      footer,
-      size: 'md'
+      buttons: [
+        {
+          text: 'Επεξεργασία Επίσκεψης',
+          className: 'btn-primary',
+          onClick: () => {
+            Modal.hide();
+            setTimeout(() => onEdit?.(), 350);
+          }
+        },
+        {
+          text: 'Διαγραφή',
+          className: 'btn-danger',
+          onClick: () => {
+            Modal.hide();
+            setTimeout(() => onDelete?.(), 350);
+          }
+        },
+        {
+          text: 'Κλείσιμο',
+          className: 'btn-secondary',
+          onClick: () => Modal.hide()
+        }
+      ]
+    });
+
+    const jobId = event?.extendedProps?.job_id || event?.extendedProps?.jobId;
+    document.getElementById('calendarGoToJobBtn')?.addEventListener('click', () => {
+      Modal.hide();
+      if (jobId) Router.navigate(`jobs?jobId=${jobId}`);
     });
   },
 
@@ -1137,12 +1105,6 @@ window.CalendarView = {
     console.log('📅 showEventDetails called with:', event);
     
     const props = event.extendedProps || {};
-
-    // Read-only events από καταγεγραμμένες επισκέψεις εργασιών (job_visits)
-    if (props.readonly_visit || String(event.id).startsWith('jobvisit-')) {
-      this.showRecordedVisitDetails(event, props);
-      return;
-    }
     
     console.log('📦 extendedProps:', props);
     
@@ -1191,89 +1153,12 @@ window.CalendarView = {
       }
     }
     
-    Modal.show({
+    this.openEventDetailsPresentation({
       title: displayTitle,
-      content: `
-        <div class="event-details">
-          <div class="detail-row">
-            <strong><i class="fas fa-calendar"></i> Ημερομηνία:</strong>
-            <span>${this.formatDateTime(event.start)}</span>
-          </div>
-          ${displayEndDate ? `
-            <div class="detail-row">
-              <strong><i class="fas fa-calendar-check"></i> Λήξη:</strong>
-              <span>${this.formatDateTime(displayEndDate)}</span>
-            </div>
-          ` : ''}
-          ${!event.allDay && (props.startTime || props.start_time || props.endTime || props.end_time) ? `
-            <div class="detail-row">
-              <strong><i class="fas fa-clock"></i> Ώρα:</strong>
-              <span>${this.formatTime(props.startTime || props.start_time) || ''}${(props.endTime || props.end_time) ? ' - ' + this.formatTime(props.endTime || props.end_time) : ''}</span>
-            </div>
-          ` : ''}
-          ${clientName ? `
-            <div class="detail-row">
-              <strong><i class="fas fa-user"></i> Πελάτης:</strong>
-              <span>${clientName}</span>
-            </div>
-          ` : ''}
-          ${clientPhone ? `
-            <div class="detail-row">
-              <strong><i class="fas fa-phone"></i> Τηλέφωνο:</strong>
-              <span><a href="tel:${clientPhone}">${clientPhone}</a></span>
-            </div>
-          ` : ''}
-          ${props.address ? `
-            <div class="detail-row">
-              <strong><i class="fas fa-map-marker-alt"></i> Διεύθυνση:</strong>
-              <span>${props.address}</span>
-            </div>
-          ` : ''}
-          ${props.description ? `
-            <div class="detail-row">
-              <strong><i class="fas fa-info-circle"></i> Περιγραφή:</strong>
-              <span>${props.description}</span>
-            </div>
-          ` : ''}
-          <div class="detail-row">
-            <strong><i class="fas fa-flag"></i> Κατάσταση:</strong>
-            <span class="status-badge status-${normalizedStatus}">${this.getStatusText(status)}</span>
-          </div>
-          ${props.total_cost ? `
-            <div class="detail-row">
-              <strong><i class="fas fa-euro-sign"></i> Κόστος:</strong>
-              <span>${Utils.formatCurrency(parseFloat(props.total_cost))}</span>
-            </div>
-          ` : ''}
-        </div>
-      `,
-      buttons: [
-        {
-          text: 'Επεξεργασία Επίσκεψης',
-          className: 'btn-primary',
-          onClick: () => {
-            Modal.hide();
-            setTimeout(() => {
-              this.showEditVisitModal(event);
-            }, 350);
-          }
-        },
-        {
-          text: 'Διαγραφή',
-          className: 'btn-danger',
-          onClick: () => {
-            Modal.hide();
-            setTimeout(() => {
-              this.showDeleteConfirmation(event.id);
-            }, 350);
-          }
-        },
-        {
-          text: 'Κλείσιμο',
-          className: 'btn-secondary',
-          onClick: () => Modal.hide()
-        }
-      ]
+      content: this.buildEventDetailsContent(event, displayEndDate, props, normalizedStatus, status, displayTitle, clientName, clientPhone),
+      event,
+      onEdit: () => this.showEditVisitModal(event),
+      onDelete: () => this.showDeleteConfirmation(event.id)
     });
   },
 
@@ -1703,11 +1588,6 @@ window.CalendarView = {
      ======================================== */
   async updateEventDates(event) {
     try {
-      // Οι καταγεγραμμένες επισκέψεις (job_visits) δεν μετακινούνται από το ημερολόγιο
-      if (String(event.id).startsWith('jobvisit-')) {
-        this.calendar.refetchEvents();
-        return;
-      }
       const pad = (n) => String(n).padStart(2, '0');
       const fmtDate = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
       const fmtTime = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
@@ -2077,5 +1957,19 @@ window.CalendarView = {
     if (!time) return '';
     // Remove seconds from time string (HH:MM:SS -> HH:MM)
     return time.substring(0, 5);
+  },
+
+  cleanup() {
+    const upcomingContainer = document.getElementById('upcomingVisitsList');
+    if (upcomingContainer && this._upcomingVisitsClickHandler) {
+      upcomingContainer.removeEventListener('click', this._upcomingVisitsClickHandler);
+    }
+    this._upcomingVisitsClickHandler = null;
+    this._upcomingVisitsData = {};
+
+    if (this.calendar) {
+      this.calendar.destroy();
+      this.calendar = null;
+    }
   }
 };

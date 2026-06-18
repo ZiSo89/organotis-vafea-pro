@@ -276,15 +276,12 @@ th:not(:last-child) {
     align-items: stretch;
   }
   
-  /* Search box responsive styling in components.css */
-  
-  /* Enable horizontal scroll on small screens */
-  .table-wrapper {
+  .table-wrapper:not(.has-mobile-cards) {
     overflow-x: auto;
   }
   
-  table {
-    min-width: 900px; /* Force horizontal scroll on small screens */
+  .table-wrapper:not(.has-mobile-cards) table {
+    min-width: 900px;
     white-space: nowrap;
   }
   

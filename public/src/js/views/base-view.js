@@ -41,13 +41,13 @@ class BaseView {
     
     // Remove old listener if exists
     if (this.eventListeners.has(key)) {
-      const oldHandler = this.eventListeners.get(key);
-      element.removeEventListener(event, oldHandler, options);
+      const oldListener = this.eventListeners.get(key);
+      element.removeEventListener(event, oldListener.handler, oldListener.options);
     }
 
     // Add new listener
     element.addEventListener(event, handler, options);
-    this.eventListeners.set(key, handler);
+    this.eventListeners.set(key, { element, event, handler, options });
   }
 
   /**
@@ -63,8 +63,8 @@ class BaseView {
     
     // Remove old delegated listener if exists
     if (this.delegatedListeners.has(key)) {
-      const oldHandler = this.delegatedListeners.get(key);
-      parentElement.removeEventListener(event, oldHandler);
+      const oldListener = this.delegatedListeners.get(key);
+      parentElement.removeEventListener(event, oldListener.handler);
     }
 
     // Create delegated handler
@@ -77,7 +77,7 @@ class BaseView {
 
     // Add listener
     parentElement.addEventListener(event, delegatedHandler);
-    this.delegatedListeners.set(key, delegatedHandler);
+    this.delegatedListeners.set(key, { element: parentElement, event, handler: delegatedHandler });
   }
 
   /**
@@ -86,7 +86,14 @@ class BaseView {
   cleanup() {
     console.log(`[${this.viewName}] Cleaning up ${this.eventListeners.size} listeners and ${this.delegatedListeners.size} delegated listeners`);
     
-    // Clear all tracked listeners
+    this.eventListeners.forEach(listener => {
+      listener.element.removeEventListener(listener.event, listener.handler, listener.options);
+    });
+
+    this.delegatedListeners.forEach(listener => {
+      listener.element.removeEventListener(listener.event, listener.handler);
+    });
+
     this.eventListeners.clear();
     this.delegatedListeners.clear();
   }

@@ -16,7 +16,6 @@ window.StatisticsView = {
     client_id: ''
   },
   chartMetrics: {
-    type: 'count',
     status: 'count'
   },
 
@@ -40,7 +39,11 @@ window.StatisticsView = {
           </div>
         </div>
 
-        <div class="statistics-filters card">
+        <div class="statistics-filters card ${Utils.isMobile() ? 'is-collapsed' : ''}" id="statisticsFiltersPanel">
+          <button type="button" class="statistics-filters-toggle" id="statisticsFiltersToggle" aria-expanded="false">
+            <span><i class="fas fa-filter"></i> Φίλτρα</span>
+            <i class="fas fa-chevron-down"></i>
+          </button>
           <div class="statistics-filter-grid">
             <div class="form-group">
               <label for="periodFilter">Περίοδος</label>
@@ -116,6 +119,7 @@ window.StatisticsView = {
           ${this.renderStatCard('totalJobs', 'Σύνολο Εργασιών', '0', 'fas fa-briefcase', 'warning')}
           ${this.renderStatCard('paidJobs', 'Εξοφλημένες', '0', 'fas fa-check-circle', 'primary')}
           ${this.renderStatCard('completedJobs', 'Ολοκληρωμένες', '0', 'fas fa-clipboard-check', 'success')}
+          ${this.renderStatCard('totalWorkHours', 'Εργατοώρες', '0h', 'fas fa-clock', 'info')}
           ${this.renderStatCard('avgJobValue', 'Μέση Αξία Εργασίας', '€0', 'fas fa-calculator', 'info')}
           ${this.renderStatCard('unpaidAmount', 'Ανεξόφλητα / Εκκρεμή', '€0', 'fas fa-hourglass-half', 'danger')}
         </div>
@@ -128,10 +132,20 @@ window.StatisticsView = {
 
         <div class="charts-grid" id="statisticsCharts">
           ${this.renderChartCard('revenueMonthChart', 'Έσοδα, Έξοδα & Κέρδη ανά Περίοδο', 'fas fa-calendar-alt', '', true)}
-          ${this.renderChartCard('jobsTypeChart', 'Κατανομή Εργασιών', 'fas fa-pie-chart', this.renderMetricSelect('typeMetric'))}
           ${this.renderChartCard('jobsStatusChart', 'Κατάσταση Εργασιών', 'fas fa-tasks', this.renderMetricSelect('statusMetric'))}
           ${this.renderChartCard('materialsChart', 'Top 10 Υλικά', 'fas fa-boxes')}
-          ${this.renderChartCard('topJobsChart', 'Top 10 Εργασίες με Βάση τα Καθαρά Κέρδη', 'fas fa-trophy', '', true)}
+          <div class="card card-full stats-top-jobs-panel">
+            <div class="card-header">
+              <h3><i class="fas fa-trophy"></i> Top 10 Εργασίες — Καθαρά Κέρδη</h3>
+            </div>
+            <div class="card-body">
+              <div class="stats-top-jobs-chart-wrap chart-body">
+                <canvas id="topJobsChart"></canvas>
+                <div class="chart-empty" id="topJobsChartEmpty" hidden>Δεν υπάρχουν δεδομένα</div>
+              </div>
+              <div id="statsTopJobsCards" class="stats-top-jobs-cards"></div>
+            </div>
+          </div>
         </div>
 
         <button id="scrollToTopBtn" class="scroll-to-top" title="Επιστροφή στην αρχή">
@@ -206,6 +220,13 @@ window.StatisticsView = {
 
     document.getElementById('refreshStatsBtn')?.addEventListener('click', () => this.loadStatistics());
     document.getElementById('retryStatsLoad')?.addEventListener('click', () => this.loadStatistics());
+    document.getElementById('statisticsFiltersToggle')?.addEventListener('click', () => {
+      const panel = document.getElementById('statisticsFiltersPanel');
+      const toggle = document.getElementById('statisticsFiltersToggle');
+      if (!panel || !toggle) return;
+      const collapsed = panel.classList.toggle('is-collapsed');
+      toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    });
     document.getElementById('resetStatsFilters')?.addEventListener('click', async () => {
       this.currentFilters = {
         period: 'year',
@@ -222,10 +243,6 @@ window.StatisticsView = {
       await this.loadStatistics();
     });
 
-    document.getElementById('typeMetric')?.addEventListener('change', (event) => {
-      this.chartMetrics.type = event.target.value;
-      this.createJobsTypeChart(this.overview?.jobs_by_type || []);
-    });
     document.getElementById('statusMetric')?.addEventListener('change', (event) => {
       this.chartMetrics.status = event.target.value;
       this.createJobsStatusChart(this.overview?.jobs_status || []);
@@ -316,7 +333,6 @@ window.StatisticsView = {
       this.updateFilterSummary();
       this.updateSummaryCards(overview.summary || {});
       this.createRevenueChart(overview.revenue || []);
-      this.createJobsTypeChart(overview.jobs_by_type || []);
       this.createJobsStatusChart(overview.jobs_status || []);
       this.createMaterialsChart(overview.materials_usage || []);
       this.createTopJobsChart(overview.top_jobs || []);
@@ -348,13 +364,11 @@ window.StatisticsView = {
   async loadStatisticsFromElectron() {
     const filters = this.resolveFiltersForElectron();
     const jobs = await this.fetchElectronJobs(filters);
-    const visitTotals = await this.fetchElectronVisitTotals(jobs.map((job) => job.id));
-    const overview = this.buildOverviewFromJobs(jobs, visitTotals, filters);
+    const overview = this.buildOverviewFromJobs(jobs, filters);
 
     const previousFilters = this.previousFilters(filters);
     const previousJobs = await this.fetchElectronJobs(previousFilters);
-    const previousVisitTotals = await this.fetchElectronVisitTotals(previousJobs.map((job) => job.id));
-    const previousOverview = this.buildOverviewFromJobs(previousJobs, previousVisitTotals, previousFilters);
+    const previousOverview = this.buildOverviewFromJobs(previousJobs, previousFilters);
 
     overview.previous_filters = {
       label: 'Προηγούμενη περίοδος',
@@ -459,36 +473,6 @@ window.StatisticsView = {
     return jobs.filter((job) => this.normalizeStatus(job.status) === filters.status);
   },
 
-  async fetchElectronVisitTotals(jobIds) {
-    const ids = [...new Set(jobIds.map(Number).filter(Boolean))];
-    if (ids.length === 0) return {};
-
-    const totals = {};
-    for (let i = 0; i < ids.length; i += 500) {
-      const chunk = ids.slice(i, i + 500);
-      const placeholders = chunk.map(() => '?').join(',');
-      const result = await window.electronAPI.db.query(`
-        SELECT job_id, workers
-        FROM job_visits
-        WHERE job_id IN (${placeholders})
-      `, chunk);
-      const rows = result.success ? result.data : [];
-      rows.forEach((row) => {
-        const jobId = Number(row.jobId || row.job_id);
-        const visit = this.computeVisitTotals(row.workers);
-        if (!totals[jobId]) {
-          totals[jobId] = { total_hours: 0, employee_hours: 0, owner_hours: 0, labor_cost: 0, visit_count: 0 };
-        }
-        totals[jobId].total_hours += visit.total_hours;
-        totals[jobId].employee_hours += visit.employee_hours;
-        totals[jobId].owner_hours += visit.owner_hours;
-        totals[jobId].labor_cost += visit.labor_cost;
-        totals[jobId].visit_count += 1;
-      });
-    }
-    return totals;
-  },
-
   async loadElectronFilterOptions() {
     const [typesResult, statusesResult, clientsResult] = await Promise.all([
       window.electronAPI.db.query("SELECT DISTINCT type FROM jobs WHERE type IS NOT NULL AND type != '' ORDER BY type ASC"),
@@ -504,7 +488,7 @@ window.StatisticsView = {
     };
   },
 
-  buildOverviewFromJobs(jobs, visitTotals, filters) {
+  buildOverviewFromJobs(jobs, filters) {
     const summary = this.emptySummary();
     const revenue = this.buildMonthBuckets(filters);
     const types = new Map();
@@ -516,7 +500,7 @@ window.StatisticsView = {
       const id = Number(job.id);
       const status = this.normalizeStatus(job.status);
       const type = (job.type || 'Χωρίς κατηγορία').trim() || 'Χωρίς κατηγορία';
-      const financials = this.computeJobFinancials(job, visitTotals[id]);
+      const financials = this.computeJobFinancials(job);
       const billable = this.isBillableJob(job);
       const paid = this.isPaidJob(job);
 
@@ -528,6 +512,9 @@ window.StatisticsView = {
       if (['Υποψήφιος', 'Προγραμματισμένη', 'Σε αναμονή'].includes(status)) summary.pending_jobs += 1;
       if (status === 'Ακυρώθηκε') summary.cancelled_jobs += 1;
       if (!paid && financials.billing > 0) summary.unpaid_amount += financials.billing;
+      if (this.shouldCountWorkHours(status)) {
+        summary.total_work_hours += financials.actual_hours;
+      }
 
       if (!types.has(type)) {
         types.set(type, { job_type: type, type, count: 0, billable_count: 0, billing: 0, net_profit: 0 });
@@ -658,6 +645,7 @@ window.StatisticsView = {
       total_materials_cost: 0,
       total_labor_cost: 0,
       total_travel_cost: 0,
+      total_work_hours: 0,
       net_profit: 0,
       total_profit: 0,
       profit_margin: 0,
@@ -693,69 +681,24 @@ window.StatisticsView = {
     return buckets;
   },
 
-  computeJobFinancials(job, visitTotals = null) {
-    let billing = 0;
-    const billingType = job.billingType || job.billing_type || 'hourly';
-    const agreedPrice = this.toNumber(job.agreedPrice ?? job.agreed_price);
-    if (billingType === 'fixed' && agreedPrice > 0) billing = agreedPrice;
-
-    if (!billing) billing = this.toNumber(job.billingAmount ?? job.billing_amount);
-    if (!billing) {
-      const hours = this.toNumber(job.billingHours ?? job.billing_hours);
-      const rate = this.toNumber(job.billingRate ?? job.billing_rate);
-      if (hours > 0 && rate > 0) billing = hours * rate;
-    }
-    if (!billing) billing = this.toNumber(job.totalCost ?? job.total_cost);
-
-    const materials = this.toNumber(job.materialsCost ?? job.materials_cost);
-    const kilometers = this.toNumber(job.kilometers ?? job.km);
-    const costPerKm = this.toNumber(job.costPerKm ?? job.cost_per_km ?? job.travelCost ?? job.travel_cost ?? 0.5);
-    const travel = kilometers * costPerKm;
-
-    let labor = 0;
-    let actualHours = 0;
-    if (visitTotals && visitTotals.visit_count > 0) {
-      labor = this.toNumber(visitTotals.labor_cost);
-      actualHours = this.toNumber(visitTotals.total_hours);
-    } else {
-      this.parseArray(job.assignedWorkers ?? job.assigned_workers ?? job.workers).forEach((worker) => {
-        const workerType = worker.workerType || worker.worker_type || 'employee';
-        actualHours += this.toNumber(worker.hoursAllocated ?? worker.hours_allocated);
-        if (workerType !== 'owner') {
-          labor += this.toNumber(worker.laborCost ?? worker.labor_cost ?? worker.cost);
-        }
-      });
-    }
-
-    const expenses = materials + labor + travel;
+  computeJobFinancials(job) {
+    const payments = (State.data?.jobPayments || []).filter(payment => Number(payment.jobId || payment.job_id) === Number(job.id));
+    const financials = window.JobFinancials.compute(job, { payments });
     return {
-      billing,
-      materials,
-      labor,
-      travel,
-      expenses,
-      profit: billing - expenses,
-      actual_hours: actualHours
+      billing: financials.billingAmount,
+      materials: financials.materialsCost,
+      labor: financials.laborCost,
+      travel: financials.travelCost,
+      expenses: financials.totalExpenses,
+      profit: financials.profit,
+      actual_hours: financials.actualHours
     };
   },
 
-  computeVisitTotals(workersValue) {
-    const workers = this.parseArray(workersValue);
-    return workers.reduce((totals, worker) => {
-      const workerType = worker.workerType || worker.worker_type || 'employee';
-      const hours = this.toNumber(worker.hours ?? worker.totalHours ?? worker.total_hours ?? worker.hoursAllocated ?? worker.hours_allocated);
-      const laborCost = this.toNumber(worker.laborCost ?? worker.labor_cost ?? worker.cost) ||
-        (workerType === 'owner' ? 0 : hours * this.toNumber(worker.hourlyRate ?? worker.hourly_rate));
-
-      totals.total_hours += hours;
-      if (workerType === 'owner') {
-        totals.owner_hours += hours;
-      } else {
-        totals.employee_hours += hours;
-        totals.labor_cost += laborCost;
-      }
-      return totals;
-    }, { total_hours: 0, employee_hours: 0, owner_hours: 0, labor_cost: 0 });
+  shouldCountWorkHours(status) {
+    return status === 'Σε εξέλιξη'
+      || status === 'Ολοκληρώθηκε'
+      || status === 'Εξοφλήθηκε';
   },
 
   normalizeStatus(status) {
@@ -785,7 +728,8 @@ window.StatisticsView = {
       net_profit: this.delta(current.net_profit, previous.net_profit),
       profit_margin: this.delta(current.profit_margin, previous.profit_margin),
       total_jobs: this.delta(current.total_jobs, previous.total_jobs),
-      completed_jobs: this.delta(current.completed_jobs, previous.completed_jobs)
+      completed_jobs: this.delta(current.completed_jobs, previous.completed_jobs),
+      total_work_hours: this.delta(current.total_work_hours, previous.total_work_hours)
     };
   },
 
@@ -867,6 +811,7 @@ window.StatisticsView = {
     this.updateCard('totalJobs', this.formatNumber(summary.total_jobs), comparison.total_jobs, 'number');
     this.updateCard('paidJobs', this.formatNumber(summary.paid_jobs), null, 'number');
     this.updateCard('completedJobs', this.formatNumber(summary.completed_jobs), comparison.completed_jobs, 'number');
+    this.updateCard('totalWorkHours', this.formatHours(summary.total_work_hours), comparison.total_work_hours, 'hours');
     this.updateCard('avgJobValue', this.formatCurrency(summary.avg_job_value), null, 'currency');
     this.updateCard('unpaidAmount', this.formatCurrency(summary.unpaid_amount), null, 'currency', -summary.unpaid_amount);
   },
@@ -890,7 +835,9 @@ window.StatisticsView = {
       ? `${direction}${this.formatCurrency(delta.change)}`
       : type === 'percent'
         ? `${direction}${this.formatPercent(delta.change)}`
-        : `${direction}${this.formatNumber(delta.change)}`;
+        : type === 'hours'
+          ? `${direction}${this.formatHours(delta.change)}`
+          : `${direction}${this.formatNumber(delta.change)}`;
     const percentLabel = delta.percent === null ? '' : ` (${direction}${this.formatPercent(delta.percent)})`;
     trendEl.textContent = `${changeLabel}${percentLabel} από προηγ. περίοδο`;
     trendEl.className = `stat-trend ${delta.change >= 0 ? 'is-positive' : 'is-negative'}`;
@@ -1049,8 +996,43 @@ window.StatisticsView = {
     });
   },
 
+  renderTopJobsCards(data) {
+    const container = document.getElementById('statsTopJobsCards');
+    if (!container) return;
+
+    if (!data || !data.length) {
+      container.innerHTML = '';
+      return;
+    }
+
+    container.innerHTML = data.map((item, index) => `
+      <article class="entity-mobile-card stats-top-job-card" data-job-id="${Utils.escapeHtml(String(item.id))}">
+        <div class="entity-mobile-card-header">
+          <div class="entity-mobile-card-title">
+            <strong>#${index + 1} ${Utils.escapeHtml(item.title || `Εργασία ${item.id}`)}</strong>
+            <span>${Utils.escapeHtml(item.client_name || '')}</span>
+          </div>
+        </div>
+        <div class="entity-mobile-card-meta">
+          <span><i class="fas fa-chart-line"></i> ${this.formatCurrency(item.net_profit ?? item.profit ?? 0)}</span>
+          <span><i class="fas fa-euro-sign"></i> ${this.formatCurrency(item.revenue ?? item.billing_amount ?? 0)}</span>
+        </div>
+      </article>
+    `).join('');
+
+    container.querySelectorAll('.stats-top-job-card').forEach(card => {
+      card.addEventListener('click', () => {
+        const jobId = card.dataset.jobId;
+        if (jobId && window.JobsView?.viewJob) {
+          window.JobsView.viewJob(jobId);
+        }
+      });
+    });
+  },
+
   createTopJobsChart(data) {
     this.destroyChart('topJobs');
+    this.renderTopJobsCards(data);
     const ctx = document.getElementById('topJobsChart');
     if (!data || data.length === 0) {
       this.showChartEmpty('topJobsChart');
@@ -1326,6 +1308,13 @@ window.StatisticsView = {
     return this.toNumber(value).toLocaleString('el-GR', {
       maximumFractionDigits: 0
     });
+  },
+
+  formatHours(value) {
+    return `${this.toNumber(value).toLocaleString('el-GR', {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1
+    })}h`;
   },
 
   escapeHtml(value) {

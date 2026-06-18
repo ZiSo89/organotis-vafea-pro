@@ -63,7 +63,7 @@ const State = {
       console.log('📥 [State] Loading data from SQLite...');
       
       // Use OfflineService directly in Electron (already extracts data properly)
-      const [clients, workers, materials, materialStockMovements, suppliers, materialPurchases, supplierPayments, jobs, jobVisits, jobPayments, offers, invoices, templates] = await Promise.all([
+      const [clients, workers, materials, materialStockMovements, suppliers, materialPurchases, supplierPayments, jobs, jobPayments, offers, invoices, templates] = await Promise.all([
         window.OfflineService.getClients(),
         window.OfflineService.getWorkers(),
         window.OfflineService.getMaterials(),
@@ -72,39 +72,17 @@ const State = {
         window.OfflineService.getMaterialPurchases(),
         window.OfflineService.getSupplierPayments(),
         window.OfflineService.getJobs(),
-        window.OfflineService.getJobVisits(),
         window.OfflineService.getJobPayments(),
         window.OfflineService.getOffers(),
         window.OfflineService.getInvoices(),
         window.OfflineService.getTemplates(),
       ]);
 
-      console.log('📦 [State] Raw responses:', { clients, workers, materials, materialStockMovements, suppliers, materialPurchases, supplierPayments, jobs, jobVisits, jobPayments, offers, invoices, templates });
+      console.log('📦 [State] Raw responses:', { clients, workers, materials, materialStockMovements, suppliers, materialPurchases, supplierPayments, jobs, jobPayments, offers, invoices, templates });
       console.log('📦 [State] jobs response:', jobs);
       console.log('📦 [State] jobs.data type:', typeof jobs?.data, 'isArray:', Array.isArray(jobs?.data));
 
-      // Helper function to extract data from response
-      const extractData = (response, fallback = []) => {
-        if (!response) return fallback;
-        
-        // If response has success and data properties (OfflineService format)
-        if (response.success !== undefined && response.data !== undefined) {
-          // Ensure data is array
-          if (Array.isArray(response.data)) {
-            return response.data;
-          }
-          console.warn('[State] Response data is not an array:', response);
-          return fallback;
-        }
-        
-        // If response is already an array (direct format)
-        if (Array.isArray(response)) {
-          return response;
-        }
-        
-        console.warn('[State] Response format unknown:', response);
-        return fallback;
-      };
+      const extractData = (response, fallback = []) => DataMappers.extractCollection(response, fallback);
 
       const stateData = {
         clients: extractData(clients, []),
@@ -115,7 +93,6 @@ const State = {
         materialPurchases: extractData(materialPurchases, []),
         supplierPayments: extractData(supplierPayments, []),
         jobs: extractData(jobs, []),
-        jobVisits: extractData(jobVisits, []),
         jobPayments: extractData(jobPayments, []),
         offers: extractData(offers, []),
         invoices: extractData(invoices, []),
@@ -141,7 +118,6 @@ const State = {
         materialPurchases: [],
         supplierPayments: [],
         jobs: [],
-        jobVisits: [],
         jobPayments: [],
         offers: [],
         invoices: [],
@@ -156,7 +132,7 @@ const State = {
    */
   async loadFromAPI() {
     try {
-      const [clients, workers, materials, materialStockMovements, suppliers, materialPurchases, supplierPayments, jobs, jobVisits, jobPayments, offers, invoices, templates] = await Promise.all([
+      const [clients, workers, materials, materialStockMovements, suppliers, materialPurchases, supplierPayments, jobs, jobPayments, offers, invoices, templates] = await Promise.all([
         API.getClients(),
         API.getWorkers(),
         API.getMaterials(),
@@ -165,7 +141,6 @@ const State = {
         API.getMaterialPurchases(),
         API.getSupplierPayments(),
         API.getJobs(),
-        API.getJobVisits(),
         API.getJobPayments(),
         API.getOffers(),
         API.getInvoices(),
@@ -173,19 +148,18 @@ const State = {
       ]);
 
       return {
-        clients: clients || [],
-        workers: workers || [],
-        inventory: materials || [], // materials -> inventory
-        materialStockMovements: materialStockMovements || [],
-        suppliers: suppliers || [],
-        materialPurchases: materialPurchases || [],
-        supplierPayments: supplierPayments || [],
-        jobs: jobs || [],
-        jobVisits: jobVisits || [],
-        jobPayments: jobPayments || [],
-        offers: offers || [],
-        invoices: invoices || [],
-        templates: templates || [],
+        clients: DataMappers.extractCollection(clients, []),
+        workers: DataMappers.extractCollection(workers, []),
+        inventory: DataMappers.extractCollection(materials, []), // materials -> inventory
+        materialStockMovements: DataMappers.extractCollection(materialStockMovements, []),
+        suppliers: DataMappers.extractCollection(suppliers, []),
+        materialPurchases: DataMappers.extractCollection(materialPurchases, []),
+        supplierPayments: DataMappers.extractCollection(supplierPayments, []),
+        jobs: DataMappers.extractCollection(jobs, []),
+        jobPayments: DataMappers.extractCollection(jobPayments, []),
+        offers: DataMappers.extractCollection(offers, []),
+        invoices: DataMappers.extractCollection(invoices, []),
+        templates: DataMappers.extractCollection(templates, []),
         timesheets: [], // TODO: Add timesheet API later
       };
     } catch (error) {
@@ -312,7 +286,6 @@ const State = {
         materialPurchases: 'createMaterialPurchase',
         supplierPayments: 'createSupplierPayment',
         jobs: 'createJob',
-        jobVisits: 'createJobVisit',
         jobPayments: 'createJobPayment',
         offers: 'createOffer',
         invoices: 'createInvoice',
@@ -330,20 +303,7 @@ const State = {
       const result = await service[method](item);
       console.log('[State] Create result:', result);
       
-      // Extract the created item
-      let createdItem;
-      if (isElectron) {
-        // In Electron, result might be the record directly or wrapped in {data: {record: ...}}
-        if (result && result.data && result.data.record) {
-          createdItem = result.data.record;
-        } else if (result && result.data) {
-          createdItem = result.data;
-        } else {
-          createdItem = result;
-        }
-      } else {
-        createdItem = result;
-      }
+      const createdItem = DataMappers.extractRecord(result, result);
       
       console.log('[State] Created item:', createdItem);
       
@@ -361,7 +321,7 @@ const State = {
       
       // Refresh Dashboard if needed
       this.refreshDashboardIfNeeded();
-      if (collection === 'jobVisits' || collection === 'jobs') {
+      if (collection === 'jobs') {
         this.refreshWorkersIfNeeded();
       }
       
@@ -416,7 +376,6 @@ const State = {
         materialPurchases: 'updateMaterialPurchase',
         supplierPayments: 'updateSupplierPayment',
         jobs: 'updateJob',
-        jobVisits: 'updateJobVisit',
         jobPayments: 'updateJobPayment',
         offers: 'updateOffer',
         invoices: 'updateInvoice',
@@ -434,20 +393,7 @@ const State = {
       const result = await service[method](id, updatedItem);
       console.log('[State] Update result:', result);
       
-      // Extract the updated item
-      let updated;
-      if (isElectron) {
-        // In Electron, result might be the record directly or wrapped in {data: {record: ...}}
-        if (result && result.data && result.data.record) {
-          updated = result.data.record;
-        } else if (result && result.data) {
-          updated = result.data;
-        } else {
-          updated = result;
-        }
-      } else {
-        updated = result;
-      }
+      const updated = DataMappers.extractRecord(result, result);
       
       console.log('[State] Updated item:', updated);
       
@@ -457,7 +403,7 @@ const State = {
         this.data[collection][index] = updated;
         this.saveToHistory(`Ενημέρωση ${collection}`, this.data);
         this.refreshDashboardIfNeeded();
-        if (collection === 'jobVisits' || collection === 'jobs') {
+        if (collection === 'jobs') {
           this.refreshWorkersIfNeeded();
         }
       }
@@ -492,7 +438,6 @@ const State = {
         materialPurchases: 'deleteMaterialPurchase',
         supplierPayments: 'deleteSupplierPayment',
         jobs: 'deleteJob',
-        jobVisits: 'deleteJobVisit',
         jobPayments: 'deleteJobPayment',
         offers: 'deleteOffer',
         invoices: 'deleteInvoice',
@@ -509,19 +454,38 @@ const State = {
       await service[method](id);
       
       console.log(`[State] Delete successful, updating local state`);
-      
+
+      let stateChanged = false;
+
+      if (collection === 'jobs') {
+        const matchesDeletedJob = (record) => Number(record.jobId || record.job_id) === Number(id);
+        ['jobPayments'].forEach((linkedCollection) => {
+          if (!Array.isArray(this.data[linkedCollection])) return;
+          const before = this.data[linkedCollection].length;
+          this.data[linkedCollection] = this.data[linkedCollection].filter(record => !matchesDeletedJob(record));
+          if (this.data[linkedCollection].length !== before) {
+            stateChanged = true;
+            console.log(`[State] Removed ${before - this.data[linkedCollection].length} linked ${linkedCollection}`);
+          }
+        });
+      }
+
       // Update local state - remove the item from array
       const index = this.data[collection].findIndex(item => Number(item.id) === Number(id));
       if (index !== -1) {
         console.log(`[State] Removing item at index ${index} from ${collection}`);
         this.data[collection].splice(index, 1);
-        this.saveToHistory(`Διαγραφή ${collection}`, this.data);
-        this.refreshDashboardIfNeeded();
-        if (collection === 'jobVisits' || collection === 'jobs') {
-          this.refreshWorkersIfNeeded();
-        }
+        stateChanged = true;
       } else {
         console.warn(`[State] Item with id ${id} not found in ${collection}`);
+      }
+
+      if (stateChanged) {
+        this.saveToHistory(`Διαγραφή ${collection}`, this.data);
+        this.refreshDashboardIfNeeded();
+        if (collection === 'jobs') {
+          this.refreshWorkersIfNeeded();
+        }
       }
       
       return true;

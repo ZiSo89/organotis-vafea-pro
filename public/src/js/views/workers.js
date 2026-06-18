@@ -11,9 +11,12 @@ window.WorkersView = {
   cancelBtnHandler: null,
   searchInputHandler: null,
   statusFilterHandler: null,
+  lazyTableKey: 'workers-table',
+  lazyBatchSize: 20,
 
-  render(container) {
+  render(container, params = {}) {
     const workers = State.read('workers') || [];
+    Utils.resetInfiniteList(this.lazyTableKey, this.lazyBatchSize);
 
     container.innerHTML = `
       <div class="view-header">
@@ -100,11 +103,16 @@ window.WorkersView = {
             <input type="text" id="workerSearch" placeholder="Αναζήτηση εργατών..." />
           </div>
 
-          <select id="statusFilter">
+          <select id="statusFilter" class="filter-bar-select-desktop">
             <option value="">Όλες οι καταστάσεις</option>
             <option value="active">Ενεργοί</option>
             <option value="inactive">Ανενεργοί</option>
           </select>
+        </div>
+        <div class="filter-chip-row" id="workerStatusChips" role="tablist" aria-label="Φίλτρο κατάστασης">
+          <button type="button" class="filter-chip is-active" data-worker-status="">Όλοι</button>
+          <button type="button" class="filter-chip" data-worker-status="active">Ενεργοί</button>
+          <button type="button" class="filter-chip" data-worker-status="inactive">Ανενεργοί</button>
         </div>
       </div>
 
@@ -117,6 +125,11 @@ window.WorkersView = {
     `;
     
     this.setupEventListeners();
+    this.setupLazyTable(workers);
+
+    if (params?.workerId) {
+      setTimeout(() => this.viewWorker(params.workerId), 0);
+    }
   },
   
   setupEventListeners() {
@@ -173,6 +186,18 @@ window.WorkersView = {
       this.statusFilterHandler = () => this.filterWorkers();
       statusFilter.addEventListener('change', this.statusFilterHandler);
     }
+
+    document.querySelectorAll('#workerStatusChips .filter-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        document.querySelectorAll('#workerStatusChips .filter-chip').forEach(item => item.classList.remove('is-active'));
+        chip.classList.add('is-active');
+        const statusFilter = document.getElementById('statusFilter');
+        if (statusFilter) {
+          statusFilter.value = chip.dataset.workerStatus || '';
+          this.filterWorkers();
+        }
+      });
+    });
 
     // Event delegation for table buttons
     const container = document.getElementById('contentArea');
@@ -259,103 +284,18 @@ window.WorkersView = {
     return !!entryName && entryName === workerName;
   },
 
-  getVisitsForJob(jobId) {
-    const visits = State.read('jobVisits') || [];
-    return visits.filter(visit => Number(visit.jobId || visit.job_id) === Number(jobId));
-  },
-
-  getVisitTotals(visit) {
-    const workers = this.parseJsonArray(visit.workers);
-    return workers.reduce((totals, entry) => {
-      const hours = this.getEntryHours(entry);
-      const type = (entry.workerType || entry.worker_type) === 'owner' ? 'owner' : 'employee';
-      const laborCost = this.getEntryLaborCost(entry);
-
-      totals.totalHours += hours;
-      totals.laborCost += laborCost;
-      return totals;
-    }, { totalHours: 0, laborCost: 0 });
-  },
-
   computeJobProfit(job) {
-    const visits = this.getVisitsForJob(job.id);
-    const assignedWorkers = this.parseJsonArray(job.assignedWorkers ?? job.assigned_workers);
-    let actualHours = 0;
-    let laborCost = 0;
-
-    if (visits.length > 0) {
-      visits.forEach(visit => {
-        const totals = this.getVisitTotals(visit);
-        actualHours += totals.totalHours;
-        laborCost += totals.laborCost;
-      });
-    } else {
-      assignedWorkers.forEach(entry => {
-        const hours = this.getEntryHours(entry);
-        const type = (entry.workerType || entry.worker_type) === 'owner' ? 'owner' : 'employee';
-        actualHours += hours;
-        if (type !== 'owner') {
-          laborCost += this.getEntryLaborCost(entry);
-        }
-      });
-    }
-
-    const materialsCost = parseFloat(job.materialsCost || job.materials_cost || 0) || 0;
-    const kilometers = parseFloat(job.kilometers || 0) || 0;
-    const costPerKm = parseFloat(job.costPerKm || job.cost_per_km || 0.5) || 0.5;
-    const totalExpenses = materialsCost + laborCost + (kilometers * costPerKm);
-    const billingType = job.billingType || job.billing_type || 'hourly';
-    const agreedPrice = parseFloat(job.agreedPrice || job.agreed_price || 0) || 0;
-    const billingHours = parseFloat(job.billingHours || job.billing_hours || 0) || 0;
-    const billingRate = parseFloat(job.billingRate || job.billing_rate || 50) || 50;
-    const billingAmount = (billingType === 'fixed' && agreedPrice > 0)
-      ? agreedPrice
-      : billingHours * billingRate;
-    const profit = billingAmount - totalExpenses;
+    const financials = window.JobFinancials.compute(job);
 
     return {
-      profit,
-      actualHours,
-      profitPerHour: actualHours > 0 ? profit / actualHours : null
+      profit: financials.profit,
+      actualHours: financials.actualHours,
+      profitPerHour: financials.profitPerHour
     };
-  },
-
-  getWorkerVisitStats(worker, options = {}) {
-    const visits = State.read('jobVisits') || [];
-    const month = options.month;
-    const year = options.year;
-    const jobIdFilter = options.jobId ? String(options.jobId) : null;
-
-    return visits.reduce((stats, visit) => {
-      const visitJobId = String(visit.jobId || visit.job_id || '');
-      if (jobIdFilter && visitJobId !== jobIdFilter) return stats;
-
-      const visitDateValue = visit.visitDate || visit.visit_date;
-      if (!visitDateValue) return stats;
-      const visitDate = new Date(String(visitDateValue).substring(0, 10));
-      if (Number.isNaN(visitDate.getTime())) return stats;
-      if (month !== undefined && (visitDate.getMonth() !== month || visitDate.getFullYear() !== year)) return stats;
-
-      const workers = this.parseJsonArray(visit.workers);
-      workers.forEach(entry => {
-        if (!this.isWorkerEntry(entry, worker)) return;
-
-        const hours = this.getEntryHours(entry);
-        const laborCost = this.getEntryLaborCost(entry, worker);
-
-        stats.hours += hours;
-        stats.earnings += laborCost;
-        stats.visits += 1;
-      });
-
-      return stats;
-    }, { hours: 0, earnings: 0, visits: 0, source: 'visits' });
   },
 
   getWorkerAssignedStats(worker, options = {}) {
     const jobs = State.read('jobs') || [];
-    const visits = State.read('jobVisits') || [];
-    const jobsWithVisits = new Set(visits.map(visit => String(visit.jobId || visit.job_id || '')));
     const month = options.month;
     const year = options.year;
     const jobIdFilter = options.jobId ? String(options.jobId) : null;
@@ -363,7 +303,6 @@ window.WorkersView = {
     return jobs.reduce((stats, job) => {
       const jobId = String(job.id);
       if (jobIdFilter && jobId !== jobIdFilter) return stats;
-      if (jobsWithVisits.has(jobId)) return stats;
 
       const jobDateValue = job.date || job.createdAt || job.created_at;
       if (!jobDateValue) return stats;
@@ -393,11 +332,8 @@ window.WorkersView = {
     jobs.forEach(job => {
       if (options.jobId && String(job.id) !== String(options.jobId)) return;
 
-      const workerStats = {
-        visits: this.getWorkerVisitStats(worker, { ...options, jobId: job.id }),
-        assignments: this.getWorkerAssignedStats(worker, { ...options, jobId: job.id })
-      };
-      const hours = workerStats.visits.hours + workerStats.assignments.hours;
+      const workerStats = this.getWorkerAssignedStats(worker, { ...options, jobId: job.id });
+      const hours = workerStats.hours;
       if (hours <= 0) return;
 
       const financials = this.computeJobProfit(job);
@@ -414,15 +350,13 @@ window.WorkersView = {
   },
 
   getWorkerWorkStats(worker, options = {}) {
-    const visitStats = this.getWorkerVisitStats(worker, options);
     const assignedStats = this.getWorkerAssignedStats(worker, options);
     const ownerPerformance = this.getWorkerType(worker) === 'owner'
       ? this.getOwnerPerformanceStats(worker, options)
       : { value: 0, rate: null };
     return {
-      hours: visitStats.hours + assignedStats.hours,
-      earnings: visitStats.earnings + assignedStats.earnings,
-      visits: visitStats.visits,
+      hours: assignedStats.hours,
+      earnings: assignedStats.earnings,
       assignments: assignedStats.assignments,
       ownerPerformanceValue: ownerPerformance.value,
       ownerPerformanceRate: ownerPerformance.rate
@@ -431,11 +365,11 @@ window.WorkersView = {
 
   renderTable(workers) {
     if (workers.length === 0) {
-      return Utils.renderEmptyState(
-        'fa-hard-hat',
-        'Δεν υπάρχουν εργάτες',
-        'Δημιουργήστε τον πρώτο σας εργάτη!'
-      );
+      return UIPrimitives.emptyState({
+        icon: 'fas fa-hard-hat',
+        title: 'Δεν υπάρχουν εργάτες',
+        description: 'Δημιουργήστε τον πρώτο σας εργάτη!'
+      });
     }
 
     const now = new Date();
@@ -444,9 +378,11 @@ window.WorkersView = {
 
     // Sort by createdAt timestamp - latest first
     const sortedWorkers = Utils.sortBy(workers, 'createdAt', 'desc');
+    const lazy = Utils.getInfiniteSlice(this.lazyTableKey, sortedWorkers, this.lazyBatchSize);
+    const visibleWorkers = lazy.items;
 
     return `
-      <div class="table-wrapper">
+      <div class="table-wrapper has-mobile-cards">
         <table class="data-table">
           <thead>
             <tr>
@@ -460,7 +396,7 @@ window.WorkersView = {
             </tr>
           </thead>
           <tbody>
-          ${sortedWorkers.map(worker => {
+          ${visibleWorkers.map(worker => {
             const monthlyStats = this.getWorkerWorkStats(worker, { month: thisMonth, year: thisYear });
             const isOwner = this.getWorkerType(worker) === 'owner';
             const valueDisplay = isOwner
@@ -469,22 +405,16 @@ window.WorkersView = {
                 : `<strong style="color: ${monthlyStats.ownerPerformanceRate >= 0 ? 'var(--success)' : 'var(--error)'};">${Utils.formatCurrency(monthlyStats.ownerPerformanceRate)}/ώρα</strong><br><small class="text-muted">Σύνολο: ${Utils.formatCurrency(monthlyStats.ownerPerformanceValue)}</small>`)
               : `<strong>${Utils.formatCurrency(monthlyStats.earnings)}</strong>`;
 
-            const statusBadge = worker.status === 'active' 
-              ? '<span class="status-pill status-active">Ενεργός</span>'
-              : '<span class="status-pill status-inactive">Ανενεργός</span>';
+            const statusBadge = worker.status === 'active'
+              ? UIPrimitives.statusBadge('Ενεργός', 'active')
+              : UIPrimitives.statusBadge('Ανενεργός', 'inactive');
             
             return `
             <tr>
               <td class="actions">
-                <button class="btn-icon view-worker-btn" data-worker-id="${worker.id}" title="Προβολή">
-                  <i class="fas fa-eye"></i>
-                </button>
-                <button class="btn-icon edit-worker-btn" data-worker-id="${worker.id}" title="Επεξεργασία">
-                  <i class="fas fa-edit"></i>
-                </button>
-                <button class="btn-icon btn-danger delete-worker-btn" data-worker-id="${worker.id}" title="Διαγραφή">
-                  <i class="fas fa-trash"></i>
-                </button>
+                ${UIPrimitives.actionButton({ className: 'view-worker-btn', icon: 'fas fa-eye', title: 'Προβολή', data: { 'worker-id': worker.id } })}
+                ${UIPrimitives.actionButton({ className: 'edit-worker-btn', icon: 'fas fa-edit', title: 'Επεξεργασία', data: { 'worker-id': worker.id } })}
+                ${UIPrimitives.actionButton({ className: 'btn-danger delete-worker-btn', icon: 'fas fa-trash', title: 'Διαγραφή', data: { 'worker-id': worker.id } })}
               </td>
               <td title="${worker.name}"><strong>${worker.name}</strong></td>
               <td title="${Utils.formatCurrency(worker.hourlyRate)}">${Utils.formatCurrency(worker.hourlyRate)}/ώρα</td>
@@ -498,6 +428,43 @@ window.WorkersView = {
         </tbody>
       </table>
       </div>
+      <div class="mobile-card-list" aria-label="Λίστα εργατών για κινητό">
+        ${visibleWorkers.map(worker => {
+          const monthlyStats = this.getWorkerWorkStats(worker, { month: thisMonth, year: thisYear });
+          const isOwner = this.getWorkerType(worker) === 'owner';
+          const statusBadge = worker.status === 'active'
+            ? UIPrimitives.statusBadge('Ενεργός', 'active')
+            : UIPrimitives.statusBadge('Ανενεργός', 'inactive');
+          const valueLabel = isOwner ? 'Απόδοση' : 'Μισθός μήνα';
+          const value = isOwner
+            ? (monthlyStats.ownerPerformanceRate === null ? '-' : `${Utils.formatCurrency(monthlyStats.ownerPerformanceRate)}/ώρα`)
+            : Utils.formatCurrency(monthlyStats.earnings);
+
+          return `
+            <article class="entity-mobile-card">
+              <div class="entity-mobile-card-header">
+                <div class="entity-mobile-card-title">
+                  <strong>${Utils.escapeHtml(worker.name || '-')}</strong>
+                  <span class="worker-type-badge ${isOwner ? 'is-owner' : ''}">${isOwner ? 'Ιδιοκτήτης' : 'Υπάλληλος'}</span>
+                  <span>${statusBadge}</span>
+                </div>
+                <div class="entity-mobile-card-actions">
+                  ${UIPrimitives.actionButton({ className: 'view-worker-btn', icon: 'fas fa-eye', title: 'Προβολή', data: { 'worker-id': worker.id } })}
+                  ${UIPrimitives.actionButton({ className: 'edit-worker-btn', icon: 'fas fa-edit', title: 'Επεξεργασία', data: { 'worker-id': worker.id } })}
+                  ${UIPrimitives.actionButton({ className: 'btn-danger delete-worker-btn', icon: 'fas fa-trash', title: 'Διαγραφή', data: { 'worker-id': worker.id } })}
+                </div>
+              </div>
+              <div class="entity-mobile-card-meta">
+                ${worker.phone ? `<a href="tel:${Utils.escapeHtml(worker.phone)}"><i class="fas fa-phone"></i>${Utils.escapeHtml(worker.phone)}</a>` : '<span><i class="fas fa-phone"></i>Χωρίς τηλέφωνο</span>'}
+                <span><i class="fas fa-euro-sign"></i>${Utils.formatCurrency(worker.hourlyRate)}/ώρα</span>
+                <span><i class="fas fa-clock"></i>${monthlyStats.hours.toFixed(1)} ώρες μήνα</span>
+                <span><i class="fas fa-chart-line"></i>${valueLabel}: ${value}</span>
+              </div>
+            </article>
+          `;
+        }).join('')}
+      </div>
+      ${Utils.renderInfiniteFooter(this.lazyTableKey, lazy.visible, lazy.total, this.lazyBatchSize)}
     `;
   },
 
@@ -598,10 +565,27 @@ window.WorkersView = {
 
   refreshTable() {
     const workers = State.read('workers') || [];
+    this.renderTableWithLazy(workers, { reset: true });
+  },
+
+  renderTableWithLazy(workers, { reset = false } = {}) {
     const container = document.getElementById('workersTableContainer');
     if (container) {
+      if (reset) {
+        Utils.resetInfiniteList(this.lazyTableKey, this.lazyBatchSize);
+      }
       container.innerHTML = this.renderTable(workers);
+      this.setupLazyTable(workers);
     }
+  },
+
+  setupLazyTable(workers) {
+    Utils.setupInfiniteScroll({
+      key: this.lazyTableKey,
+      total: Array.isArray(workers) ? workers.length : 0,
+      batchSize: this.lazyBatchSize,
+      onLoadMore: () => this.renderTableWithLazy(workers)
+    });
   },
 
   viewWorker(id) {
@@ -614,7 +598,7 @@ window.WorkersView = {
 
     console.log('[Workers] Worker data:', worker);
 
-    // Get worker's work history from recorded visits, with assignment fallback.
+    // Get worker's work history from job assignments.
     const jobs = State.read('jobs') || [];
     console.log('[Workers] Total jobs in database:', jobs.length);
 
@@ -627,9 +611,9 @@ window.WorkersView = {
 
     console.log('[Workers] Found', workerJobRows.length, 'jobs for worker', id);
 
-    const statusBadge = worker.status === 'active' 
-      ? '<span class="status-pill status-active">Ενεργός</span>'
-      : '<span class="status-pill status-inactive">Ανενεργός</span>';
+    const statusBadge = worker.status === 'active'
+      ? UIPrimitives.statusBadge('Ενεργός', 'active')
+      : UIPrimitives.statusBadge('Ανενεργός', 'inactive');
 
     const content = `
       <div class="job-details">
@@ -778,19 +762,13 @@ window.WorkersView = {
 
   getWorkerDeleteBlockers(worker) {
     const jobs = State.read('jobs') || [];
-    const visits = State.read('jobVisits') || [];
 
     const assignedJobs = jobs.filter(job => {
       const assignedWorkers = this.parseJsonArray(job.assignedWorkers ?? job.assigned_workers);
       return assignedWorkers.some(entry => this.isWorkerEntry(entry, worker));
     });
 
-    const recordedVisits = visits.filter(visit => {
-      const workers = this.parseJsonArray(visit.workers);
-      return workers.some(entry => this.isWorkerEntry(entry, worker));
-    });
-
-    return { assignedJobs, recordedVisits };
+    return { assignedJobs };
   },
 
   async deleteWorker(id) {
@@ -801,13 +779,13 @@ window.WorkersView = {
     }
 
     const blockers = this.getWorkerDeleteBlockers(worker);
-    if (blockers.assignedJobs.length > 0 || blockers.recordedVisits.length > 0) {
+    if (blockers.assignedJobs.length > 0) {
       const modal = Modal.open({
         title: '<i class="fas fa-exclamation-triangle"></i> Δεν επιτρέπεται η διαγραφή',
         content: `
           <div class="alert alert-warning">
             <p><strong>Ο εργάτης δεν μπορεί να διαγραφεί.</strong></p>
-            <p>Είναι συνδεδεμένος με ${blockers.assignedJobs.length} εργασίες και ${blockers.recordedVisits.length} καταγεγραμμένες επισκέψεις.</p>
+            <p>Είναι συνδεδεμένος με ${blockers.assignedJobs.length} εργασίες.</p>
             <p class="text-muted" style="margin-bottom: 0;">Αν δεν εργάζεται πλέον, αλλάξτε την κατάστασή του σε <strong>Ανενεργός</strong> για να διατηρηθεί σωστά το ιστορικό.</p>
           </div>
         `,
@@ -872,7 +850,7 @@ window.WorkersView = {
       workers = workers.filter(worker => worker.status === statusFilter);
     }
 
-    document.getElementById('workersTableContainer').innerHTML = this.renderTable(workers);
+    this.renderTableWithLazy(workers, { reset: true });
   },
 
   // TODO: Future feature - Timesheet Check-in/Check-out
@@ -971,7 +949,7 @@ window.WorkersView = {
         earnings: stats.earnings,
         ownerPerformanceValue: stats.ownerPerformanceValue,
         ownerPerformanceRate: stats.ownerPerformanceRate,
-        shifts: stats.visits + stats.assignments
+        shifts: stats.assignments
       };
     }).filter(s => s.hours > 0); // Only show workers with hours
 
@@ -1032,5 +1010,22 @@ window.WorkersView = {
 
   exportReport() {
     Toast.info('Η λειτουργία export θα υλοποιηθεί σύντομα');
+  },
+
+  cleanup() {
+    document.getElementById('addWorkerBtn')?.removeEventListener('click', this.addBtnHandler);
+    document.getElementById('workerFormElement')?.removeEventListener('submit', this.formSubmitHandler);
+    document.getElementById('cancelWorkerFormBtn')?.removeEventListener('click', this.cancelBtnHandler);
+    document.getElementById('workerSearch')?.removeEventListener('input', this.searchInputHandler);
+    document.getElementById('workerStatusFilter')?.removeEventListener('change', this.statusFilterHandler);
+    document.getElementById('contentArea')?.removeEventListener('click', this.tableClickHandler);
+
+    this.tableClickHandler = null;
+    this.formSubmitHandler = null;
+    this.addBtnHandler = null;
+    this.clearBtnHandler = null;
+    this.cancelBtnHandler = null;
+    this.searchInputHandler = null;
+    this.statusFilterHandler = null;
   }
 };

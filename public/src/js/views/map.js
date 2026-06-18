@@ -30,7 +30,7 @@ window.MapView = {
 
   render(container) {
     const isMobile = Utils.isMobile();
-    const mapHeight = isMobile ? '450px' : '600px';
+    const mapHeight = isMobile ? 'calc(100vh - 180px)' : '600px';
     
     container.innerHTML = `
       <style>
@@ -96,8 +96,8 @@ window.MapView = {
       </div>
 
       <!-- Map Controls -->
-      <div class="card" style="margin-bottom: 1rem;">
-        <div style="display: flex; gap: 1.5rem; flex-wrap: wrap; align-items: center;">
+      <div class="card map-controls-card" style="margin-bottom: 1rem;">
+        <div class="map-controls-desktop" style="display: flex; gap: 1.5rem; flex-wrap: wrap; align-items: center;">
           <label class="toggle-switch" title="Εμφάνιση όλων των πελατών με διεύθυνση">
             <input type="checkbox" id="showClients" checked>
             <span class="toggle-slider"></span>
@@ -125,8 +125,15 @@ window.MapView = {
       </div>
 
       <!-- Map Container -->
-      <div class="card" style="padding: 0; overflow: hidden; position: relative;">
+      <div class="card map-container-card" style="padding: 0; overflow: hidden; position: relative;">
         <div id="map" style="width: 100%; height: ${mapHeight};"></div>
+        ${isMobile ? `
+          <div class="map-layer-chip-bar" aria-label="Επίπεδα χάρτη">
+            <button type="button" class="map-layer-chip is-active" data-map-layer="showClients">Πελάτες</button>
+            <button type="button" class="map-layer-chip is-active" data-map-layer="showUpcoming">Επόμενες</button>
+            <button type="button" class="map-layer-chip is-active" data-map-layer="showToday">Σήμερα</button>
+          </div>
+        ` : ''}
         ${isMobile ? `
           <button id="scrollToTopBtn" style="
             position: absolute;
@@ -180,6 +187,17 @@ window.MapView = {
       this.showTodayHandler = () => this.toggleLayer('today');
       showTodayEl.addEventListener('change', this.showTodayHandler);
     }
+
+    document.querySelectorAll('.map-layer-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        const inputId = chip.dataset.mapLayer;
+        const input = document.getElementById(inputId);
+        if (!input) return;
+        input.checked = !input.checked;
+        chip.classList.toggle('is-active', input.checked);
+        input.dispatchEvent(new Event('change'));
+      });
+    });
     
     // Scroll to top button (mobile only)
     if (isMobile) {
@@ -1073,6 +1091,31 @@ window.MapView = {
         });
       }
     }
+  },
+
+  cleanup() {
+    document.getElementById('showClients')?.removeEventListener('change', this.showClientsHandler);
+    document.getElementById('showUpcoming')?.removeEventListener('change', this.showUpcomingHandler);
+    document.getElementById('showToday')?.removeEventListener('change', this.showTodayHandler);
+    document.getElementById('scrollToTopBtn')?.removeEventListener('click', this.scrollBtnHandler);
+
+    if (this.currentInfoWindow?.close) {
+      this.currentInfoWindow.close();
+    }
+
+    this.clearMarkers();
+
+    if (this.isLeaflet && this.map?.remove) {
+      this.map.remove();
+    }
+
+    this.map = null;
+    this.currentInfoWindow = null;
+    this.isInitializing = false;
+    this.showClientsHandler = null;
+    this.showUpcomingHandler = null;
+    this.showTodayHandler = null;
+    this.scrollBtnHandler = null;
   }
 };
 
@@ -1082,13 +1125,6 @@ window.initMap = function() {
 };
 
 // Global helper functions for map popup buttons
-window.openJobFromMap = function(jobId) {
-  if (window.JobsView && typeof window.JobsView.viewJob === 'function') {
-    window.JobsView.viewJob(jobId);
-  } else {
-    console.error('❌ JobsView.viewJob is not available');
-  }
-};
 
 window.openClientFromMap = function(clientId) {
   if (window.ClientsView && typeof window.ClientsView.viewClient === 'function') {

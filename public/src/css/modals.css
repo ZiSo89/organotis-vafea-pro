@@ -242,6 +242,10 @@
   gap: var(--spacing-xl);
 }
 
+.job-mobile-card {
+  display: none;
+}
+
 .detail-section {
   background: var(--color-card);
   padding: var(--spacing-lg);

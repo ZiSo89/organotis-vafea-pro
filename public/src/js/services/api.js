@@ -1,6 +1,6 @@
 /**
  * API Service Layer - Οργανωτής Βαφέα Pro
- * Centralized API communication with error handling and authentication
+ * Centralized API communication with error handling
  */
 
 class APIService {
@@ -80,13 +80,7 @@ class APIService {
             result = await this.request(endpoint, options);
         }
         
-        // Extract data from the result object (PHP API returns {success, data})
-        if (result && result.data !== undefined) {
-            return result.data;
-        }
-        
-        // If no data field, return the whole result (for backwards compatibility)
-        return result;
+        return window.DataMappers ? window.DataMappers.unwrap(result, result) : (result?.data ?? result);
     }
 
     /**
@@ -117,7 +111,7 @@ class APIService {
                 if (result.data.id) {
                     console.log('[API] Fetching newly created record by id:', result.data.id);
                     const newRecord = await window.OfflineService.getById(table, result.data.id);
-                    return newRecord.data;
+                    return window.DataMappers ? window.DataMappers.extractRecord(newRecord) : newRecord.data;
                 }
             }
         } else if (action === 'update' && id && data) {
@@ -133,15 +127,15 @@ class APIService {
             }
             // Fallback: fetch the updated record
             const updatedRecord = await window.OfflineService.getById(table, id);
-            return updatedRecord.data;
+            return window.DataMappers ? window.DataMappers.extractRecord(updatedRecord) : updatedRecord.data;
         } else if (action === 'delete' && id) {
             result = await window.OfflineService.delete(table, id);
-            return result.success ? true : false;
+            return !!result.success;
         }
         
         // For list and get operations, return the data directly
         if (result && result.success) {
-            return result.data;
+            return window.DataMappers ? window.DataMappers.unwrap(result, result.data) : result.data;
         } else {
             throw new Error(result?.message || 'Operation failed');
         }
@@ -166,11 +160,9 @@ class APIService {
             const data = await response.json();
             console.log('[API] Response:', endpoint, 'Status:', response.status);
 
-            // Handle authentication errors
             if (response.status === 401) {
-                console.warn('[API] Unauthorized access:', endpoint);
                 this.handleUnauthorized();
-                throw new Error('Μη εξουσιοδοτημένη πρόσβαση');
+                throw new Error(data.message || data.error || 'Μη διαθέσιμη πρόσβαση');
             }
 
             // Handle other errors
@@ -191,45 +183,22 @@ class APIService {
      * Handle unauthorized access
      */
     handleUnauthorized() {
-        // Skip redirect in Electron
-        if (this.isElectron) return;
-        
-        if (!window.location.pathname.includes('login.html')) {
-            window.location.href = 'login.html';
-        }
+        console.warn('[API] Received 401 response, but login is disabled');
     }
 
     /**
      * Check authentication status
      */
     async checkAuth() {
-        // Always authenticated in Electron
-        if (this.isElectron) {
-            this.authChecked = true;
-            return true;
-        }
-        
-        try {
-            const data = await this.request('/auth.php?action=check');
-            this.authChecked = true;
-            return data.authenticated;
-        } catch (error) {
-            this.authChecked = false;
-            return false;
-        }
+        this.authChecked = true;
+        return true;
     }
 
     /**
-     * Logout
+     * Logout compatibility no-op
      */
     async logout() {
-        try {
-            await this.request('/auth.php?action=logout', { method: 'POST' });
-            window.location.href = 'login.html';
-        } catch (error) {
-            // Redirect anyway
-            window.location.href = 'login.html';
-        }
+        window.location.href = 'index.html';
     }
 
     // ==================== GENERIC HTTP METHODS ====================
@@ -452,23 +421,7 @@ class APIService {
         return await this.routeRequest('supplier_payments', 'delete', null, id);
     }
 
-    // ==================== JOB VISITS & PAYMENTS ====================
-
-    async getJobVisits() {
-        return await this.routeRequest('job_visits', 'list');
-    }
-
-    async createJobVisit(visitData) {
-        return await this.routeRequest('job_visits', 'create', visitData);
-    }
-
-    async updateJobVisit(id, visitData) {
-        return await this.routeRequest('job_visits', 'update', visitData, id);
-    }
-
-    async deleteJobVisit(id) {
-        return await this.routeRequest('job_visits', 'delete', null, id);
-    }
+    // ==================== JOB PAYMENTS ====================
 
     async getJobPayments() {
         return await this.routeRequest('job_payments', 'list');

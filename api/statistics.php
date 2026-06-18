@@ -186,6 +186,7 @@ function stats_empty_summary() {
         'total_materials_cost' => 0.0,
         'total_labor_cost' => 0.0,
         'total_travel_cost' => 0.0,
+        'total_work_hours' => 0.0,
         'net_profit' => 0.0,
         'total_profit' => 0.0,
         'profit_margin' => 0.0,
@@ -241,7 +242,13 @@ function stats_material_key($paint) {
     return mb_strtolower($category . '|' . $name . '|' . $colorCode, 'UTF-8');
 }
 
-function stats_build_dataset($jobs, $visitTotals, $filter, $topLimit = 10) {
+function stats_should_count_work_hours($status) {
+    return $status === 'Σε εξέλιξη'
+        || $status === 'Ολοκληρώθηκε'
+        || $status === 'Εξοφλήθηκε';
+}
+
+function stats_build_dataset($jobs, $filter, $topLimit = 10) {
     $summary = stats_empty_summary();
     $revenue = stats_build_month_buckets($filter);
     $types = [];
@@ -255,7 +262,7 @@ function stats_build_dataset($jobs, $visitTotals, $filter, $topLimit = 10) {
         $type = trim((string)($job['type'] ?? ''));
         if ($type === '') $type = 'Χωρίς κατηγορία';
 
-        $financials = job_financial_compute($job, $visitTotals[$jobId] ?? null);
+        $financials = job_financial_compute($job);
         $isBillable = job_financial_is_billable($job);
         $isPaid = job_financial_is_paid($job);
 
@@ -267,6 +274,9 @@ function stats_build_dataset($jobs, $visitTotals, $filter, $topLimit = 10) {
         if ($status === 'Υποψήφιος' || $status === 'Προγραμματισμένη' || $status === 'Σε αναμονή') $summary['pending_jobs'] += 1;
         if ($status === 'Ακυρώθηκε') $summary['cancelled_jobs'] += 1;
         if (!$isPaid && $financials['billing'] > 0) $summary['unpaid_amount'] += $financials['billing'];
+        if (stats_should_count_work_hours($status)) {
+            $summary['total_work_hours'] += $financials['actual_hours'];
+        }
 
         if (!isset($types[$type])) {
             $types[$type] = [
@@ -421,7 +431,8 @@ function stats_build_comparison($currentSummary, $previousSummary) {
         'net_profit' => stats_delta($currentSummary['net_profit'], $previousSummary['net_profit']),
         'profit_margin' => stats_delta($currentSummary['profit_margin'], $previousSummary['profit_margin']),
         'total_jobs' => stats_delta($currentSummary['total_jobs'], $previousSummary['total_jobs']),
-        'completed_jobs' => stats_delta($currentSummary['completed_jobs'], $previousSummary['completed_jobs'])
+        'completed_jobs' => stats_delta($currentSummary['completed_jobs'], $previousSummary['completed_jobs']),
+        'total_work_hours' => stats_delta($currentSummary['total_work_hours'], $previousSummary['total_work_hours'])
     ];
 }
 
@@ -474,15 +485,11 @@ function stats_available_years(PDO $pdo) {
 function stats_overview(PDO $pdo, $params, $topLimit = 10) {
     $filter = stats_period_from_request($params);
     $jobs = stats_fetch_jobs($pdo, $filter);
-    $jobIds = array_map(function($job) { return (int)$job['id']; }, $jobs);
-    $visitTotals = job_financial_fetch_visit_totals_for_jobs($pdo, $jobIds);
-    $dataset = stats_build_dataset($jobs, $visitTotals, $filter, $topLimit);
+    $dataset = stats_build_dataset($jobs, $filter, $topLimit);
 
     $previousFilter = stats_previous_period($filter);
     $previousJobs = stats_fetch_jobs($pdo, $previousFilter);
-    $previousIds = array_map(function($job) { return (int)$job['id']; }, $previousJobs);
-    $previousVisitTotals = job_financial_fetch_visit_totals_for_jobs($pdo, $previousIds);
-    $previousDataset = stats_build_dataset($previousJobs, $previousVisitTotals, $previousFilter, $topLimit);
+    $previousDataset = stats_build_dataset($previousJobs, $previousFilter, $topLimit);
 
     return [
         'filters' => [
@@ -520,8 +527,6 @@ function stats_revenue_by_year(PDO $pdo) {
         ORDER BY date DESC, id ASC
     ");
     $jobs = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    $jobIds = array_map(function($job) { return (int)$job['id']; }, $jobs);
-    $visitTotals = job_financial_fetch_visit_totals_for_jobs($pdo, $jobIds);
     $years = [];
 
     foreach ($jobs as $job) {
@@ -538,7 +543,7 @@ function stats_revenue_by_year(PDO $pdo) {
                 'net_profit' => 0.0
             ];
         }
-        $fin = job_financial_compute($job, $visitTotals[(int)$job['id']] ?? null);
+        $fin = job_financial_compute($job);
         $years[$year]['total_jobs'] += 1;
         $years[$year]['billing'] += $fin['billing'];
         $years[$year]['materials_cost'] += $fin['materials'];
@@ -556,7 +561,6 @@ try {
     }
 
     $pdo = getDBConnection();
-    ensure_job_visits_schema($pdo);
 
     $action = $_GET['action'] ?? 'overview';
     $limit = isset($_GET['limit']) ? max(1, min(50, (int)$_GET['limit'])) : 10;

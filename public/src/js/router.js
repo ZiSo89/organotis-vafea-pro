@@ -5,6 +5,7 @@
 const Router = {
   routes: {},
   currentRoute: null,
+  currentView: null,
 
   init() {
     // Register routes
@@ -70,9 +71,18 @@ const Router = {
       return;
     }
 
+    if (this.currentView && this.currentView !== view && typeof this.currentView.cleanup === 'function') {
+      try {
+        this.currentView.cleanup();
+      } catch (error) {
+        console.warn('[Router] View cleanup failed:', error);
+      }
+    }
+
     // Update state
     State.currentSection = routeName;
     this.currentRoute = route; // Store full route with params
+    this.currentView = view;
 
     // Update URL (keep query params) - Only if different
     if (window.location.hash.slice(1) !== route) {
@@ -81,6 +91,11 @@ const Router = {
 
     // Update sidebar
     Sidebar.setActive(routeName);
+
+    if (window.AppShell) {
+      AppShell.onNavigate(routeName);
+      document.body.classList.toggle('map-view-active', routeName === 'map');
+    }
 
     // Render view
     const contentArea = document.getElementById('contentArea');
