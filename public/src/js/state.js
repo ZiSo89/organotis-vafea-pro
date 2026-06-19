@@ -52,9 +52,6 @@ const State = {
   },
 
   async init() {
-    // Never let a data-load failure crash the whole app (white screen).
-    // We always end up with a valid (possibly empty) data structure so the
-    // UI can render, and surface a non-blocking error + retry instead.
     this.loadHadErrors = false;
     try {
       const isElectron = typeof window.electronAPI !== 'undefined';
@@ -74,16 +71,14 @@ const State = {
       this.data = this.emptyData();
     }
 
-    if (this.loadHadErrors) {
-      Toast.error('Μερικά δεδομένα δεν φορτώθηκαν. Πατήστε ανανέωση για επανάληψη.');
-    }
-
+    // No toast on init — errors are retried silently in loadFromAPI.
     // Setup auto-save (every 30 seconds - but now it's just for indicators)
     this.setupAutoSave();
   },
 
-  /** Reload all data and re-render the current view. Used for manual retry. */
-  async reload() {
+  /** Reload all data and re-render the current view. */
+  async reload(options = {}) {
+    const silent = options.silent === true;
     try {
       const isElectron = typeof window.electronAPI !== 'undefined';
       this.loadHadErrors = false;
@@ -92,12 +87,14 @@ const State = {
       if (typeof Router !== 'undefined' && Router.reload) {
         Router.reload();
       }
-      if (!this.loadHadErrors) {
+      if (!silent && !this.loadHadErrors) {
         Toast.success('Τα δεδομένα ανανεώθηκαν');
+      } else if (!silent && this.loadHadErrors) {
+        Toast.error('Μερικά δεδομένα δεν φορτώθηκαν');
       }
     } catch (error) {
       console.error('❌ Reload failed:', error);
-      Toast.error('Αποτυχία ανανέωσης δεδομένων');
+      if (!silent) Toast.error('Αποτυχία ανανέωσης δεδομένων');
     }
   },
 
@@ -174,11 +171,10 @@ const State = {
   },
 
   /**
-   * Load all data from API
+   * Load all data from API — batched to avoid PHP session-lock contention
+   * and mobile connection limits. Failed collections are retried once silently.
    */
   async loadFromAPI() {
-    // Use allSettled so a single failed/slow endpoint (common on PWA cold-start)
-    // doesn't blow away the entire load and leave the user with a white screen.
     const calls = [
       ['clients', () => API.getClients()],
       ['workers', () => API.getWorkers()],
@@ -194,23 +190,38 @@ const State = {
       ['templates', () => API.getTemplates()],
     ];
 
-    const settled = await Promise.allSettled(calls.map(([, fn]) => fn()));
     const result = this.emptyData();
-    const failedKeys = [];
+    const failed = [];
+    const BATCH_SIZE = 3;
 
-    settled.forEach((outcome, index) => {
-      const key = calls[index][0];
-      if (outcome.status === 'fulfilled') {
-        result[key] = DataMappers.extractCollection(outcome.value, []);
-      } else {
-        failedKeys.push(key);
-        console.error(`[State] API load failed for "${key}":`, outcome.reason);
+    for (let i = 0; i < calls.length; i += BATCH_SIZE) {
+      const batch = calls.slice(i, i + BATCH_SIZE);
+      const settled = await Promise.allSettled(batch.map(([, fn]) => fn()));
+
+      settled.forEach((outcome, idx) => {
+        const [key, fn] = batch[idx];
+        if (outcome.status === 'fulfilled') {
+          result[key] = DataMappers.extractCollection(outcome.value, []);
+        } else {
+          failed.push({ key, fn });
+          console.warn(`[State] API load failed for "${key}":`, outcome.reason);
+        }
+      });
+    }
+
+    // Retry failed collections one at a time (no parallel session contention)
+    for (const { key, fn } of failed) {
+      try {
+        const value = await fn();
+        result[key] = DataMappers.extractCollection(value, []);
+      } catch (error) {
+        this.loadHadErrors = true;
+        console.error(`[State] Retry failed for "${key}":`, error);
       }
-    });
+    }
 
-    if (failedKeys.length) {
-      this.loadHadErrors = true;
-      console.warn('[State] Some collections failed to load:', failedKeys);
+    if (this.loadHadErrors) {
+      console.warn('[State] Some collections could not be loaded after retry');
     }
 
     return result;
