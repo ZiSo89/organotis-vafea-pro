@@ -203,7 +203,7 @@ if ('serviceWorker' in navigator) {
 
   window.addEventListener('load', async () => {
     try {
-      const registration = await navigator.serviceWorker.register('sw.js?v=20260619a', { scope: './' });
+      const registration = await navigator.serviceWorker.register('sw.js?v=20260619b', { scope: './' });
       registration.update();
     } catch (error) {
       console.warn('[PWA] Service worker registration failed:', error);

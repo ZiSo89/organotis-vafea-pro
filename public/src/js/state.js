@@ -117,15 +117,26 @@ const State = {
     if (this._ensureDone) return;
     this._ensureDone = true;
 
-    // Initial load was clean (even if data is genuinely empty) → nothing to do.
-    if (!this.loadHadErrors) return;
+    // Always wire up event-driven recovery: on a cold PWA launch the network
+    // often isn't ready, so re-fetch whenever the device regains connectivity
+    // or the app is brought back to the foreground — but only while our core
+    // data is still missing.
+    this._setupRecoveryListeners();
+
+    // Initial load succeeded AND we actually have data → nothing to do.
+    if (!this.loadHadErrors && !this.isCoreDataEmpty()) return;
 
     console.log('[State] Initial load incomplete — retrying until data is ready');
 
-    const delays = [600, 1200, 2000, 3000, 5000];
+    const delays = [600, 1200, 2000, 3000, 5000, 8000];
 
     for (let attempt = 0; attempt < delays.length; attempt += 1) {
       await new Promise((resolve) => setTimeout(resolve, delays[attempt]));
+
+      // Don't waste an attempt while offline; the 'online' listener will fire.
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        continue;
+      }
 
       this.loadHadErrors = false;
       try {
@@ -136,23 +147,57 @@ const State = {
         this.loadHadErrors = true;
       }
 
-      // A fully successful load (no failed endpoints) → re-render and stop.
-      if (!this.loadHadErrors) {
+      // Core collections now populated → re-render. Stop only when the load
+      // also reported no errors; otherwise keep filling the rest in the loop.
+      if (!this.isCoreDataEmpty()) {
         console.log(`[State] Data ready after retry #${attempt + 1}`);
         this.rerenderCurrentView();
-        return;
-      }
-
-      // Partial success that already filled the core collections → re-render,
-      // keep trying in the background for the rest.
-      if (!this.isCoreDataEmpty()) {
-        this.rerenderCurrentView();
+        if (!this.loadHadErrors) return;
       }
     }
 
-    // Exhausted retries: render whatever we managed to load.
-    console.warn('[State] Giving up retries — rendering best-effort data');
+    // Exhausted scheduled retries: render best-effort data. The online/focus
+    // listeners stay active and will recover as soon as the network returns.
+    console.warn('[State] Scheduled retries exhausted — will recover on online/focus');
     this.rerenderCurrentView();
+  },
+
+  /**
+   * Re-fetch data when the device regains connectivity or the PWA is brought
+   * back to the foreground. Only runs while core data is still empty, so it
+   * never causes redundant loads once the app is populated.
+   */
+  _setupRecoveryListeners() {
+    if (this._recoveryListenersSet) return;
+    this._recoveryListenersSet = true;
+
+    const retry = async () => {
+      if (typeof window.electronAPI !== 'undefined') return;
+      if (this._recoveryInFlight) return;
+      if (!this.isCoreDataEmpty()) return; // already have data
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+
+      this._recoveryInFlight = true;
+      try {
+        this.loadHadErrors = false;
+        const fresh = await this.loadFromAPI();
+        if (fresh) this.data = fresh;
+        if (!this.isCoreDataEmpty()) {
+          console.log('[State] Recovered data via online/focus event');
+          this.rerenderCurrentView();
+        }
+      } catch (error) {
+        console.error('[State] recovery retry failed:', error);
+      } finally {
+        this._recoveryInFlight = false;
+      }
+    };
+
+    window.addEventListener('online', retry);
+    window.addEventListener('focus', retry);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') retry();
+    });
   },
 
   rerenderCurrentView() {

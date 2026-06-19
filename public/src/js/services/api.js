@@ -146,14 +146,25 @@ class APIService {
      */
     async request(endpoint, options = {}) {
         console.log('[API] Request:', endpoint, options.method || 'GET');
+
+        // Abort requests that hang (common on PWA cold-start / flaky mobile
+        // networks) so they fail fast and can be retried, instead of blocking
+        // the whole data load indefinitely.
+        const timeoutMs = options.timeoutMs || 15000;
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
         const config = {
             headers: {
                 'Content-Type': 'application/json',
                 ...options.headers,
             },
             credentials: 'include', // Include cookies for session
+            signal: controller.signal,
             ...options,
         };
+        // `timeoutMs` is our own option, not a valid fetch init field.
+        delete config.timeoutMs;
 
         try {
             const response = await fetch(`${this.baseURL}${endpoint}`, config);
@@ -176,6 +187,8 @@ class APIService {
         } catch (error) {
             console.error('[API] Request failed:', endpoint, error);
             throw error;
+        } finally {
+            clearTimeout(timeoutId);
         }
     }
 
