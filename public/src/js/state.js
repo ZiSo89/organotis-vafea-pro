@@ -107,35 +107,61 @@ const State = {
   },
 
   /**
-   * After first render, silently re-fetch if the initial load was incomplete.
-   * Called once per session — no toasts, no full-page reload.
+   * Safety net for PWA / mobile cold-start, where the network stack often
+   * isn't ready when the very first data load fires. If the initial load had
+   * any failures, keep re-fetching with backoff until a load fully succeeds,
+   * then re-render. No toasts, no full-page reload.
    */
   async ensureDataReady() {
     if (typeof window.electronAPI !== 'undefined') return;
     if (this._ensureDone) return;
-
-    const needsRetry = this.loadHadErrors || this.isCoreDataEmpty();
-    if (!needsRetry) return;
-
     this._ensureDone = true;
-    console.log('[State] Incomplete initial load — silent re-fetch');
 
-    await new Promise((resolve) => setTimeout(resolve, 600));
-    this.loadHadErrors = false;
+    // Initial load was clean (even if data is genuinely empty) → nothing to do.
+    if (!this.loadHadErrors) return;
 
-    try {
-      this.data = await this.loadFromAPI();
-      if (!this.data) this.data = this.emptyData();
+    console.log('[State] Initial load incomplete — retrying until data is ready');
 
-      if (!this.loadHadErrors && typeof Router !== 'undefined' && Router.reload) {
-        Router.reload();
+    const delays = [600, 1200, 2000, 3000, 5000];
+
+    for (let attempt = 0; attempt < delays.length; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, delays[attempt]));
+
+      this.loadHadErrors = false;
+      try {
+        const fresh = await this.loadFromAPI();
+        if (fresh) this.data = fresh;
+      } catch (error) {
+        console.error('[State] retry load failed:', error);
+        this.loadHadErrors = true;
       }
-    } catch (error) {
-      console.error('[State] ensureDataReady failed:', error);
+
+      // A fully successful load (no failed endpoints) → re-render and stop.
+      if (!this.loadHadErrors) {
+        console.log(`[State] Data ready after retry #${attempt + 1}`);
+        this.rerenderCurrentView();
+        return;
+      }
+
+      // Partial success that already filled the core collections → re-render,
+      // keep trying in the background for the rest.
+      if (!this.isCoreDataEmpty()) {
+        this.rerenderCurrentView();
+      }
+    }
+
+    // Exhausted retries: render whatever we managed to load.
+    console.warn('[State] Giving up retries — rendering best-effort data');
+    this.rerenderCurrentView();
+  },
+
+  rerenderCurrentView() {
+    if (typeof Router !== 'undefined' && Router.reload && Router.currentRoute) {
+      Router.reload();
     }
   },
 
-  async fetchCollectionWithRetry(fn, maxAttempts = 3) {
+  async fetchCollectionWithRetry(fn, maxAttempts = 2) {
     let lastError;
     for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
       try {
@@ -243,8 +269,7 @@ const State = {
     ];
 
     const result = this.emptyData();
-    const isPwa = typeof Utils !== 'undefined' && Utils.isPwaInstalled && Utils.isPwaInstalled();
-    const batchSize = isPwa ? 1 : 3;
+    const batchSize = 4;
 
     for (let i = 0; i < calls.length; i += batchSize) {
       const batch = calls.slice(i, i + batchSize);
