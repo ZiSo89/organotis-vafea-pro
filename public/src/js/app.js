@@ -16,6 +16,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Disable transitions during initial load
   document.documentElement.style.setProperty('--transition-base', '0s');
+
+  // Loading overlay is in HTML; ensure body class is set until boot completes
+  if (typeof AppLoading !== 'undefined') AppLoading.show();
   
   // Toast first so any later failure can be surfaced to the user
   try { Toast.init(); } catch (e) { console.error('[App] Toast.init failed:', e); }
@@ -66,6 +69,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     await State.ensureDataReady();
   } catch (error) {
     console.error('[App] ensureDataReady failed:', error);
+  } finally {
+    if (typeof AppLoading !== 'undefined') AppLoading.hide();
   }
 
   // Setup global event listeners

@@ -193,7 +193,7 @@
   <!-- Styles - Critical variables/base are loaded above, feature CSS follows -->
   <link rel="stylesheet" href="src/css/sidebar.css?v=20260611g">
   <link rel="stylesheet" href="src/css/components.css?v=20260619n">
-  <link rel="stylesheet" href="src/css/app-shell.css?v=20260619a">
+  <link rel="stylesheet" href="src/css/app-shell.css?v=20260619f">
   <!-- Non-critical CSS loaded asynchronously -->
   <link rel="preload" href="src/css/dashboard.css?v=20260619a" as="style" onload="this.onload=null;this.rel='stylesheet'">
   <link rel="preload" href="src/css/tables.css?v=20260618f" as="style" onload="this.onload=null;this.rel='stylesheet'">
@@ -317,8 +317,16 @@
     </header>
 
     <!-- Content Area -->
-    <div id="contentArea" class="content-area" role="region" aria-label="Κύριο περιεχόμενο">
-      <!-- Το περιεχόμενο θα φορτώνεται δυναμικά εδώ -->
+    <div class="content-area-wrap">
+      <div id="appLoading" class="app-loading is-visible" role="status" aria-live="polite" aria-label="Φόρτωση δεδομένων">
+        <div class="app-loading-card">
+          <div class="spinner" aria-hidden="true"></div>
+          <p class="app-loading-text">Φόρτωση δεδομένων...</p>
+        </div>
+      </div>
+      <div id="contentArea" class="content-area" role="region" aria-label="Κύριο περιεχόμενο" aria-busy="true">
+        <!-- Το περιεχόμενο θα φορτώνεται δυναμικά εδώ -->
+      </div>
     </div>
   </main>
 
@@ -430,7 +438,7 @@
   <script src="src/js/domain/data-mappers.js?v=20260615a" defer></script>
   <script src="src/js/state.js?v=20260619e" defer></script>
   <script src="src/js/utils.js?v=20260619e" defer></script>
-  <script src="src/js/ui-primitives.js?v=20260618c" defer></script>
+  <script src="src/js/ui-primitives.js?v=20260619f" defer></script>
   <script src="src/js/material-identity.js?v=20260611g" defer></script>
   <script src="src/js/validation.js?v=20260611g" defer></script>
   
@@ -475,7 +483,7 @@
   <script src="src/js/views/help.js?v=20260618c" defer></script>
   
   <!-- App Initialization -->
-  <script src="src/js/app.js?v=20260619e" defer></script>
+  <script src="src/js/app.js?v=20260619f" defer></script>
 
 </body>
 </html>
