@@ -344,10 +344,16 @@ window.DashboardView = {
         profEl.style.color = net >= 0 ? getComputedStyle(document.documentElement).getPropertyValue('--success').trim() : getComputedStyle(document.documentElement).getPropertyValue('--error').trim();
       }
 
-      // Server has financial data but State is still empty — trigger one silent reload
+      // Server clearly has data but State is still empty → the initial load
+      // returned nothing. Force one silent reload (guarded against loops).
       const hasServerData = billing > 0 || net !== 0;
-      if (hasServerData && State.isCoreDataEmpty && State.isCoreDataEmpty() && typeof State.ensureDataReady === 'function') {
-        State.ensureDataReady();
+      if (hasServerData
+          && !this._statsForcedReload
+          && State.isCoreDataEmpty && State.isCoreDataEmpty()
+          && typeof State.reload === 'function') {
+        this._statsForcedReload = true;
+        console.log('[Dashboard] Server has data but State is empty — forcing reload');
+        State.reload({ silent: true });
       }
     } catch (e) {
       // ignore network errors
