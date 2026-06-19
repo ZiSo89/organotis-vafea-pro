@@ -84,7 +84,7 @@ const State = {
       this.loadHadErrors = false;
       this.data = isElectron ? await this.loadFromSQLite() : await this.loadFromAPI();
       if (!this.data) this.data = this.emptyData();
-      if (typeof Router !== 'undefined' && Router.reload) {
+      if (typeof Router !== 'undefined' && Router.reload && Router.currentRoute) {
         Router.reload();
       }
       if (!silent && !this.loadHadErrors) {
@@ -96,6 +96,58 @@ const State = {
       console.error('❌ Reload failed:', error);
       if (!silent) Toast.error('Αποτυχία ανανέωσης δεδομένων');
     }
+  },
+
+  /** True when all core collections are empty (likely a failed cold-start load). */
+  isCoreDataEmpty() {
+    const d = this.data || {};
+    return ['clients', 'jobs', 'suppliers', 'inventory'].every(
+      (key) => !Array.isArray(d[key]) || d[key].length === 0
+    );
+  },
+
+  /**
+   * After first render, silently re-fetch if the initial load was incomplete.
+   * Called once per session — no toasts, no full-page reload.
+   */
+  async ensureDataReady() {
+    if (typeof window.electronAPI !== 'undefined') return;
+    if (this._ensureDone) return;
+
+    const needsRetry = this.loadHadErrors || this.isCoreDataEmpty();
+    if (!needsRetry) return;
+
+    this._ensureDone = true;
+    console.log('[State] Incomplete initial load — silent re-fetch');
+
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    this.loadHadErrors = false;
+
+    try {
+      this.data = await this.loadFromAPI();
+      if (!this.data) this.data = this.emptyData();
+
+      if (!this.loadHadErrors && typeof Router !== 'undefined' && Router.reload) {
+        Router.reload();
+      }
+    } catch (error) {
+      console.error('[State] ensureDataReady failed:', error);
+    }
+  },
+
+  async fetchCollectionWithRetry(fn, maxAttempts = 3) {
+    let lastError;
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      try {
+        return await fn();
+      } catch (error) {
+        lastError = error;
+        if (attempt < maxAttempts - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)));
+        }
+      }
+    }
+    throw lastError;
   },
 
   /**
@@ -191,37 +243,28 @@ const State = {
     ];
 
     const result = this.emptyData();
-    const failed = [];
-    const BATCH_SIZE = 3;
+    const isPwa = typeof Utils !== 'undefined' && Utils.isPwaInstalled && Utils.isPwaInstalled();
+    const batchSize = isPwa ? 1 : 3;
 
-    for (let i = 0; i < calls.length; i += BATCH_SIZE) {
-      const batch = calls.slice(i, i + BATCH_SIZE);
-      const settled = await Promise.allSettled(batch.map(([, fn]) => fn()));
+    for (let i = 0; i < calls.length; i += batchSize) {
+      const batch = calls.slice(i, i + batchSize);
+      const outcomes = await Promise.allSettled(
+        batch.map(([, fn]) => this.fetchCollectionWithRetry(fn))
+      );
 
-      settled.forEach((outcome, idx) => {
-        const [key, fn] = batch[idx];
+      outcomes.forEach((outcome, idx) => {
+        const [key] = batch[idx];
         if (outcome.status === 'fulfilled') {
           result[key] = DataMappers.extractCollection(outcome.value, []);
         } else {
-          failed.push({ key, fn });
+          this.loadHadErrors = true;
           console.warn(`[State] API load failed for "${key}":`, outcome.reason);
         }
       });
     }
 
-    // Retry failed collections one at a time (no parallel session contention)
-    for (const { key, fn } of failed) {
-      try {
-        const value = await fn();
-        result[key] = DataMappers.extractCollection(value, []);
-      } catch (error) {
-        this.loadHadErrors = true;
-        console.error(`[State] Retry failed for "${key}":`, error);
-      }
-    }
-
     if (this.loadHadErrors) {
-      console.warn('[State] Some collections could not be loaded after retry');
+      console.warn('[State] Some collections could not be loaded');
     }
 
     return result;

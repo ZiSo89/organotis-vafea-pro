@@ -617,6 +617,33 @@ const Utils = {
     return /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent.toLowerCase());
   },
 
+  /** True when running as installed PWA (home-screen app). */
+  isPwaInstalled() {
+    return window.matchMedia('(display-mode: standalone)').matches
+      || window.navigator.standalone === true;
+  },
+
+  /**
+   * On PWA cold-start the network may not be ready at DOMContentLoaded.
+   * Wait briefly so the first API batch doesn't fail silently.
+   */
+  async waitForPwaNetwork() {
+    if (!this.isPwaInstalled()) return;
+
+    if (!navigator.onLine) {
+      await new Promise((resolve) => {
+        const done = () => {
+          window.removeEventListener('online', done);
+          resolve();
+        };
+        window.addEventListener('online', done, { once: true });
+        setTimeout(resolve, 4000);
+      });
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  },
+
   /**
    * Check if device has touch screen
    * @returns {boolean} True if touch device
