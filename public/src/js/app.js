@@ -17,27 +17,56 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Disable transitions during initial load
   document.documentElement.style.setProperty('--transition-base', '0s');
   
-  // Initialize all systems
-  await State.init();
-  
-  // Load settings from database
-  console.log('📋 Loading settings from database...');
-  await SettingsService.loadAll();
-  
-  i18n.init();
-  Sidebar.init();
-  AppShell.init();
-  GlobalSearch.init();
-  Keyboard.init();
-  Toast.init();
-  Modal.init();
-  Router.init();
+  // Toast first so any later failure can be surfaced to the user
+  try { Toast.init(); } catch (e) { console.error('[App] Toast.init failed:', e); }
+
+  // Initialize data. State.init() is resilient and never throws, but guard anyway
+  // so a failure here can never leave the user on a blank white screen.
+  try {
+    await State.init();
+  } catch (error) {
+    console.error('[App] State.init failed:', error);
+    if (!State.data) State.data = State.emptyData();
+  }
+
+  // Load settings from database (non-fatal)
+  try {
+    console.log('📋 Loading settings from database...');
+    await SettingsService.loadAll();
+  } catch (error) {
+    console.error('[App] SettingsService.loadAll failed:', error);
+  }
+
+  // Each subsystem is guarded individually: one failure must not stop the rest
+  // (especially Router.init, which renders the actual content).
+  const safeInit = (label, fn) => {
+    try { fn(); } catch (error) { console.error(`[App] ${label} failed:`, error); }
+  };
+
+  safeInit('i18n.init', () => i18n.init());
+  safeInit('Sidebar.init', () => Sidebar.init());
+  safeInit('AppShell.init', () => AppShell.init());
+  safeInit('GlobalSearch.init', () => GlobalSearch.init());
+  safeInit('Keyboard.init', () => Keyboard.init());
+  safeInit('Modal.init', () => Modal.init());
+  safeInit('Router.init', () => Router.init());
 
   // Setup global event listeners
-  setupGlobalEventListeners();
+  safeInit('setupGlobalEventListeners', () => setupGlobalEventListeners());
   
-  // Load company name in sidebar
-  await loadCompanyName();
+  // Load company name in sidebar (non-fatal)
+  try {
+    await loadCompanyName();
+  } catch (error) {
+    console.error('[App] loadCompanyName failed:', error);
+  }
+
+  // If the initial data load partially failed (common on PWA cold-start when the
+  // network isn't ready yet), retry once automatically so the user doesn't end
+  // up stuck on an empty screen.
+  if (State.loadHadErrors && navigator.onLine && typeof State.reload === 'function') {
+    setTimeout(() => { State.reload(); }, 1500);
+  }
   
   // Enable transitions after everything is loaded
   setTimeout(() => {
@@ -159,7 +188,7 @@ if ('serviceWorker' in navigator) {
 
   window.addEventListener('load', async () => {
     try {
-      const registration = await navigator.serviceWorker.register('sw.js?v=20260615a', { scope: './' });
+      const registration = await navigator.serviceWorker.register('sw.js?v=20260619a', { scope: './' });
       registration.update();
     } catch (error) {
       console.warn('[PWA] Service worker registration failed:', error);

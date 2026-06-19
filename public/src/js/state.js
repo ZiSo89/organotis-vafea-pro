@@ -33,25 +33,71 @@ const State = {
    * Initialize application state
    * Loads data from API and sets up auto-save
    */
+  emptyData() {
+    return {
+      clients: [],
+      workers: [],
+      inventory: [],
+      materialStockMovements: [],
+      suppliers: [],
+      materialPurchases: [],
+      supplierPayments: [],
+      jobs: [],
+      jobPayments: [],
+      offers: [],
+      invoices: [],
+      templates: [],
+      timesheets: [],
+    };
+  },
+
   async init() {
+    // Never let a data-load failure crash the whole app (white screen).
+    // We always end up with a valid (possibly empty) data structure so the
+    // UI can render, and surface a non-blocking error + retry instead.
+    this.loadHadErrors = false;
     try {
-      // Check if running in Electron
       const isElectron = typeof window.electronAPI !== 'undefined';
-      
+
       if (isElectron) {
-        // Load from SQLite in Electron
         this.data = await this.loadFromSQLite();
       } else {
-        // Load from API in web version
         this.data = await this.loadFromAPI();
       }
-      
-      // Setup auto-save (every 30 seconds - but now it's just for indicators)
-      this.setupAutoSave();
     } catch (error) {
       console.error('❌ Failed to load data:', error);
-      Toast.error('Σφάλμα φόρτωσης δεδομένων');
-      throw error;
+      this.loadHadErrors = true;
+      this.data = this.emptyData();
+    }
+
+    if (!this.data) {
+      this.data = this.emptyData();
+    }
+
+    if (this.loadHadErrors) {
+      Toast.error('Μερικά δεδομένα δεν φορτώθηκαν. Πατήστε ανανέωση για επανάληψη.');
+    }
+
+    // Setup auto-save (every 30 seconds - but now it's just for indicators)
+    this.setupAutoSave();
+  },
+
+  /** Reload all data and re-render the current view. Used for manual retry. */
+  async reload() {
+    try {
+      const isElectron = typeof window.electronAPI !== 'undefined';
+      this.loadHadErrors = false;
+      this.data = isElectron ? await this.loadFromSQLite() : await this.loadFromAPI();
+      if (!this.data) this.data = this.emptyData();
+      if (typeof Router !== 'undefined' && Router.reload) {
+        Router.reload();
+      }
+      if (!this.loadHadErrors) {
+        Toast.success('Τα δεδομένα ανανεώθηκαν');
+      }
+    } catch (error) {
+      console.error('❌ Reload failed:', error);
+      Toast.error('Αποτυχία ανανέωσης δεδομένων');
     }
   },
 
@@ -131,41 +177,43 @@ const State = {
    * Load all data from API
    */
   async loadFromAPI() {
-    try {
-      const [clients, workers, materials, materialStockMovements, suppliers, materialPurchases, supplierPayments, jobs, jobPayments, offers, invoices, templates] = await Promise.all([
-        API.getClients(),
-        API.getWorkers(),
-        API.getMaterials(),
-        API.getMaterialStockMovements(),
-        API.getSuppliers(),
-        API.getMaterialPurchases(),
-        API.getSupplierPayments(),
-        API.getJobs(),
-        API.getJobPayments(),
-        API.getOffers(),
-        API.getInvoices(),
-        API.getTemplates(),
-      ]);
+    // Use allSettled so a single failed/slow endpoint (common on PWA cold-start)
+    // doesn't blow away the entire load and leave the user with a white screen.
+    const calls = [
+      ['clients', () => API.getClients()],
+      ['workers', () => API.getWorkers()],
+      ['inventory', () => API.getMaterials()],
+      ['materialStockMovements', () => API.getMaterialStockMovements()],
+      ['suppliers', () => API.getSuppliers()],
+      ['materialPurchases', () => API.getMaterialPurchases()],
+      ['supplierPayments', () => API.getSupplierPayments()],
+      ['jobs', () => API.getJobs()],
+      ['jobPayments', () => API.getJobPayments()],
+      ['offers', () => API.getOffers()],
+      ['invoices', () => API.getInvoices()],
+      ['templates', () => API.getTemplates()],
+    ];
 
-      return {
-        clients: DataMappers.extractCollection(clients, []),
-        workers: DataMappers.extractCollection(workers, []),
-        inventory: DataMappers.extractCollection(materials, []), // materials -> inventory
-        materialStockMovements: DataMappers.extractCollection(materialStockMovements, []),
-        suppliers: DataMappers.extractCollection(suppliers, []),
-        materialPurchases: DataMappers.extractCollection(materialPurchases, []),
-        supplierPayments: DataMappers.extractCollection(supplierPayments, []),
-        jobs: DataMappers.extractCollection(jobs, []),
-        jobPayments: DataMappers.extractCollection(jobPayments, []),
-        offers: DataMappers.extractCollection(offers, []),
-        invoices: DataMappers.extractCollection(invoices, []),
-        templates: DataMappers.extractCollection(templates, []),
-        timesheets: [], // TODO: Add timesheet API later
-      };
-    } catch (error) {
-      console.error('Error loading from API:', error);
-      throw error;
+    const settled = await Promise.allSettled(calls.map(([, fn]) => fn()));
+    const result = this.emptyData();
+    const failedKeys = [];
+
+    settled.forEach((outcome, index) => {
+      const key = calls[index][0];
+      if (outcome.status === 'fulfilled') {
+        result[key] = DataMappers.extractCollection(outcome.value, []);
+      } else {
+        failedKeys.push(key);
+        console.error(`[State] API load failed for "${key}":`, outcome.reason);
+      }
+    });
+
+    if (failedKeys.length) {
+      this.loadHadErrors = true;
+      console.warn('[State] Some collections failed to load:', failedKeys);
     }
+
+    return result;
   },
 
   // Auto-save κάθε 30 δευτερόλεπτα
