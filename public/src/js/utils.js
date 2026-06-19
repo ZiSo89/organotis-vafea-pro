@@ -641,7 +641,31 @@ const Utils = {
       });
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    // navigator.onLine === true does NOT guarantee the network stack / DNS is
+    // actually ready on a cold PWA launch. Probe a cheap API endpoint until it
+    // responds (up to ~6s) so the first data batch doesn't fire into a dead
+    // connection and come back empty.
+    const probe = async () => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2500);
+      try {
+        const resp = await fetch('/api/statistics.php?action=available_years', {
+          signal: controller.signal,
+          cache: 'no-store',
+          credentials: 'include'
+        });
+        return !!(resp && resp.ok);
+      } catch (error) {
+        return false;
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    };
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      if (await probe()) return;
+      await new Promise((resolve) => setTimeout(resolve, 500 + attempt * 400));
+    }
   },
 
   /**
