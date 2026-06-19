@@ -60,13 +60,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   } catch (error) {
     console.error('[App] loadCompanyName failed:', error);
   }
-
-  // If the initial data load partially failed (common on PWA cold-start when the
-  // network isn't ready yet), retry once automatically so the user doesn't end
-  // up stuck on an empty screen.
-  if (State.loadHadErrors && navigator.onLine && typeof State.reload === 'function') {
-    setTimeout(() => { State.reload(); }, 1500);
-  }
   
   // Enable transitions after everything is loaded
   setTimeout(() => {

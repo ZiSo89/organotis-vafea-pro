@@ -16,6 +16,9 @@ if (!is_dir($logDir)) {
 ini_set('error_log', $logDir . '/php_errors.log');
 
 session_start();
+// Auth is disabled — release the session lock immediately so parallel API
+// requests (e.g. initial data load) don't block each other on mobile/PWA.
+session_write_close();
 
 require_once __DIR__ . '/../config/secrets.php';
 
