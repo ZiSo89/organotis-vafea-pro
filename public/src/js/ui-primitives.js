@@ -201,3 +201,32 @@ const UIPrimitives = {
 };
 
 window.UIPrimitives = UIPrimitives;
+
+/** Global boot / data-load overlay (visible before JS runs via index.html). */
+window.AppLoading = {
+  get el() {
+    return document.getElementById('appLoading');
+  },
+
+  show(text = 'Φόρτωση δεδομένων...') {
+    const el = this.el;
+    const contentArea = document.getElementById('contentArea');
+    if (!el) return;
+    const textEl = el.querySelector('.app-loading-text');
+    if (textEl) textEl.textContent = text;
+    el.classList.add('is-visible');
+    el.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('is-app-loading');
+    if (contentArea) contentArea.setAttribute('aria-busy', 'true');
+  },
+
+  hide() {
+    const el = this.el;
+    const contentArea = document.getElementById('contentArea');
+    if (!el) return;
+    el.classList.remove('is-visible');
+    el.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('is-app-loading');
+    if (contentArea) contentArea.setAttribute('aria-busy', 'false');
+  },
+};
