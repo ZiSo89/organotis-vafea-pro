@@ -343,6 +343,12 @@ window.DashboardView = {
         profEl.textContent = (net >= 0 ? '+' : '') + Utils.formatCurrency(net);
         profEl.style.color = net >= 0 ? getComputedStyle(document.documentElement).getPropertyValue('--success').trim() : getComputedStyle(document.documentElement).getPropertyValue('--error').trim();
       }
+
+      // Server has financial data but State is still empty — trigger one silent reload
+      const hasServerData = billing > 0 || net !== 0;
+      if (hasServerData && State.isCoreDataEmpty && State.isCoreDataEmpty() && typeof State.ensureDataReady === 'function') {
+        State.ensureDataReady();
+      }
     } catch (e) {
       // ignore network errors
       console.debug('fetchServerStats error', e);

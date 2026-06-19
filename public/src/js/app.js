@@ -20,6 +20,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Toast first so any later failure can be surfaced to the user
   try { Toast.init(); } catch (e) { console.error('[App] Toast.init failed:', e); }
 
+  // PWA cold-start: wait for network before the first API batch
+  try {
+    if (typeof Utils !== 'undefined' && Utils.waitForPwaNetwork) {
+      await Utils.waitForPwaNetwork();
+    }
+  } catch (error) {
+    console.warn('[App] waitForPwaNetwork failed:', error);
+  }
+
   // Initialize data. State.init() is resilient and never throws, but guard anyway
   // so a failure here can never leave the user on a blank white screen.
   try {
@@ -50,6 +59,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   safeInit('Keyboard.init', () => Keyboard.init());
   safeInit('Modal.init', () => Modal.init());
   safeInit('Router.init', () => Router.init());
+
+  // If the first load was incomplete (common on PWA), silently re-fetch once
+  // and re-render — no toasts, no full-page reload.
+  try {
+    await State.ensureDataReady();
+  } catch (error) {
+    console.error('[App] ensureDataReady failed:', error);
+  }
 
   // Setup global event listeners
   safeInit('setupGlobalEventListeners', () => setupGlobalEventListeners());
