@@ -106,5 +106,12 @@ const Router = {
         view.render(contentArea, params); // Pass params to view
       }
     }
+  },
+
+  /** Re-render the current route (e.g. after a manual data reload). */
+  reload() {
+    const route = this.currentRoute || State.currentSection || 'dashboard';
+    this.currentView = null; // force re-render even if same view
+    this.navigate(route);
   }
 };
