@@ -2,6 +2,36 @@
    Main Application Entry Point
    ======================================== */
 
+// Tracks the last time a successful full data load completed.
+// Used to throttle resume-triggered refreshes.
+let lastDataLoadTime = 0;
+const RESUME_REFRESH_THROTTLE_MS = 5000;
+
+/**
+ * Re-fetch data and re-render the current view. Called on app resume events
+ * (visibilitychange, pageshow bfcache, focus) so that a stale/empty snapshot
+ * from a previous session is replaced without re-running the full boot.
+ *
+ * @param {boolean} force - Skip throttle (use for confirmed bfcache restores).
+ */
+async function refreshIfNeeded(force = false) {
+  if (!force && Date.now() - lastDataLoadTime < RESUME_REFRESH_THROTTLE_MS) return;
+
+  // Don't fire while the initial boot loading overlay is still up
+  if (typeof AppLoading !== 'undefined' && AppLoading.isVisible && AppLoading.isVisible()) return;
+
+  try {
+    await State.reload({ silent: true });
+    lastDataLoadTime = Date.now();
+    // Clear any pending cold-start reload guard now that we have good data
+    if (!State.isCoreDataEmpty()) {
+      try { sessionStorage.removeItem('pwaColdReloadDone'); } catch (_) {}
+    }
+  } catch (error) {
+    console.error('[App] refreshIfNeeded failed:', error);
+  }
+}
+
 // Αναμονή για DOM ready
 document.addEventListener('DOMContentLoaded', async () => {
   const isElectron = typeof window.electronAPI !== 'undefined';
@@ -36,6 +66,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   // so a failure here can never leave the user on a blank white screen.
   try {
     await State.init();
+    if (!State.isCoreDataEmpty()) {
+      lastDataLoadTime = Date.now();
+      // Clear cold-start reload guard now that we loaded real data
+      try { sessionStorage.removeItem('pwaColdReloadDone'); } catch (_) {}
+    }
   } catch (error) {
     console.error('[App] State.init failed:', error);
     if (!State.data) State.data = State.emptyData();
@@ -65,16 +100,39 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // If the first load was incomplete (common on PWA), silently re-fetch once
   // and re-render — no toasts, no full-page reload.
+  // ensureDataReady() may trigger a window.location.reload() internally (the
+  // guarded cold-start reload). In that case we keep the loading overlay
+  // visible so the user never sees a flash of all-zero dashboard values.
   try {
     await State.ensureDataReady();
   } catch (error) {
     console.error('[App] ensureDataReady failed:', error);
   } finally {
-    if (typeof AppLoading !== 'undefined') AppLoading.hide();
+    // Only hide the loading overlay if we are NOT about to perform a full reload.
+    // If a reload was triggered, State.isCoreDataEmpty() is still true and the
+    // page is about to restart — leave the overlay up.
+    const willReload = State.isCoreDataEmpty
+      && State.isCoreDataEmpty()
+      && typeof Utils !== 'undefined' && Utils.isPwaInstalled && Utils.isPwaInstalled()
+      && (() => { try { return !!sessionStorage.getItem('pwaColdReloadDone'); } catch (_) { return false; } })();
+    if (!willReload && typeof AppLoading !== 'undefined') AppLoading.hide();
   }
 
   // Setup global event listeners
   safeInit('setupGlobalEventListeners', () => setupGlobalEventListeners());
+
+  // Re-fetch data when the app returns to the foreground (resume/bfcache).
+  // This is the primary fix for the installed-PWA case where Android resumes a
+  // previous page instance (DOMContentLoaded never re-fires) and the user sees
+  // a stale/empty snapshot. State.reload() re-fetches and re-renders via Router.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') refreshIfNeeded();
+  });
+  window.addEventListener('pageshow', (event) => {
+    // event.persisted === true means the page was restored from the bfcache
+    if (event.persisted) refreshIfNeeded(true);
+  });
+  window.addEventListener('focus', () => refreshIfNeeded());
   
   // Load company name in sidebar (non-fatal)
   try {
@@ -203,7 +261,7 @@ if ('serviceWorker' in navigator) {
 
   window.addEventListener('load', async () => {
     try {
-      const registration = await navigator.serviceWorker.register('sw.js?v=20260619b', { scope: './' });
+      const registration = await navigator.serviceWorker.register('sw.js?v=20260621a', { scope: './' });
       registration.update();
     } catch (error) {
       console.warn('[PWA] Service worker registration failed:', error);

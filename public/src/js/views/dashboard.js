@@ -8,6 +8,23 @@ window.DashboardView = {
   themeChangeListener: null, // Store theme change listener to prevent duplicates
   
   render(container) {
+    // When the initial load failed or returned no data, show a clear retry
+    // state instead of presenting fake zeros as real data.
+    if (State.loadHadErrors && State.isCoreDataEmpty && State.isCoreDataEmpty()) {
+      container.innerHTML = `
+        <div class="dashboard">
+          <div class="card" style="text-align:center;padding:var(--spacing-xl,2rem);">
+            <i class="fas fa-exclamation-circle" style="font-size:2.5rem;color:var(--error);margin-bottom:var(--spacing-md,1rem);display:block;"></i>
+            <h2 style="margin-bottom:var(--spacing-sm,0.5rem);">Δεν φορτώθηκαν τα δεδομένα</h2>
+            <p class="text-muted" style="margin-bottom:var(--spacing-lg,1.5rem);">Ο διακομιστής δεν απάντησε σωστά. Ελέγξτε τη σύνδεσή σας και δοκιμάστε ξανά.</p>
+            <button class="btn btn-primary" onclick="State.reload().then(()=>Router.reload())">
+              <i class="fas fa-redo"></i> Δοκιμάστε ξανά
+            </button>
+          </div>
+        </div>`;
+      return;
+    }
+
     const stats = this.calculateStats();
     const companyName = State.data?.settings?.company_settings?.name || document.getElementById('sidebarCompanyName')?.textContent || 'Τέχνη και Χρώμα';
     const isMobile = Utils.isMobile();
