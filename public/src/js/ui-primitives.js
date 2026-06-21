@@ -229,4 +229,9 @@ window.AppLoading = {
     document.body.classList.remove('is-app-loading');
     if (contentArea) contentArea.setAttribute('aria-busy', 'false');
   },
+
+  isVisible() {
+    const el = this.el;
+    return el ? el.classList.contains('is-visible') : false;
+  },
 };

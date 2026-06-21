@@ -160,6 +160,35 @@ const State = {
     // listeners stay active and will recover as soon as the network returns.
     console.warn('[State] Scheduled retries exhausted — will recover on online/focus');
     this.rerenderCurrentView();
+
+    // Last-resort: if the backend is actually reachable but core data is still
+    // empty, perform exactly one guarded full reload (mirrors pull-to-refresh).
+    // A sessionStorage key prevents an infinite reload loop.
+    if (
+      typeof Utils !== 'undefined' && Utils.isPwaInstalled && Utils.isPwaInstalled()
+      && this.isCoreDataEmpty()
+    ) {
+      try {
+        if (sessionStorage.getItem('pwaColdReloadDone')) {
+          console.warn('[State] Cold-start reload already attempted this session — skipping');
+        } else {
+          const controller = new AbortController();
+          const tid = setTimeout(() => controller.abort(), 3000);
+          const probe = await fetch('/api/statistics.php?action=available_years', {
+            signal: controller.signal,
+            cache: 'no-store',
+            credentials: 'include',
+          }).catch(() => null);
+          clearTimeout(tid);
+          if (probe && probe.ok) {
+            console.log('[State] Backend reachable, data still empty — performing cold-start reload');
+            sessionStorage.setItem('pwaColdReloadDone', '1');
+            window.location.reload();
+            return;
+          }
+        }
+      } catch (_) {}
+    }
   },
 
   /**
@@ -335,6 +364,15 @@ const State = {
 
     if (this.loadHadErrors) {
       console.warn('[State] Some collections could not be loaded');
+    }
+
+    // Core data loaded successfully — clear the cold-start reload guard so
+    // future genuine cold starts can self-heal via the same mechanism.
+    const corePopulated = ['clients', 'jobs', 'suppliers', 'inventory'].some(
+      (key) => Array.isArray(result[key]) && result[key].length > 0
+    );
+    if (corePopulated) {
+      try { sessionStorage.removeItem('pwaColdReloadDone'); } catch (_) {}
     }
 
     return result;
@@ -738,7 +776,7 @@ const State = {
   // Refresh Dashboard if currently viewing it
   refreshDashboardIfNeeded() {
     if (this.currentSection === 'dashboard' && window.DashboardView) {
-      const container = document.getElementById('main-content');
+      const container = document.getElementById('contentArea');
       if (container) {
         window.DashboardView.render(container);
       }
