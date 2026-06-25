@@ -67,7 +67,7 @@ window.JobsView = {
           <strong id="totalExpensesKpiDisplay">0.00 €</strong>
         </div>
         <div class="cost-kpi profit">
-          <span>Καθαρό κέρδος</span>
+          <span>Μικτό κέρδος</span>
           <strong id="profitDisplay">0.00 €</strong>
         </div>
         <div class="cost-kpi">
@@ -75,8 +75,8 @@ window.JobsView = {
           <strong id="workedHoursDisplay">0.0 ώρες</strong>
         </div>
         <div class="cost-kpi danger">
-          <span>Χαμένη αξία ωρών</span>
-          <strong id="lostBillingValueDisplay">0.00 €</strong>
+          <span>Οικονομικό κέρδος</span>
+          <strong id="economicProfitKpiDisplay">0.00 €</strong>
         </div>
       </section>
     `;
@@ -638,7 +638,7 @@ window.JobsView = {
                 </div>
                 <div class="financial-row total">
                   <span>Σύνολο Χρέωσης</span>
-                  <strong id="billingAmountDisplay" style="color: var(--success); font-size:1.1em;">0.00 €</strong>
+                  <strong id="summaryFinalBillingAmountDisplay" style="color: var(--success); font-size:1.1em;">0.00 €</strong>
                 </div>
               </div>
 
@@ -683,11 +683,11 @@ window.JobsView = {
                   <strong id="ownerOpportunityCostDisplay">0.00 €</strong>
                 </div>
                 <div class="financial-row">
-                  <span>Μετά την αξία χρόνου</span>
+                  <span>Οικονομικό κέρδος</span>
                   <strong id="economicProfitDisplay">0.00 €</strong>
                 </div>
                 <div class="financial-row total" style="margin-top: 4px;">
-                  <span style="font-size:1.05em;">Καθαρό Κέρδος</span>
+                  <span style="font-size:1.05em;">Μικτό κέρδος</span>
                   <strong id="totalCostDisplay" style="font-size:1.2em;">0.00 €</strong>
                 </div>
               </div>
@@ -1057,7 +1057,7 @@ window.JobsView = {
               <th>Κατάσταση</th>
               <th>Επόμ. Επίσκ.</th>
               <th>Σύνολο</th>
-              <th>Καθαρό Κέρδος</th>
+              <th>Μικτό Κέρδος</th>
             </tr>
           </thead>
           <tbody>
@@ -1619,7 +1619,27 @@ window.JobsView = {
       const billingHours = parseFloat(document.getElementById('jobBillingHours')?.value || 0) || 0;
       const billingRate = parseFloat(document.getElementById('jobBillingRate')?.value || 0) || 0;
       const agreedPrice = parseFloat(document.getElementById('jobAgreedPrice')?.value || 0) || 0;
-      const billingAmount = billingType === 'fixed' ? agreedPrice : billingHours * billingRate;
+      const materials = parseFloat(document.getElementById('jobMaterialsCost')?.value || 0) || 0;
+      const kilometers = parseFloat(document.getElementById('jobKilometers')?.value || 0) || 0;
+      const pricingSettings = SettingsService.cache.pricing_settings || { travelCost: 0.5 };
+      const costPerKm = pricingSettings.travelCost || 0.5;
+      const chargeMaterials = !!(document.getElementById('jobChargeMaterials')?.checked);
+      const chargeKm = !!(document.getElementById('jobChargeKm')?.checked);
+      const fin = typeof window !== 'undefined' && window.JobFinancials && typeof window.JobFinancials.buildSnapshot === 'function'
+        ? window.JobFinancials.buildSnapshot({
+            assignedWorkers: this.assignedWorkers,
+            materialsCost: materials,
+            kilometers,
+            costPerKm,
+            billingType,
+            agreedPrice,
+            billingHours,
+            billingRate
+          }, { chargeMaterials, chargeKm })
+        : {
+            billingAmount: billingType === 'fixed' ? agreedPrice : billingHours * billingRate
+          };
+      const billingAmount = fin.billingAmount || 0;
       const paidAmount = this.getDraftPaymentsTotal();
       return {
         billingAmount,
@@ -1637,7 +1657,25 @@ window.JobsView = {
       const billingHours = parseFloat(document.getElementById('jobBillingHours')?.value || 0) || 0;
       const billingRate = parseFloat(document.getElementById('jobBillingRate')?.value || 0) || 0;
       const agreedPrice = parseFloat(document.getElementById('jobAgreedPrice')?.value || 0) || 0;
-      billingAmount = billingType === 'fixed' ? agreedPrice : billingHours * billingRate;
+      const materials = parseFloat(document.getElementById('jobMaterialsCost')?.value || 0) || 0;
+      const kilometers = parseFloat(document.getElementById('jobKilometers')?.value || 0) || 0;
+      const pricingSettings = SettingsService.cache.pricing_settings || { travelCost: 0.5 };
+      const costPerKm = pricingSettings.travelCost || 0.5;
+      const chargeMaterials = !!(document.getElementById('jobChargeMaterials')?.checked);
+      const chargeKm = !!(document.getElementById('jobChargeKm')?.checked);
+      const fin = typeof window !== 'undefined' && window.JobFinancials && typeof window.JobFinancials.buildSnapshot === 'function'
+        ? window.JobFinancials.buildSnapshot({
+            assignedWorkers: this.assignedWorkers,
+            materialsCost: materials,
+            kilometers,
+            costPerKm,
+            billingType,
+            agreedPrice,
+            billingHours,
+            billingRate
+          }, { chargeMaterials, chargeKm })
+        : { billingAmount: billingType === 'fixed' ? agreedPrice : billingHours * billingRate };
+      billingAmount = fin.billingAmount || 0;
     }
 
     return {
@@ -1703,8 +1741,8 @@ window.JobsView = {
           <span style="color: ${fin.unbilledHours > 0 ? 'var(--warning, #f59e0b)' : 'var(--success)'};">${fin.billingType === 'fixed' ? '-' : fin.unbilledHours.toFixed(1) + ' ώρες'}</span>
         </div>
         <div class="detail-item">
-          <label title="Τι θα έπαιρνε ο ιδιοκτήτης αν οι μη χρεωμένες ώρες πληρώνονταν στη χρέωση/ώρα">Χαμένη αξία ωρών:</label>
-          <span style="color: ${fin.lostBillingValue > 0 ? 'var(--error)' : 'var(--success)'};">${fin.billingType === 'fixed' ? '-' : Utils.formatCurrency(fin.lostBillingValue)}</span>
+          <label title="Τι θα έπαιρνε ο ιδιοκτήτης αν οι μη χρεωμένες ώρες πληρώνονταν στη χρέωση/ώρα">Απώλεια χρεώσιμης αξίας:</label>
+          <span style="color: ${fin.lostBillingValue < 0 ? 'var(--error)' : 'var(--success)'};">${fin.billingType === 'fixed' ? '-' : Utils.formatCurrency(fin.lostBillingValue)}</span>
         </div>
         <div class="detail-item">
           <label>Κέρδος ανά Ώρα:</label>
@@ -1719,11 +1757,11 @@ window.JobsView = {
           <span style="color: ${fin.ownerOpportunityCost > 0 ? 'var(--warning, #f59e0b)' : 'var(--success)'};">${Utils.formatCurrency(fin.ownerOpportunityCost)}</span>
         </div>
         <div class="detail-item span-2">
-          <label>Κέρδος μετά την αξία χρόνου:</label>
+          <label>Οικονομικό κέρδος:</label>
           <span><strong style="color: ${fin.economicProfit >= 0 ? 'var(--success)' : 'var(--error)'};">${fin.economicProfit >= 0 ? '+' : ''}${Utils.formatCurrency(fin.economicProfit)}</strong></span>
         </div>
         <div class="detail-item span-2" style="border-top: 2px solid var(--border-color); padding-top: 1rem; margin-top: 0.5rem;">
-          <label style="font-size: 1.1em;">Καθαρό Κέρδος:</label>
+          <label style="font-size: 1.1em;">Μικτό Κέρδος:</label>
           <span><strong style="color: ${fin.profit >= 0 ? 'var(--success)' : 'var(--error)'}; font-size: 1.3em;">${fin.profit >= 0 ? '+' : ''}${Utils.formatCurrency(fin.profit)}</strong></span>
         </div>
       </div>
@@ -1791,49 +1829,56 @@ window.JobsView = {
     const chargeMaterials = !!(document.getElementById('jobChargeMaterials')?.checked);
     const chargeKm = !!(document.getElementById('jobChargeKm')?.checked);
 
-    // ΕΞΟΔΑ
-    const ownerFallback = this.assignedWorkers.reduce((sum, worker) => {
-      if (this.getWorkerType(worker) !== 'owner') return sum;
-      const hours = parseFloat(worker.hoursAllocated || worker.hours_allocated || 0) || 0;
-      const rate = parseFloat(worker.hourlyRate || worker.hourly_rate || 0) || 0;
-      return sum + (hours * rate);
-    }, 0);
-    // Owner hours & rate for lost-value calculation
-    const ownerHoursTotal = this.assignedWorkers.reduce((sum, worker) => {
-      if (this.getWorkerType(worker) !== 'owner') return sum;
-      return sum + (parseFloat(worker.hoursAllocated || worker.hours_allocated || 0) || 0);
-    }, 0);
-    const ownerHourlyRateForLost = this.assignedWorkers.reduce((rate, worker) => {
-      if (this.getWorkerType(worker) !== 'owner') return rate;
-      const r = parseFloat(worker.hourlyRate || worker.hourly_rate || 0) || 0;
-      return r > 0 ? r : rate;
-    }, 0);
-    const workedTotals = this.getWorkedTimeTotals(this.assignedWorkers);
-    const laborCost = workedTotals.laborCost; // Μόνο οι υπάλληλοι είναι έξοδο
-    const ownerOpportunityCost = workedTotals.ownerOpportunityCost || ownerFallback;
-    const actualHours = workedTotals.totalHours;
-    const travelCost = kilometers * costPerKm; // Κόστος μετακίνησης
-    const totalExpenses = materials + laborCost + travelCost; // Συνολικά έξοδα
+    const financials = typeof window !== 'undefined' && window.JobFinancials && typeof window.JobFinancials.buildSnapshot === 'function'
+      ? window.JobFinancials.buildSnapshot({
+          assignedWorkers: this.assignedWorkers,
+          materialsCost: materials,
+          kilometers,
+          costPerKm,
+          billingType,
+          agreedPrice,
+          billingHours,
+          billingRate
+        }, { chargeMaterials, chargeKm })
+      : {
+          baseCharge: billingType === 'fixed' ? agreedPrice : billingHours * billingRate,
+          materialsCharge: chargeMaterials ? materials : 0,
+          kmCharge: chargeKm ? (kilometers * costPerKm) : 0,
+          billingAmount: (billingType === 'fixed' ? agreedPrice : billingHours * billingRate) + (chargeMaterials ? materials : 0) + (chargeKm ? (kilometers * costPerKm) : 0),
+          totalExpenses: materials + this.getEmployeeLaborCost() + (kilometers * costPerKm),
+          profit: 0,
+          economicProfit: 0,
+          profitPerHour: null,
+          margin: null,
+          actualHours: 0,
+          chargedHours: billingType === 'fixed' ? 0 : billingHours,
+          unbilledHours: 0,
+          ownerUnbilledHours: 0,
+          lostBillingValue: 0,
+          ownerOpportunityCost: 0,
+          laborCost: this.getEmployeeLaborCost(),
+          travelCost: kilometers * costPerKm
+        };
 
-    // ΕΣΟΔΑ: βάση χρέωσης + επιλεγμένα extras
-    const baseCharge = billingType === 'fixed' ? agreedPrice : billingHours * billingRate;
-    const materialsCharge = chargeMaterials ? materials : 0;
-    const kmCharge = chargeKm ? travelCost : 0;
-    const billingAmount = baseCharge + materialsCharge + kmCharge;
-    const totalCharge = billingAmount;
-    const chargedHours = billingType === 'fixed' ? 0 : billingHours;
-    const unbilledHours = billingType === 'fixed' ? 0 : Math.max(0, actualHours - chargedHours);
-    // Χαμένη αξία ωρών: οι ώρες του ιδιοκτήτη που δεν αποσβέστηκαν × ημερομίσθιο ιδιοκτήτη
-    const ownerUnbilledHours = billingType === 'fixed' ? 0 : Math.max(0, ownerHoursTotal - chargedHours);
-    const lostBillingValue = ownerHourlyRateForLost > 0
-      ? ownerUnbilledHours * ownerHourlyRateForLost
-      : unbilledHours * ownerHourlyRateForLost;
-
-    // ΚΕΡΔΟΣ
-    const profit = billingAmount - totalExpenses;
-    const economicProfit = profit - ownerOpportunityCost;
-    const profitPerHour = actualHours > 0 ? profit / actualHours : null;
-    const margin = billingAmount > 0 ? (profit / billingAmount) * 100 : null;
+    const {
+      baseCharge,
+      materialsCharge,
+      kmCharge,
+      billingAmount,
+      totalExpenses,
+      profit,
+      economicProfit,
+      profitPerHour,
+      margin,
+      actualHours,
+      chargedHours,
+      unbilledHours,
+      ownerUnbilledHours,
+      lostBillingValue,
+      ownerOpportunityCost,
+      laborCost,
+      travelCost
+    } = financials;
 
     // Update hints on billing tab
     const chargeMaterialsHint = document.getElementById('chargeMaterialsHint');
@@ -1907,6 +1952,7 @@ window.JobsView = {
     const travelDisplay = document.getElementById('travelCostDisplay');
     const totalExpensesDisplay = document.getElementById('totalExpensesDisplay');
     const billingAmountDisplay = document.getElementById('billingAmountDisplay');
+    const summaryFinalBillingAmountDisplay = document.getElementById('summaryFinalBillingAmountDisplay');
     const billingAmountKpiDisplay = document.getElementById('billingAmountKpiDisplay');
     const totalExpensesKpiDisplay = document.getElementById('totalExpensesKpiDisplay');
     const marginKpiDisplay = document.getElementById('marginKpiDisplay');
@@ -1916,7 +1962,7 @@ window.JobsView = {
     const workedHoursDisplay = document.getElementById('workedHoursDisplay');
     const chargedHoursDisplay = document.getElementById('chargedHoursDisplay');
     const unbilledHoursDisplay = document.getElementById('unbilledHoursDisplay');
-    const lostBillingValueDisplay = document.getElementById('lostBillingValueDisplay');
+    const economicProfitKpiDisplay = document.getElementById('economicProfitKpiDisplay');
     const ownerOpportunityCostDisplay = document.getElementById('ownerOpportunityCostDisplay');
     const economicProfitDisplay = document.getElementById('economicProfitDisplay');
     const mobileEditBillingDisplay = document.getElementById('mobileEditBillingDisplay');
@@ -1928,6 +1974,7 @@ window.JobsView = {
     if (travelDisplay) travelDisplay.textContent = Utils.formatCurrency(travelCost);
     if (totalExpensesDisplay) totalExpensesDisplay.textContent = Utils.formatCurrency(totalExpenses);
     if (billingAmountDisplay) billingAmountDisplay.textContent = Utils.formatCurrency(billingAmount);
+    if (summaryFinalBillingAmountDisplay) summaryFinalBillingAmountDisplay.textContent = Utils.formatCurrency(billingAmount);
     if (billingAmountKpiDisplay) billingAmountKpiDisplay.textContent = Utils.formatCurrency(billingAmount);
     if (totalExpensesKpiDisplay) totalExpensesKpiDisplay.textContent = Utils.formatCurrency(totalExpenses);
     if (marginKpiDisplay) {
@@ -1948,9 +1995,9 @@ window.JobsView = {
       unbilledHoursDisplay.textContent = billingType === 'fixed' ? '-' : `${unbilledHours.toFixed(1)} ώρες`;
       unbilledHoursDisplay.style.color = unbilledHours > 0 ? 'var(--warning, #f59e0b)' : 'var(--success)';
     }
-    if (lostBillingValueDisplay) {
-      lostBillingValueDisplay.textContent = billingType === 'fixed' ? '-' : Utils.formatCurrency(lostBillingValue);
-      lostBillingValueDisplay.style.color = lostBillingValue > 0 ? 'var(--error)' : 'var(--success)';
+    if (economicProfitKpiDisplay) {
+      economicProfitKpiDisplay.textContent = `${economicProfit >= 0 ? '+' : ''}${Utils.formatCurrency(economicProfit)}`;
+      economicProfitKpiDisplay.style.color = economicProfit >= 0 ? 'var(--success)' : 'var(--error)';
     }
     if (profitPerHourDisplay) {
       profitPerHourDisplay.textContent = profitPerHour === null ? '-' : `${Utils.formatCurrency(profitPerHour)}/ώρα`;
@@ -1970,8 +2017,8 @@ window.JobsView = {
       mobileEditProfitDisplay.style.color = profit >= 0 ? 'var(--success)' : 'var(--error)';
     }
     if (mobileEditLostDisplay) {
-      mobileEditLostDisplay.textContent = billingType === 'fixed' ? '-' : Utils.formatCurrency(lostBillingValue);
-      mobileEditLostDisplay.style.color = lostBillingValue > 0 ? 'var(--error)' : 'var(--success)';
+      mobileEditLostDisplay.textContent = `${economicProfit >= 0 ? '+' : ''}${Utils.formatCurrency(economicProfit)}`;
+      mobileEditLostDisplay.style.color = economicProfit >= 0 ? 'var(--success)' : 'var(--error)';
     }
     this.updatePaymentsSummaryFromForm();
     
@@ -2582,9 +2629,9 @@ window.JobsView = {
             <span>Υπόλοιπο</span>
             <strong>${Utils.formatCurrency(fin.balance)}</strong>
           </div>
-          <div class="${fin.lostBillingValue > 0 ? 'danger' : 'success'}">
-            <span>Χαμένη αξία ωρών</span>
-            <strong>${fin.billingType === 'fixed' ? '-' : Utils.formatCurrency(fin.lostBillingValue)}</strong>
+          <div class="${fin.economicProfit < 0 ? 'danger' : 'success'}">
+            <span>Οικονομικό κέρδος</span>
+            <strong>${Utils.formatCurrency(fin.economicProfit)}</strong>
           </div>
         </div>
 
@@ -3021,7 +3068,9 @@ window.JobsView = {
     const clientName = clientId ? this.getClientName(clientId) : '-';
     const status = document.getElementById('jobStatus')?.value || '-';
     const visit = document.getElementById('jobNextVisit')?.value || '-';
-    const billing = document.getElementById('billingAmountDisplay')?.textContent || '0.00 €';
+    const billing = document.getElementById('summaryFinalBillingAmountDisplay')?.textContent
+      || document.getElementById('billingAmountDisplay')?.textContent
+      || '0.00 €';
     const profit = document.getElementById('profitDisplay')?.textContent || '0.00 €';
     const materialsCount = (this.assignedPaints || []).length;
     const workersCount = (this.assignedWorkers || []).length;
