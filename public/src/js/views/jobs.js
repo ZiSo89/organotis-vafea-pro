@@ -8,14 +8,13 @@ window.JobsView = {
   lazyBatchSize: 20,
   formSteps: [
     { id: 'basic', label: 'Βασικά', icon: 'fas fa-info-circle' },
-    { id: 'details', label: 'Εργασία & Υλικά', icon: 'fas fa-paint-roller' },
+    { id: 'details', label: 'Υλικά', icon: 'fas fa-boxes' },
     { id: 'workers', label: 'Συνεργείο', icon: 'fas fa-users' },
-    { id: 'expenses', label: 'Έξοδα', icon: 'fas fa-arrow-down' },
     { id: 'billing', label: 'Χρέωση', icon: 'fas fa-receipt' },
     { id: 'payments', label: 'Πληρωμές', icon: 'fas fa-hand-holding-usd' },
     { id: 'notes', label: 'Σύνοψη & Σημειώσεις', icon: 'fas fa-clipboard-check' }
   ],
-  financialStepIds: ['workers', 'expenses', 'billing', 'payments', 'notes'],
+  financialStepIds: ['workers', 'billing', 'payments', 'notes'],
   currentStepIndex: 0,
   draftPayments: [],
   formDirty: false,
@@ -63,6 +62,10 @@ window.JobsView = {
           <span>Χρέωση</span>
           <strong id="billingAmountKpiDisplay">0.00 €</strong>
         </div>
+        <div class="cost-kpi">
+          <span>Έξοδα</span>
+          <strong id="totalExpensesKpiDisplay">0.00 €</strong>
+        </div>
         <div class="cost-kpi profit">
           <span>Καθαρό κέρδος</span>
           <strong id="profitDisplay">0.00 €</strong>
@@ -71,16 +74,8 @@ window.JobsView = {
           <span>Δουλεμένες</span>
           <strong id="workedHoursDisplay">0.0 ώρες</strong>
         </div>
-        <div class="cost-kpi">
-          <span>Χρεωμένες</span>
-          <strong id="chargedHoursDisplay">0.0 ώρες</strong>
-        </div>
-        <div class="cost-kpi warning">
-          <span>Μη χρεωμένες</span>
-          <strong id="unbilledHoursDisplay">0.0 ώρες</strong>
-        </div>
         <div class="cost-kpi danger">
-          <span>Χαμένη αξία</span>
+          <span>Χαμένη αξία ωρών</span>
           <strong id="lostBillingValueDisplay">0.00 €</strong>
         </div>
       </section>
@@ -451,17 +446,26 @@ window.JobsView = {
             </div>
           </div>
 
-          <!-- Tab: Εργασία & Υλικά -->
+          <!-- Tab: Υλικά -->
           <div class="tab-content" id="tab-details">
             <div class="form-grid">
+
+              <!-- Κόστος υλικών & Χιλιόμετρα (ήταν στο tab Έξοδα) -->
               <div class="form-group">
-                <label>Αριθμός Δωματίων</label>
-                <input type="number" id="jobRooms" min="1" placeholder="π.χ. 3">
+                <label title="Μπορείτε να το αυξήσετε χειροκίνητα για έξτρα έξοδα· δεν μπορεί να είναι μικρότερο από το άθροισμα των υλικών">
+                  Κόστος Υλικών (€) <i class="fas fa-info-circle" style="font-size: 0.8em; color: var(--text-muted);"></i>
+                </label>
+                <input type="number" id="jobMaterialsCost" min="0" step="0.01" value="0"
+                       title="Ελάχιστο: άθροισμα καταχωρημένων υλικών. Μπορείτε να το αυξήσετε χειροκίνητα.">
+                <small class="text-muted">Ελάχιστο: <span id="materialsLineTotalHint">0.00 €</span> (άθροισμα γραμμών)</small>
               </div>
 
               <div class="form-group">
-                <label>Τετραγωνικά (m²)</label>
-                <input type="number" id="jobArea" placeholder="π.χ. 80">
+                <label title="Χιλιόμετρα μετακίνησης για την εργασία">
+                  Χιλιόμετρα <i class="fas fa-info-circle" style="font-size: 0.8em; color: var(--text-muted);"></i>
+                </label>
+                <input type="number" id="jobKilometers" min="0" value="0"
+                       title="Χιλιόμετρα μετακίνησης για την εργασία">
               </div>
 
               <!-- Υλικά -->
@@ -490,33 +494,9 @@ window.JobsView = {
                 </button>
               </div>
               <div id="assignedWorkersContainer" class="worker-compact-list"></div>
-            </section>
-          </div>
 
-          <!-- Tab: Έξοδα -->
-          <div class="tab-content" id="tab-expenses">
-            <section class="cost-panel cost-expenses-panel cost-step-panel">
-              <div class="cost-panel-header compact">
-                <h4><i class="fas fa-arrow-down"></i> Έξοδα</h4>
-              </div>
-              <div class="cost-input-grid">
-                <div class="form-group">
-                  <label title="Μπορείτε να το αυξήσετε χειροκίνητα για έξτρα έξοδα· δεν μπορεί να είναι μικρότερο από το άθροισμα των υλικών">
-                    Συνολικό κόστος υλικών (€) <i class="fas fa-info-circle" style="font-size: 0.8em; color: var(--text-muted);"></i>
-                  </label>
-                  <input type="number" id="jobMaterialsCost" min="0" step="0.01" value="0"
-                         title="Ελάχιστο: άθροισμα καταχωρημένων υλικών. Μπορείτε να το αυξήσετε χειροκίνητα.">
-                  <small class="text-muted">Ελάχιστο: <span id="materialsLineTotalHint">0.00 €</span> (άθροισμα γραμμών υλικών)</small>
-                </div>
-                <div class="form-group">
-                  <label title="Χιλιόμετρα μετακίνησης για την εργασία">
-                    Χιλιόμετρα <i class="fas fa-info-circle" style="font-size: 0.8em; color: var(--text-muted);"></i>
-                  </label>
-                  <input type="number" id="jobKilometers" min="0" value="0"
-                         title="Χιλιόμετρα μετακίνησης για την εργασία (έξοδα)">
-                </div>
-              </div>
-              <div class="cost-metric-list">
+              <!-- Σύνοψη εξόδων (ήταν στο tab Έξοδα) -->
+              <div class="cost-metric-list" style="margin-top: var(--spacing-md, 1rem);">
                 <div class="financial-row">
                   <span>Υπάλληλοι</span>
                   <strong id="laborCostDisplay">0.00 €</strong>
@@ -584,6 +564,44 @@ window.JobsView = {
                          title="Σταθερή τιμή για όλο το έργο">
                 </div>
               </div>
+
+              <!-- Τι χρεώνεται στον πελάτη -->
+              <div style="margin-top: var(--spacing-md, 1rem); border-top: 1px solid var(--border-color); padding-top: var(--spacing-md, 1rem);">
+                <p style="font-size: 0.85em; font-weight: 600; color: var(--text-muted); margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.05em;">Τι χρεώνεται στον πελάτη;</p>
+                <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                  <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.9em;">
+                    <input type="checkbox" id="jobChargeMaterials" style="width: 1rem; height: 1rem;">
+                    <span><i class="fas fa-boxes" style="color: var(--primary);"></i> Υλικά</span>
+                    <small class="text-muted" id="chargeMaterialsHint">(0.00 €)</small>
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.9em;">
+                    <input type="checkbox" id="jobChargeKm" style="width: 1rem; height: 1rem;">
+                    <span><i class="fas fa-car" style="color: var(--primary);"></i> Χιλιόμετρα</span>
+                    <small class="text-muted" id="chargeKmHint">(0 km → 0.00 €)</small>
+                  </label>
+                </div>
+                <small class="text-muted" style="display: block; margin-top: 0.4rem;">Τσεκάρετε ό,τι θέλετε να προστεθεί στη συνολική χρέωση του πελάτη.</small>
+              </div>
+
+              <!-- Preview χρέωσης -->
+              <div class="cost-metric-list" style="margin-top: var(--spacing-md, 1rem);">
+                <div class="financial-row" id="billingBaseRow">
+                  <span id="billingBaseLabel">Ώρες × τιμή</span>
+                  <strong id="billingBaseDisplay">0.00 €</strong>
+                </div>
+                <div class="financial-row" id="billingMaterialsRow" style="display:none;">
+                  <span>+ Υλικά</span>
+                  <strong id="billingMaterialsAddDisplay">0.00 €</strong>
+                </div>
+                <div class="financial-row" id="billingKmRow" style="display:none;">
+                  <span>+ Μετακίνηση</span>
+                  <strong id="billingKmAddDisplay">0.00 €</strong>
+                </div>
+                <div class="financial-row total">
+                  <span>Σύνολο χρέωσης</span>
+                  <strong id="billingAmountDisplay">0.00 €</strong>
+                </div>
+              </div>
             </section>
           </div>
 
@@ -600,14 +618,61 @@ window.JobsView = {
               <div class="cost-panel-header compact">
                 <h4><i class="fas fa-chart-line"></i> Τελικό αποτέλεσμα</h4>
               </div>
-              <div class="cost-result-main">
-                <span>Σύνολο χρέωσης</span>
-                <strong id="billingAmountDisplay">0.00 €</strong>
-              </div>
+
+              <!-- Έσοδα -->
               <div class="cost-metric-list">
+                <div class="financial-row section-header" style="font-weight:600; color: var(--text-muted); font-size:0.8em; text-transform:uppercase; letter-spacing:0.05em; border-bottom: 1px solid var(--border-color); padding-bottom:4px; margin-bottom:2px;">
+                  <span>ΕΣΟΔΑ</span>
+                </div>
+                <div class="financial-row">
+                  <span id="billingBaseLabel2">Χρέωση ωρών</span>
+                  <strong id="billingBaseDisplay2" style="color: var(--success);">0.00 €</strong>
+                </div>
+                <div class="financial-row" id="summaryMaterialsChargeRow" style="display:none;">
+                  <span>+ Υλικά (χρέωση)</span>
+                  <strong id="summaryMaterialsChargeDisplay" style="color: var(--success);">0.00 €</strong>
+                </div>
+                <div class="financial-row" id="summaryKmChargeRow" style="display:none;">
+                  <span>+ Μετακίνηση (χρέωση)</span>
+                  <strong id="summaryKmChargeDisplay" style="color: var(--success);">0.00 €</strong>
+                </div>
                 <div class="financial-row total">
-                  <span>Έσοδα</span>
-                  <strong id="totalCostDisplay">0.00 €</strong>
+                  <span>Σύνολο Χρέωσης</span>
+                  <strong id="billingAmountDisplay" style="color: var(--success); font-size:1.1em;">0.00 €</strong>
+                </div>
+              </div>
+
+              <!-- Έξοδα -->
+              <div class="cost-metric-list" style="margin-top: 0.8rem;">
+                <div class="financial-row section-header" style="font-weight:600; color: var(--text-muted); font-size:0.8em; text-transform:uppercase; letter-spacing:0.05em; border-bottom: 1px solid var(--border-color); padding-bottom:4px; margin-bottom:2px;">
+                  <span>ΕΞΟΔΑ</span>
+                </div>
+                <div class="financial-row">
+                  <span>Υπάλληλοι</span>
+                  <strong id="summaryLaborDisplay" style="color: var(--error);">0.00 €</strong>
+                </div>
+                <div class="financial-row">
+                  <span>Υλικά (κόστος)</span>
+                  <strong id="summaryMaterialsExpenseDisplay" style="color: var(--error);">0.00 €</strong>
+                </div>
+                <div class="financial-row">
+                  <span>Μετακίνηση (κόστος)</span>
+                  <strong id="summaryTravelExpenseDisplay" style="color: var(--error);">0.00 €</strong>
+                </div>
+                <div class="financial-row total">
+                  <span>Σύνολο Εξόδων</span>
+                  <strong id="summaryTotalExpensesDisplay" style="color: var(--error); font-size:1.1em;">0.00 €</strong>
+                </div>
+              </div>
+
+              <!-- Κέρδος -->
+              <div class="cost-metric-list" style="margin-top: 0.8rem;">
+                <div class="financial-row section-header" style="font-weight:600; color: var(--text-muted); font-size:0.8em; text-transform:uppercase; letter-spacing:0.05em; border-bottom: 1px solid var(--border-color); padding-bottom:4px; margin-bottom:2px;">
+                  <span>ΑΠΟΤΕΛΕΣΜΑ</span>
+                </div>
+                <div class="financial-row">
+                  <span>Περιθώριο κέρδους</span>
+                  <strong id="summaryMarginDisplay">-</strong>
                 </div>
                 <div class="financial-row">
                   <span>Κέρδος ανά ώρα</span>
@@ -617,9 +682,32 @@ window.JobsView = {
                   <span>Αξία χρόνου ιδιοκτήτη</span>
                   <strong id="ownerOpportunityCostDisplay">0.00 €</strong>
                 </div>
-                <div class="financial-row total">
+                <div class="financial-row">
                   <span>Μετά την αξία χρόνου</span>
                   <strong id="economicProfitDisplay">0.00 €</strong>
+                </div>
+                <div class="financial-row total" style="margin-top: 4px;">
+                  <span style="font-size:1.05em;">Καθαρό Κέρδος</span>
+                  <strong id="totalCostDisplay" style="font-size:1.2em;">0.00 €</strong>
+                </div>
+              </div>
+
+              <!-- Πληρωμές -->
+              <div class="cost-metric-list" style="margin-top: 0.8rem;">
+                <div class="financial-row section-header" style="font-weight:600; color: var(--text-muted); font-size:0.8em; text-transform:uppercase; letter-spacing:0.05em; border-bottom: 1px solid var(--border-color); padding-bottom:4px; margin-bottom:2px;">
+                  <span>ΠΛΗΡΩΜΕΣ</span>
+                </div>
+                <div class="financial-row">
+                  <span>Σύνολο χρεώσεων</span>
+                  <strong id="summaryBillingAmountDisplay" style="color: var(--success);">0.00 €</strong>
+                </div>
+                <div class="financial-row">
+                  <span>Πληρωμένο</span>
+                  <strong id="summaryPaidDisplay" style="color: var(--success);">0.00 €</strong>
+                </div>
+                <div class="financial-row">
+                  <span>Υπόλοιπο</span>
+                  <strong id="summaryBalanceDisplay">0.00 €</strong>
                 </div>
               </div>
             </section>
@@ -895,6 +983,14 @@ window.JobsView = {
           };
           field.addEventListener('blur', this.costBlurHandlers[fieldId]);
         }
+      }
+    });
+
+    // Wire billing charge toggles
+    ['jobChargeMaterials', 'jobChargeKm'].forEach(cbId => {
+      const cb = document.getElementById(cbId);
+      if (cb) {
+        cb.addEventListener('change', () => { this.calculateCost(); this.markJobFormDirty(); });
       }
     });
     
@@ -1607,7 +1703,7 @@ window.JobsView = {
           <span style="color: ${fin.unbilledHours > 0 ? 'var(--warning, #f59e0b)' : 'var(--success)'};">${fin.billingType === 'fixed' ? '-' : fin.unbilledHours.toFixed(1) + ' ώρες'}</span>
         </div>
         <div class="detail-item">
-          <label>Χαμένη Αξία:</label>
+          <label title="Τι θα έπαιρνε ο ιδιοκτήτης αν οι μη χρεωμένες ώρες πληρώνονταν στη χρέωση/ώρα">Χαμένη αξία ωρών:</label>
           <span style="color: ${fin.lostBillingValue > 0 ? 'var(--error)' : 'var(--success)'};">${fin.billingType === 'fixed' ? '-' : Utils.formatCurrency(fin.lostBillingValue)}</span>
         </div>
         <div class="detail-item">
@@ -1692,6 +1788,8 @@ window.JobsView = {
     const billingRate = parseFloat(document.getElementById('jobBillingRate')?.value || 50);
     const agreedPrice = parseFloat(document.getElementById('jobAgreedPrice')?.value || 0);
     const billingType = this.getFormBillingType();
+    const chargeMaterials = !!(document.getElementById('jobChargeMaterials')?.checked);
+    const chargeKm = !!(document.getElementById('jobChargeKm')?.checked);
 
     // ΕΞΟΔΑ
     const ownerFallback = this.assignedWorkers.reduce((sum, worker) => {
@@ -1700,6 +1798,16 @@ window.JobsView = {
       const rate = parseFloat(worker.hourlyRate || worker.hourly_rate || 0) || 0;
       return sum + (hours * rate);
     }, 0);
+    // Owner hours & rate for lost-value calculation
+    const ownerHoursTotal = this.assignedWorkers.reduce((sum, worker) => {
+      if (this.getWorkerType(worker) !== 'owner') return sum;
+      return sum + (parseFloat(worker.hoursAllocated || worker.hours_allocated || 0) || 0);
+    }, 0);
+    const ownerHourlyRateForLost = this.assignedWorkers.reduce((rate, worker) => {
+      if (this.getWorkerType(worker) !== 'owner') return rate;
+      const r = parseFloat(worker.hourlyRate || worker.hourly_rate || 0) || 0;
+      return r > 0 ? r : rate;
+    }, 0);
     const workedTotals = this.getWorkedTimeTotals(this.assignedWorkers);
     const laborCost = workedTotals.laborCost; // Μόνο οι υπάλληλοι είναι έξοδο
     const ownerOpportunityCost = workedTotals.ownerOpportunityCost || ownerFallback;
@@ -1707,25 +1815,101 @@ window.JobsView = {
     const travelCost = kilometers * costPerKm; // Κόστος μετακίνησης
     const totalExpenses = materials + laborCost + travelCost; // Συνολικά έξοδα
 
-    // ΕΣΟΔΑ: συμφωνημένη τιμή ή ώρες × τιμή/ώρα
-    const billingAmount = billingType === 'fixed' ? agreedPrice : billingHours * billingRate;
+    // ΕΣΟΔΑ: βάση χρέωσης + επιλεγμένα extras
+    const baseCharge = billingType === 'fixed' ? agreedPrice : billingHours * billingRate;
+    const materialsCharge = chargeMaterials ? materials : 0;
+    const kmCharge = chargeKm ? travelCost : 0;
+    const billingAmount = baseCharge + materialsCharge + kmCharge;
     const totalCharge = billingAmount;
     const chargedHours = billingType === 'fixed' ? 0 : billingHours;
     const unbilledHours = billingType === 'fixed' ? 0 : Math.max(0, actualHours - chargedHours);
-    const lostBillingValue = unbilledHours * billingRate;
+    // Χαμένη αξία ωρών: οι ώρες του ιδιοκτήτη που δεν αποσβέστηκαν × ημερομίσθιο ιδιοκτήτη
+    const ownerUnbilledHours = billingType === 'fixed' ? 0 : Math.max(0, ownerHoursTotal - chargedHours);
+    const lostBillingValue = ownerHourlyRateForLost > 0
+      ? ownerUnbilledHours * ownerHourlyRateForLost
+      : unbilledHours * ownerHourlyRateForLost;
 
     // ΚΕΡΔΟΣ
     const profit = billingAmount - totalExpenses;
     const economicProfit = profit - ownerOpportunityCost;
     const profitPerHour = actualHours > 0 ? profit / actualHours : null;
+    const margin = billingAmount > 0 ? (profit / billingAmount) * 100 : null;
 
-    // Update displays
+    // Update hints on billing tab
+    const chargeMaterialsHint = document.getElementById('chargeMaterialsHint');
+    const chargeKmHint = document.getElementById('chargeKmHint');
+    if (chargeMaterialsHint) chargeMaterialsHint.textContent = `(${Utils.formatCurrency(materials)})`;
+    if (chargeKmHint) chargeKmHint.textContent = `(${kilometers} km → ${Utils.formatCurrency(travelCost)})`;
+
+    // Billing tab preview rows
+    const billingBaseLabel = document.getElementById('billingBaseLabel');
+    const billingBaseDisplay = document.getElementById('billingBaseDisplay');
+    const billingMaterialsRow = document.getElementById('billingMaterialsRow');
+    const billingMaterialsAddDisplay = document.getElementById('billingMaterialsAddDisplay');
+    const billingKmRow = document.getElementById('billingKmRow');
+    const billingKmAddDisplay = document.getElementById('billingKmAddDisplay');
+
+    if (billingBaseLabel) billingBaseLabel.textContent = billingType === 'fixed' ? 'Συμφωνημένη τιμή' : 'Ώρες × τιμή/ώρα';
+    if (billingBaseDisplay) billingBaseDisplay.textContent = Utils.formatCurrency(baseCharge);
+    if (billingMaterialsRow) billingMaterialsRow.style.display = chargeMaterials ? '' : 'none';
+    if (billingMaterialsAddDisplay) billingMaterialsAddDisplay.textContent = Utils.formatCurrency(materials);
+    if (billingKmRow) billingKmRow.style.display = chargeKm ? '' : 'none';
+    if (billingKmAddDisplay) billingKmAddDisplay.textContent = Utils.formatCurrency(travelCost);
+
+    // Summary tab P&L displays
+    const billingBaseLabel2 = document.getElementById('billingBaseLabel2');
+    const billingBaseDisplay2 = document.getElementById('billingBaseDisplay2');
+    const summaryMaterialsChargeRow = document.getElementById('summaryMaterialsChargeRow');
+    const summaryMaterialsChargeDisplay = document.getElementById('summaryMaterialsChargeDisplay');
+    const summaryKmChargeRow = document.getElementById('summaryKmChargeRow');
+    const summaryKmChargeDisplay = document.getElementById('summaryKmChargeDisplay');
+    const summaryLaborDisplay = document.getElementById('summaryLaborDisplay');
+    const summaryMaterialsExpenseDisplay = document.getElementById('summaryMaterialsExpenseDisplay');
+    const summaryTravelExpenseDisplay = document.getElementById('summaryTravelExpenseDisplay');
+    const summaryTotalExpensesDisplay = document.getElementById('summaryTotalExpensesDisplay');
+    const summaryMarginDisplay = document.getElementById('summaryMarginDisplay');
+    const summaryPaidDisplay = document.getElementById('summaryPaidDisplay');
+    const summaryBalanceDisplay = document.getElementById('summaryBalanceDisplay');
+
+    if (billingBaseLabel2) billingBaseLabel2.textContent = billingType === 'fixed' ? 'Συμφωνημένη τιμή' : 'Χρέωση ωρών';
+    if (billingBaseDisplay2) billingBaseDisplay2.textContent = Utils.formatCurrency(baseCharge);
+    if (summaryMaterialsChargeRow) summaryMaterialsChargeRow.style.display = chargeMaterials ? '' : 'none';
+    if (summaryMaterialsChargeDisplay) summaryMaterialsChargeDisplay.textContent = Utils.formatCurrency(materials);
+    if (summaryKmChargeRow) summaryKmChargeRow.style.display = chargeKm ? '' : 'none';
+    if (summaryKmChargeDisplay) summaryKmChargeDisplay.textContent = Utils.formatCurrency(travelCost);
+    if (summaryLaborDisplay) { summaryLaborDisplay.textContent = Utils.formatCurrency(laborCost); }
+    if (summaryMaterialsExpenseDisplay) summaryMaterialsExpenseDisplay.textContent = Utils.formatCurrency(materials);
+    if (summaryTravelExpenseDisplay) summaryTravelExpenseDisplay.textContent = Utils.formatCurrency(travelCost);
+    if (summaryTotalExpensesDisplay) summaryTotalExpensesDisplay.textContent = Utils.formatCurrency(totalExpenses);
+    if (summaryMarginDisplay) {
+      if (margin === null) {
+        summaryMarginDisplay.textContent = '-';
+        summaryMarginDisplay.style.color = '';
+      } else {
+        summaryMarginDisplay.textContent = `${margin >= 0 ? '+' : ''}${margin.toFixed(1)}%`;
+        summaryMarginDisplay.style.color = margin >= 0 ? 'var(--success)' : 'var(--error)';
+      }
+    }
+    // Payments
+    const paidAmount = this.draftPayments.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
+    const summaryBillingAmountDisplay = document.getElementById('summaryBillingAmountDisplay');
+    if (summaryBillingAmountDisplay) summaryBillingAmountDisplay.textContent = Utils.formatCurrency(billingAmount);
+    if (summaryPaidDisplay) summaryPaidDisplay.textContent = Utils.formatCurrency(paidAmount);
+    if (summaryBalanceDisplay) {
+      const balance = billingAmount - paidAmount;
+      summaryBalanceDisplay.textContent = Utils.formatCurrency(balance);
+      summaryBalanceDisplay.style.color = balance > 0.005 ? 'var(--error)' : 'var(--success)';
+    }
+
+    // Update existing displays
     const laborDisplay = document.getElementById('laborCostDisplay');
     const materialsDisplay = document.getElementById('materialsCostDisplay');
     const travelDisplay = document.getElementById('travelCostDisplay');
     const totalExpensesDisplay = document.getElementById('totalExpensesDisplay');
     const billingAmountDisplay = document.getElementById('billingAmountDisplay');
     const billingAmountKpiDisplay = document.getElementById('billingAmountKpiDisplay');
+    const totalExpensesKpiDisplay = document.getElementById('totalExpensesKpiDisplay');
+    const marginKpiDisplay = document.getElementById('marginKpiDisplay');
     const totalDisplay = document.getElementById('totalCostDisplay');
     const profitDisplay = document.getElementById('profitDisplay');
     const profitPerHourDisplay = document.getElementById('profitPerHourDisplay');
@@ -1745,7 +1929,19 @@ window.JobsView = {
     if (totalExpensesDisplay) totalExpensesDisplay.textContent = Utils.formatCurrency(totalExpenses);
     if (billingAmountDisplay) billingAmountDisplay.textContent = Utils.formatCurrency(billingAmount);
     if (billingAmountKpiDisplay) billingAmountKpiDisplay.textContent = Utils.formatCurrency(billingAmount);
-    if (totalDisplay) totalDisplay.textContent = Utils.formatCurrency(totalCharge);
+    if (totalExpensesKpiDisplay) totalExpensesKpiDisplay.textContent = Utils.formatCurrency(totalExpenses);
+    if (marginKpiDisplay) {
+      if (margin === null) { marginKpiDisplay.textContent = '-'; marginKpiDisplay.style.color = ''; }
+      else {
+        marginKpiDisplay.textContent = `${margin >= 0 ? '+' : ''}${margin.toFixed(1)}%`;
+        marginKpiDisplay.style.color = margin >= 0 ? 'var(--success)' : 'var(--error)';
+      }
+    }
+    // totalDisplay in summary tab is now the net profit
+    if (totalDisplay) {
+      totalDisplay.textContent = `${profit >= 0 ? '+' : ''}${Utils.formatCurrency(profit)}`;
+      totalDisplay.style.color = profit >= 0 ? 'var(--success)' : 'var(--error)';
+    }
     if (workedHoursDisplay) workedHoursDisplay.textContent = `${actualHours.toFixed(1)} ώρες`;
     if (chargedHoursDisplay) chargedHoursDisplay.textContent = billingType === 'fixed' ? '-' : `${chargedHours.toFixed(1)} ώρες`;
     if (unbilledHoursDisplay) {
@@ -1847,6 +2043,8 @@ window.JobsView = {
     const billingRate = parseFloat(document.getElementById('jobBillingRate').value) || 50;
     const billingType = this.getFormBillingType();
     const agreedPrice = parseFloat(document.getElementById('jobAgreedPrice')?.value || 0) || 0;
+    const chargeMaterials = !!(document.getElementById('jobChargeMaterials')?.checked);
+    const chargeKm = !!(document.getElementById('jobChargeKm')?.checked);
 
     // Get and log next visit field value
     const nextVisitRaw = document.getElementById('jobNextVisit').value;
@@ -1890,8 +2088,8 @@ window.JobsView = {
       type: titleInput || clientName || null,
       status: jobStatus,
       address: document.getElementById('jobAddress')?.value || null,
-      rooms: parseInt(document.getElementById('jobRooms').value) || null,
-      area: parseFloat(document.getElementById('jobArea').value) || null,
+      rooms: null,
+      area: null,
       nextVisit: nextVisitConverted,
       visitEndDate: visitEndConverted,
       visitAllDay: visitAllDay,
@@ -1904,6 +2102,8 @@ window.JobsView = {
       billingType: billingType,
       agreedPrice: agreedPrice,
       costPerKm: costPerKm,
+      chargeMaterials: chargeMaterials ? 1 : 0,
+      chargeKm: chargeKm ? 1 : 0,
       notes: document.getElementById('jobNotes').value,
       assignedWorkers: JSON.stringify(this.assignedWorkers),
       paints: JSON.stringify(this.assignedPaints)
@@ -1926,8 +2126,11 @@ window.JobsView = {
     const travelCost = jobData.kilometers * jobData.costPerKm;
     const totalExpenses = jobData.materialsCost + laborCost + travelCost;
 
-    // ΕΣΟΔΑ: συμφωνημένη τιμή ή ώρες × τιμή/ώρα
-    const billingAmount = billingType === 'fixed' ? agreedPrice : billingHours * billingRate;
+    // ΕΣΟΔΑ: βάση χρέωσης + επιλεγμένα extras
+    const baseCharge = billingType === 'fixed' ? agreedPrice : billingHours * billingRate;
+    const billingAmount = baseCharge
+      + (chargeMaterials ? jobData.materialsCost : 0)
+      + (chargeKm ? travelCost : 0);
     const totalCharge = billingAmount;
 
     // ΚΕΡΔΟΣ
@@ -2380,7 +2583,7 @@ window.JobsView = {
             <strong>${Utils.formatCurrency(fin.balance)}</strong>
           </div>
           <div class="${fin.lostBillingValue > 0 ? 'danger' : 'success'}">
-            <span>Χαμένη αξία</span>
+            <span>Χαμένη αξία ωρών</span>
             <strong>${fin.billingType === 'fixed' ? '-' : Utils.formatCurrency(fin.lostBillingValue)}</strong>
           </div>
         </div>
@@ -2675,8 +2878,6 @@ window.JobsView = {
     document.getElementById('jobClient').value = job.clientId;
     document.getElementById('jobTitle').value = job.title || job.type || '';
     document.getElementById('jobStatus').value = job.status || '';
-    document.getElementById('jobRooms').value = job.rooms ? Math.round(job.rooms) : '';
-    document.getElementById('jobArea').value = job.area ? Math.round(job.area) : '';
     const nextVisitEl = document.getElementById('jobNextVisit');
     const visitEndEl = document.getElementById('jobVisitEndDate');
     this.setDateInputValue(nextVisitEl, job.nextVisit);
@@ -2707,6 +2908,11 @@ window.JobsView = {
     if (typeRadio) typeRadio.checked = true;
     const agreedPriceInput = document.getElementById('jobAgreedPrice');
     if (agreedPriceInput) agreedPriceInput.value = parseFloat(job.agreedPrice || job.agreed_price || 0) || 0;
+    // Billing charge toggles
+    const chargeMaterialsCb = document.getElementById('jobChargeMaterials');
+    const chargeKmCb = document.getElementById('jobChargeKm');
+    if (chargeMaterialsCb) chargeMaterialsCb.checked = !!(Number(job.chargeMaterials ?? job.charge_materials ?? 0));
+    if (chargeKmCb) chargeKmCb.checked = !!(Number(job.chargeKm ?? job.charge_km ?? 0));
     this.applyBillingTypeVisibility();
     document.getElementById('jobNotes').value = job.notes || '';
 

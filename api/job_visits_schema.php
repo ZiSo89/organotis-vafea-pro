@@ -46,6 +46,8 @@ function ensure_job_visits_schema($db) {
         $cols = [
             'billing_type' => "ADD COLUMN billing_type varchar(20) NOT NULL DEFAULT 'hourly' COMMENT 'hourly | fixed'",
             'agreed_price' => "ADD COLUMN agreed_price decimal(10,2) NOT NULL DEFAULT 0.00 COMMENT 'Συμφωνημένη τιμή (κατ αποκοπή)'",
+            'charge_materials' => "ADD COLUMN charge_materials tinyint(1) NOT NULL DEFAULT 0 COMMENT 'Χρέωση υλικών στον πελάτη'",
+            'charge_km' => "ADD COLUMN charge_km tinyint(1) NOT NULL DEFAULT 0 COMMENT 'Χρέωση χιλιομέτρων στον πελάτη'",
         ];
         foreach ($cols as $name => $ddl) {
             $exists = $db->query("SHOW COLUMNS FROM jobs LIKE '" . $name . "'")->fetch();

@@ -137,14 +137,14 @@ try {
                 INSERT INTO jobs (
                     client_id, title, type, date, next_visit, visit_end_date, visit_start_time, visit_end_time, visit_all_day,
                     address, rooms, area, materials_cost, kilometers, billing_hours, billing_rate,
-                    billing_type, agreed_price,
+                    billing_type, agreed_price, charge_materials, charge_km,
                     cost_per_km, notes, assigned_workers, paints,
                     status, total_cost, is_paid, coordinates
                 )
                 VALUES (
                     :client_id, :title, :type, :date, :next_visit, :visit_end_date, :visit_start_time, :visit_end_time, :visit_all_day,
                     :address, :rooms, :area, :materials_cost, :kilometers, :billing_hours, :billing_rate,
-                    :billing_type, :agreed_price,
+                    :billing_type, :agreed_price, :charge_materials, :charge_km,
                     :cost_per_km, :notes, :assigned_workers, :paints,
                     :status, :total_cost, :is_paid, :coordinates
                 )
@@ -169,6 +169,8 @@ try {
                 ':billing_rate' => $data['billing_rate'] ?? 50,
                 ':billing_type' => ($data['billing_type'] ?? 'hourly') === 'fixed' ? 'fixed' : 'hourly',
                 ':agreed_price' => $data['agreed_price'] ?? 0,
+                ':charge_materials' => isset($data['charge_materials']) ? (int)$data['charge_materials'] : 0,
+                ':charge_km' => isset($data['charge_km']) ? (int)$data['charge_km'] : 0,
                 ':cost_per_km' => $data['cost_per_km'] ?? 0.5,
                 ':notes' => $data['notes'] ?? null,
                 ':assigned_workers' => encode_job_json_field($input, 'assignedWorkers'),
@@ -247,6 +249,7 @@ try {
                     materials_cost = :materials_cost, kilometers = :kilometers,
                     billing_hours = :billing_hours, billing_rate = :billing_rate,
                     billing_type = :billing_type, agreed_price = :agreed_price,
+                    charge_materials = :charge_materials, charge_km = :charge_km,
                     cost_per_km = :cost_per_km, notes = :notes,
                     assigned_workers = :assigned_workers, paints = :paints,
                     status = :status, total_cost = :total_cost, is_paid = :is_paid,
@@ -274,6 +277,8 @@ try {
                 ':billing_rate' => $data['billing_rate'] ?? 50,
                 ':billing_type' => ($data['billing_type'] ?? 'hourly') === 'fixed' ? 'fixed' : 'hourly',
                 ':agreed_price' => $data['agreed_price'] ?? 0,
+                ':charge_materials' => isset($data['charge_materials']) ? (int)$data['charge_materials'] : 0,
+                ':charge_km' => isset($data['charge_km']) ? (int)$data['charge_km'] : 0,
                 ':cost_per_km' => $data['cost_per_km'] ?? 0.5,
                 ':notes' => $data['notes'] ?? null,
                 ':assigned_workers' => encode_job_json_field($input, 'assignedWorkers'),

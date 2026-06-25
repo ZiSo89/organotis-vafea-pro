@@ -1,4 +1,4 @@
-const APP_VERSION = '20260621a';
+const APP_VERSION = '20260625a';
 const SHELL_CACHE = `shell-${APP_VERSION}`;
 const SHELL_URL = 'index.html';
 
