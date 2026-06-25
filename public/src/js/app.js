@@ -20,6 +20,14 @@ async function refreshIfNeeded(force = false) {
   // Don't fire while the initial boot loading overlay is still up
   if (typeof AppLoading !== 'undefined' && AppLoading.isVisible && AppLoading.isVisible()) return;
 
+  if (typeof window !== 'undefined' && window.ResumeRefreshGuard?.shouldSkipResumeRefresh) {
+    const shouldSkip = window.ResumeRefreshGuard.shouldSkipResumeRefresh(document, window.Modal);
+    if (shouldSkip) {
+      console.log('[App] Skipping resume refresh while a modal/form is active');
+      return;
+    }
+  }
+
   try {
     await State.reload({ silent: true });
     lastDataLoadTime = Date.now();
@@ -267,7 +275,7 @@ if ('serviceWorker' in navigator) {
 
   window.addEventListener('load', async () => {
     try {
-      const registration = await navigator.serviceWorker.register('sw.js?v=20260621a', { scope: './' });
+      const registration = await navigator.serviceWorker.register('sw.js?v=20260626b', { scope: './' });
       registration.update();
     } catch (error) {
       console.warn('[PWA] Service worker registration failed:', error);

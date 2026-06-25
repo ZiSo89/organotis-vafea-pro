@@ -60,16 +60,33 @@ const JobFinancials = {
     }, 0);
   },
 
-  compute(job = {}, options = {}) {
+  toBoolean(value, fallback = false) {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'number') return value !== 0;
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
+      if (['0', 'false', 'no', 'off', ''].includes(normalized)) return false;
+    }
+    return fallback;
+  },
+
+  getOwnerHourlyRateForLost(assignedWorkers = []) {
+    return assignedWorkers.reduce((rate, worker) => {
+      if (this.getWorkerType(worker) !== 'owner') return rate;
+      const r = this.toNumber(worker.hourlyRate ?? worker.hourly_rate);
+      return r > 0 ? r : rate;
+    }, 0);
+  },
+
+  buildSnapshot(job = {}, options = {}) {
     const assignedWorkers = this.parseJsonArray(job.assignedWorkers ?? job.assigned_workers ?? []);
-    const payments = Array.isArray(options.payments) ? options.payments : [];
     const workedTotals = this.getWorkedTimeTotals(assignedWorkers);
 
     const materialsCost = this.toNumber(job.materialsCost ?? job.materials_cost);
     const kilometers = this.toNumber(job.kilometers);
     const costPerKm = this.toNumber(job.costPerKm ?? job.cost_per_km, 0.5);
     const travelCost = kilometers * costPerKm;
-    const totalExpenses = materialsCost + workedTotals.laborCost + travelCost;
 
     const billingType = (job.billingType || job.billing_type) === 'fixed' ? 'fixed' : 'hourly';
     const agreedPrice = this.toNumber(job.agreedPrice ?? job.agreed_price);
@@ -77,54 +94,92 @@ const JobFinancials = {
     const billingRate = this.toNumber(job.billingRate ?? job.billing_rate, 50);
     const explicitBillingAmount = this.toNumber(job.billingAmount ?? job.billing_amount);
     const fallbackTotalCost = this.toNumber(job.totalCost ?? job.total_cost);
+    const chargeMaterials = this.toBoolean(options.chargeMaterials ?? job.chargeMaterials ?? job.charge_materials ?? 0);
+    const chargeKm = this.toBoolean(options.chargeKm ?? job.chargeKm ?? job.charge_km ?? 0);
 
-    let billingAmount = 0;
+    let baseCharge = 0;
     if (billingType === 'fixed' && agreedPrice > 0) {
-      billingAmount = agreedPrice;
+      baseCharge = agreedPrice;
     } else if (billingHours || billingRate) {
-      billingAmount = billingHours * billingRate;
+      baseCharge = billingHours * billingRate;
     }
 
-    if (!billingAmount && explicitBillingAmount) {
-      billingAmount = explicitBillingAmount;
+    if (!baseCharge && explicitBillingAmount) {
+      baseCharge = explicitBillingAmount;
     }
 
-    if (!billingAmount && fallbackTotalCost) {
-      billingAmount = fallbackTotalCost;
+    if (!baseCharge && fallbackTotalCost) {
+      baseCharge = fallbackTotalCost;
     }
+
+    const materialsCharge = chargeMaterials ? materialsCost : 0;
+    const kmCharge = chargeKm ? travelCost : 0;
+    const billingAmount = baseCharge + materialsCharge + kmCharge;
+    const totalExpenses = materialsCost + workedTotals.laborCost + travelCost;
 
     const chargedHours = billingType === 'fixed' ? 0 : billingHours;
     const unbilledHours = billingType === 'fixed' ? 0 : Math.max(0, workedTotals.totalHours - chargedHours);
-    const lostBillingValue = unbilledHours * billingRate;
-    const profit = billingAmount - totalExpenses;
-    const economicProfit = profit - workedTotals.ownerOpportunityCost;
-    const paidAmount = this.getPaymentsTotal(payments);
+    const ownerUnbilledHours = billingType === 'fixed' ? 0 : Math.max(0, workedTotals.ownerHours - chargedHours);
+    const ownerHourlyRateForLost = this.getOwnerHourlyRateForLost(assignedWorkers);
+    const lostBillingValue = ownerHourlyRateForLost > 0
+      ? -(ownerUnbilledHours * ownerHourlyRateForLost)
+      : -(unbilledHours * ownerHourlyRateForLost);
+    const grossProfit = billingAmount - totalExpenses;
+    const ownerTimeValue = workedTotals.ownerOpportunityCost;
+    const netAfterOwnerTime = grossProfit - ownerTimeValue;
+    const profit = grossProfit;
+    const economicProfit = netAfterOwnerTime;
+    const margin = billingAmount > 0 ? (profit / billingAmount) * 100 : null;
 
     return {
       billingType,
       agreedPrice,
       billingHours,
       billingRate,
+      baseCharge,
+      materialsCharge,
+      kmCharge,
+      chargeMaterials,
+      chargeKm,
       billingAmount,
       materialsCost,
       laborCost: workedTotals.laborCost,
       travelCost,
       totalExpenses,
+      grossProfit,
+      ownerTimeValue,
+      netAfterOwnerTime,
       profit,
       economicProfit,
       actualHours: workedTotals.totalHours,
       chargedHours,
       unbilledHours,
+      ownerUnbilledHours,
       lostBillingValue,
       ownerHours: workedTotals.ownerHours,
       ownerOpportunityCost: workedTotals.ownerOpportunityCost,
       visitCount: 0,
-      paidAmount,
-      balance: billingAmount - paidAmount,
       profitPerHour: workedTotals.totalHours > 0 ? profit / workedTotals.totalHours : null,
-      economicProfitPerHour: workedTotals.totalHours > 0 ? economicProfit / workedTotals.totalHours : null
+      economicProfitPerHour: workedTotals.totalHours > 0 ? economicProfit / workedTotals.totalHours : null,
+      margin
+    };
+  },
+
+  compute(job = {}, options = {}) {
+    const snapshot = this.buildSnapshot(job, options);
+    const payments = Array.isArray(options.payments) ? options.payments : [];
+    const paidAmount = this.getPaymentsTotal(payments);
+
+    return {
+      ...snapshot,
+      paidAmount,
+      balance: snapshot.billingAmount - paidAmount,
     };
   }
 };
 
 window.JobFinancials = JobFinancials;
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = JobFinancials;
+}
