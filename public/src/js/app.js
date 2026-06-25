@@ -111,11 +111,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Only hide the loading overlay if we are NOT about to perform a full reload.
     // If a reload was triggered, State.isCoreDataEmpty() is still true and the
     // page is about to restart — leave the overlay up.
-    const willReload = State.isCoreDataEmpty
-      && State.isCoreDataEmpty()
-      && typeof Utils !== 'undefined' && Utils.isPwaInstalled && Utils.isPwaInstalled()
-      && (() => { try { return !!sessionStorage.getItem('pwaColdReloadDone'); } catch (_) { return false; } })();
-    if (!willReload && typeof AppLoading !== 'undefined') AppLoading.hide();
+    const isPwaInstalled = typeof Utils !== 'undefined' && Utils.isPwaInstalled && Utils.isPwaInstalled();
+    const coldReloadAttempted = (() => { try { return !!sessionStorage.getItem('pwaColdReloadDone'); } catch (_) { return false; } })();
+    const shouldKeepLoading = typeof window !== 'undefined' && window.PwaBootstrap && typeof window.PwaBootstrap.shouldKeepLoadingOverlay === 'function'
+      ? window.PwaBootstrap.shouldKeepLoadingOverlay({
+          data: State.data,
+          isPwaInstalled,
+          sessionStorageValue: coldReloadAttempted ? '1' : null
+        })
+      : false;
+
+    if (!shouldKeepLoading && typeof AppLoading !== 'undefined') AppLoading.hide();
   }
 
   // Setup global event listeners

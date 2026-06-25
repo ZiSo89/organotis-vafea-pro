@@ -191,6 +191,8 @@ CREATE TABLE `jobs` (
   `billing_rate` decimal(10,2) DEFAULT 0.00,
   `billing_type` varchar(20) NOT NULL DEFAULT 'hourly' COMMENT 'hourly | fixed',
   `agreed_price` decimal(10,2) NOT NULL DEFAULT 0.00 COMMENT 'Συμφωνημένη τιμή (κατ αποκοπή)',
+  `charge_materials` tinyint(1) NOT NULL DEFAULT 0 COMMENT 'Χρέωση υλικών στον πελάτη',
+  `charge_km` tinyint(1) NOT NULL DEFAULT 0 COMMENT 'Χρέωση χιλιομέτρων στον πελάτη',
   `cost_per_km` decimal(10,2) DEFAULT 0.50,
   `notes` text DEFAULT NULL,
   `assigned_workers` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`assigned_workers`)),

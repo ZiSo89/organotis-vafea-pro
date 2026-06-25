@@ -98,12 +98,20 @@ const State = {
     }
   },
 
+  hasCoreData() {
+    if (typeof window !== 'undefined' && window.PwaBootstrap && typeof window.PwaBootstrap.hasCoreData === 'function') {
+      return window.PwaBootstrap.hasCoreData(this.data);
+    }
+
+    const d = this.data || {};
+    return ['clients', 'jobs', 'suppliers', 'inventory'].some(
+      (key) => Array.isArray(d[key]) && d[key].length > 0
+    );
+  },
+
   /** True when all core collections are empty (likely a failed cold-start load). */
   isCoreDataEmpty() {
-    const d = this.data || {};
-    return ['clients', 'jobs', 'suppliers', 'inventory'].every(
-      (key) => !Array.isArray(d[key]) || d[key].length === 0
-    );
+    return !this.hasCoreData();
   },
 
   /**
@@ -113,8 +121,8 @@ const State = {
    * then re-render. No toasts, no full-page reload.
    */
   async ensureDataReady() {
-    if (typeof window.electronAPI !== 'undefined') return;
-    if (this._ensureDone) return;
+    if (typeof window.electronAPI !== 'undefined') return true;
+    if (this._ensureDone) return this.hasCoreData();
     this._ensureDone = true;
 
     // Always wire up event-driven recovery: on a cold PWA launch the network
@@ -152,7 +160,7 @@ const State = {
       if (!this.isCoreDataEmpty()) {
         console.log(`[State] Data ready after retry #${attempt + 1}`);
         this.rerenderCurrentView();
-        if (!this.loadHadErrors) return;
+        if (!this.loadHadErrors) return true;
       }
     }
 
@@ -189,6 +197,8 @@ const State = {
         }
       } catch (_) {}
     }
+
+    return this.hasCoreData();
   },
 
   /**
