@@ -11,10 +11,10 @@ window.JobsView = {
     { id: 'details', label: 'Υλικά', icon: 'fas fa-boxes' },
     { id: 'workers', label: 'Συνεργείο', icon: 'fas fa-users' },
     { id: 'billing', label: 'Χρέωση', icon: 'fas fa-receipt' },
-    { id: 'payments', label: 'Πληρωμές', icon: 'fas fa-hand-holding-usd' },
-    { id: 'notes', label: 'Σύνοψη & Σημειώσεις', icon: 'fas fa-clipboard-check' }
+    { id: 'notes', label: 'Σύνοψη & Σημειώσεις', icon: 'fas fa-clipboard-check' },
+    { id: 'payments', label: 'Πληρωμές', icon: 'fas fa-hand-holding-usd' }
   ],
-  financialStepIds: ['workers', 'billing', 'payments', 'notes'],
+  financialStepIds: ['workers', 'billing', 'notes', 'payments'],
   currentStepIndex: 0,
   draftPayments: [],
   formDirty: false,
