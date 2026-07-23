@@ -31,10 +31,32 @@ function ensure_job_visit_columns($db) {
     $done = true;
 }
 
-/** Μία επίσκεψη ανά εργασία — αφαίρεση διπλότυπων. */
+/** Σύνδεση calendar_events ↔ job_visits (συνεδρίες Start/Stop). */
+function ensure_calendar_job_visit_link($db) {
+    static $done = false;
+    if ($done) return;
+    try {
+        $exists = $db->query("SHOW COLUMNS FROM calendar_events LIKE 'job_visit_id'")->fetch();
+        if (!$exists) {
+            $db->exec("ALTER TABLE calendar_events ADD COLUMN job_visit_id int(11) DEFAULT NULL COMMENT 'Συνεδρία job_visits (Start/Stop)' AFTER job_id");
+            $db->exec("ALTER TABLE calendar_events ADD KEY idx_calendar_events_job_visit_id (job_visit_id)");
+        }
+    } catch (Exception $e) {
+        error_log('ensure_calendar_job_visit_link: ' . $e->getMessage());
+    }
+    $done = true;
+}
+
+/** Μία προγραμματισμένη επίσκεψη ανά εργασία — αφαίρεση διπλότυπων (όχι session events). */
 function dedupe_calendar_events_for_job($db, $jobId, $keepId = null) {
     if (!$jobId) return;
-    $stmt = $db->prepare("SELECT id FROM calendar_events WHERE job_id = ? ORDER BY id ASC");
+    ensure_calendar_job_visit_link($db);
+    $stmt = $db->prepare("
+        SELECT id FROM calendar_events
+        WHERE job_id = ?
+          AND (job_visit_id IS NULL OR job_visit_id = 0)
+        ORDER BY id ASC
+    ");
     $stmt->execute([$jobId]);
     $ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
     if (count($ids) <= 1) return;
@@ -105,7 +127,9 @@ function reconcile_jobs_missing_calendar_visit($db) {
             WHERE j.next_visit IS NOT NULL
               AND j.next_visit != '0000-00-00'
               AND NOT EXISTS (
-                  SELECT 1 FROM calendar_events ce WHERE ce.job_id = j.id
+                  SELECT 1 FROM calendar_events ce
+                  WHERE ce.job_id = j.id
+                    AND (ce.job_visit_id IS NULL OR ce.job_visit_id = 0)
               )
         ");
         $stmt->execute();
@@ -117,7 +141,7 @@ function reconcile_jobs_missing_calendar_visit($db) {
                 UPDATE jobs j
                 SET j.next_visit = NULL, j.updated_at = NOW()
                 WHERE j.next_visit IS NOT NULL
-                  AND NOT EXISTS (SELECT 1 FROM calendar_events ce WHERE ce.job_id = j.id)
+                  AND NOT EXISTS (SELECT 1 FROM calendar_events ce WHERE ce.job_id = j.id AND (ce.job_visit_id IS NULL OR ce.job_visit_id = 0))
             ");
             $stmt->execute();
             return (int) $stmt->rowCount();

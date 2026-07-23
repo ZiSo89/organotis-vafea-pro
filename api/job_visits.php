@@ -135,6 +135,10 @@ try {
                 $stmt->execute([$_GET['job_id']]);
                 $visit = $stmt->fetch();
                 sendSuccess($visit ? format_visit_row($visit) : null);
+            } elseif (isset($_GET['active'])) {
+                // Όλες οι ενεργές συνεδρίες (για Start/Stop στη λίστα εργασιών)
+                $stmt = $db->query(visit_select_sql() . " WHERE jv.is_active = 1 ORDER BY jv.id DESC");
+                sendSuccess(array_map('format_visit_row', $stmt->fetchAll()));
             } elseif (isset($_GET['job_id'])) {
                 $stmt = $db->prepare(visit_select_sql() . " WHERE jv.job_id = ? ORDER BY jv.visit_date DESC, jv.id DESC");
                 $stmt->execute([$_GET['job_id']]);
