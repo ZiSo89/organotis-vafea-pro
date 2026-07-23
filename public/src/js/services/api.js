@@ -466,6 +466,10 @@ class APIService {
         return await this.get(`/job_visits.php?job_id=${encodeURIComponent(jobId)}&active=1`);
     }
 
+    async getActiveJobActivities() {
+        return await this.get('/job_visits.php?active=1');
+    }
+
     async getJobVisits(jobId) {
         return await this.get(`/job_visits.php?job_id=${encodeURIComponent(jobId)}`);
     }

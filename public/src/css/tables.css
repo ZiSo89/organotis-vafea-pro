@@ -177,6 +177,21 @@ th:not(:last-child) {
   box-shadow: var(--shadow-danger);
 }
 
+.btn-icon.btn-success {
+  color: var(--success, #10b981);
+}
+
+.btn-icon.btn-success:hover {
+  background: var(--success, #10b981);
+  color: white;
+  border-color: var(--success, #10b981);
+}
+
+.btn-icon.job-list-activity-btn.is-active {
+  color: var(--color-danger);
+  border-color: color-mix(in srgb, var(--color-danger) 35%, var(--color-border));
+}
+
 .btn-icon i {
   font-size: var(--font-size-sm);
 }

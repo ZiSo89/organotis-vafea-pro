@@ -2071,6 +2071,13 @@
   color: #fff;
 }
 
+.entity-mobile-card-actions .btn-icon.btn-success:hover,
+.entity-mobile-card-actions .btn-icon.btn-success:focus-visible {
+  background: var(--success, #10b981);
+  border-color: var(--success, #10b981);
+  color: #fff;
+}
+
 .entity-mobile-card-meta {
   display: flex;
   flex-direction: column;

@@ -296,6 +296,8 @@ window.JobsView = {
 
   assignedWorkers: [], // Array to hold workers assigned to current job
   assignedPaints: [], // Legacy DB field: UI treats these rows as job materials
+  activeActivityByJobId: {},
+  listActivityTimerId: null,
   tableClickHandler: null,
   // Store all event handlers to prevent duplicates
   formSubmitHandler: null,
@@ -799,6 +801,7 @@ window.JobsView = {
     // Setup event listeners after render
     this.setupEventListeners();
     this.setupLazyTable(jobs);
+    this.loadActiveJobActivities();
 
     if (params?.clientId) {
       setTimeout(() => {
@@ -1025,11 +1028,16 @@ window.JobsView = {
       
       // Create new handler
       this.tableClickHandler = (e) => {
+        const activityBtn = e.target.closest('.job-list-activity-btn');
         const viewBtn = e.target.closest('.view-job-btn');
         const editBtn = e.target.closest('.edit-job-btn');
         const deleteBtn = e.target.closest('.delete-job-btn');
-        
-        if (viewBtn) {
+
+        if (activityBtn) {
+          e.preventDefault();
+          e.stopPropagation();
+          this.toggleListJobActivity(activityBtn.dataset.jobId);
+        } else if (viewBtn) {
           e.preventDefault();
           e.stopPropagation();
           const jobId = viewBtn.dataset.jobId;
@@ -1096,6 +1104,7 @@ window.JobsView = {
             return `
             <tr>
               <td class="actions">
+                ${this.renderListActivityButton(job)}
                 ${UIPrimitives.actionButton({ className: 'view-job-btn', icon: 'fas fa-eye', title: 'Προβολή', data: { 'job-id': job.id } })}
                 ${UIPrimitives.actionButton({ className: 'edit-job-btn', icon: 'fas fa-edit', title: 'Επεξεργασία', data: { 'job-id': job.id } })}
                 ${UIPrimitives.actionButton({ className: 'btn-danger delete-job-btn', icon: 'fas fa-trash', title: 'Διαγραφή', data: { 'job-id': job.id } })}
@@ -1126,6 +1135,7 @@ window.JobsView = {
                   <span>${UIPrimitives.statusBadge(Utils.translateStatus(job.status), job.status || 'unknown')}</span>
                 </div>
                 <div class="entity-mobile-card-actions">
+                  ${this.renderListActivityButton(job)}
                   ${UIPrimitives.actionButton({ className: 'view-job-btn', icon: 'fas fa-eye', title: 'Προβολή', data: { 'job-id': job.id } })}
                   ${UIPrimitives.actionButton({ className: 'edit-job-btn', icon: 'fas fa-edit', title: 'Επεξεργασία', data: { 'job-id': job.id } })}
                   ${UIPrimitives.actionButton({ className: 'btn-danger delete-job-btn', icon: 'fas fa-trash', title: 'Διαγραφή', data: { 'job-id': job.id } })}
@@ -1148,6 +1158,116 @@ window.JobsView = {
   getClientName(clientId) {
     const client = State.data.clients.find(c => Number(c.id) === Number(clientId));
     return client ? client.name : 'Άγνωστος';
+  },
+
+  getJobCrew(jobId) {
+    const id = Number(jobId);
+    if (Number(this.currentEdit) === id && Array.isArray(this.assignedWorkers) && this.assignedWorkers.length) {
+      return this.assignedWorkers;
+    }
+    const job = State.read('jobs', id);
+    const crew = job?.assignedWorkers ?? job?.assigned_workers ?? [];
+    return Array.isArray(crew) ? crew : [];
+  },
+
+  renderListActivityButton(job) {
+    const session = this.activeActivityByJobId[Number(job.id)];
+    const isActive = this.isVisitActive(session);
+    const className = isActive
+      ? 'btn-danger job-list-activity-btn is-active'
+      : 'btn-success job-list-activity-btn';
+    const icon = isActive ? 'fas fa-stop' : 'fas fa-play';
+    const title = isActive
+      ? `Stop ${this.formatActivityElapsed(session)}`
+      : 'Έναρξη δραστηριότητας';
+    return UIPrimitives.actionButton({
+      className,
+      icon,
+      title,
+      data: { 'job-id': job.id }
+    });
+  },
+
+  async loadActiveJobActivities() {
+    try {
+      const response = await API.getActiveJobActivities();
+      const visits = response?.data ?? response ?? [];
+      const map = {};
+      (Array.isArray(visits) ? visits : []).forEach(visit => {
+        if (!this.isVisitActive(visit)) return;
+        const jobId = Number(visit.jobId ?? visit.job_id);
+        if (jobId) map[jobId] = visit;
+      });
+      this.activeActivityByJobId = map;
+    } catch (_) {
+      this.activeActivityByJobId = {};
+    }
+    this.syncListActivityButtons();
+  },
+
+  setActiveActivityForJob(jobId, session) {
+    const id = Number(jobId);
+    if (!id) return;
+    if (this.isVisitActive(session)) {
+      this.activeActivityByJobId[id] = session;
+    } else {
+      delete this.activeActivityByJobId[id];
+    }
+    this.syncListActivityButtons();
+  },
+
+  syncListActivityButtons() {
+    document.querySelectorAll('.job-list-activity-btn').forEach(btn => {
+      const jobId = Number(btn.dataset.jobId);
+      const session = this.activeActivityByJobId[jobId];
+      const isActive = this.isVisitActive(session);
+      btn.classList.toggle('btn-danger', isActive);
+      btn.classList.toggle('btn-success', !isActive);
+      btn.classList.toggle('is-active', isActive);
+      const icon = btn.querySelector('i');
+      if (icon) icon.className = isActive ? 'fas fa-stop' : 'fas fa-play';
+      btn.title = isActive
+        ? `Stop ${this.formatActivityElapsed(session)}`
+        : 'Έναρξη δραστηριότητας';
+    });
+    this.syncListActivityTimer();
+  },
+
+  syncListActivityTimer() {
+    if (this.listActivityTimerId) clearInterval(this.listActivityTimerId);
+    this.listActivityTimerId = null;
+    const hasActive = Object.values(this.activeActivityByJobId || {}).some(session => this.isVisitActive(session));
+    if (!hasActive) return;
+    this.listActivityTimerId = setInterval(() => {
+      document.querySelectorAll('.job-list-activity-btn.is-active').forEach(btn => {
+        const session = this.activeActivityByJobId[Number(btn.dataset.jobId)];
+        if (this.isVisitActive(session)) {
+          btn.title = `Stop ${this.formatActivityElapsed(session)}`;
+        }
+      });
+    }, 1000);
+  },
+
+  async toggleListJobActivity(jobId) {
+    const id = Number(jobId);
+    if (!id) return;
+    const session = this.activeActivityByJobId[id];
+    if (!this.isVisitActive(session)) {
+      this.openActivityWorkerSelection(id);
+      return;
+    }
+    try {
+      await API.toggleJobActivity(id, { jobId: id });
+      this.setActiveActivityForJob(id, null);
+      if (Number(this.currentEdit) === id) {
+        this.currentActivitySession = null;
+        this.syncJobActivityButtonState();
+        await this.refreshJobVisits();
+      }
+      Toast.success('Η δραστηριότητα σταμάτησε');
+    } catch (error) {
+      Toast.error(error?.message || 'Αδυναμία διακοπής δραστηριότητας');
+    }
   },
 
   syncJobActivityButtonState() {
@@ -1202,8 +1322,10 @@ window.JobsView = {
       const response = await API.getActiveJobActivity(this.currentEdit);
       const session = response?.data || response;
       this.currentActivitySession = this.isVisitActive(session) ? session : null;
+      this.setActiveActivityForJob(this.currentEdit, this.currentActivitySession);
     } catch (error) {
       this.currentActivitySession = null;
+      this.setActiveActivityForJob(this.currentEdit, null);
     }
     this.syncJobActivityButtonState();
     await this.refreshJobVisits();
@@ -1215,7 +1337,7 @@ window.JobsView = {
       return;
     }
     if (!this.isVisitActive(this.currentActivitySession)) {
-      this.openActivityWorkerSelection();
+      this.openActivityWorkerSelection(this.currentEdit);
       return;
     }
     try {
@@ -1223,6 +1345,7 @@ window.JobsView = {
       const response = await API.toggleJobActivity(this.currentEdit, payload);
       const session = response?.data || response;
       this.currentActivitySession = session || { isActive: false };
+      this.setActiveActivityForJob(this.currentEdit, this.currentActivitySession);
       this.syncJobActivityButtonState();
       await this.refreshJobVisits();
       const isActive = this.isVisitActive(this.currentActivitySession);
@@ -1232,11 +1355,12 @@ window.JobsView = {
     }
   },
 
-  openActivityWorkerSelection() {
-    if (!this.currentEdit) return Toast.warning('Αποθηκεύστε πρώτα την εργασία για να ξεκινήσει η συνεδρία.');
-    const crew = Array.isArray(this.assignedWorkers) ? this.assignedWorkers : [];
+  openActivityWorkerSelection(jobId = this.currentEdit) {
+    const id = Number(jobId);
+    if (!id) return Toast.warning('Αποθηκεύστε πρώτα την εργασία για να ξεκινήσει η συνεδρία.');
+    const crew = this.getJobCrew(id);
     if (!crew.length) return Toast.warning('Προσθέστε τουλάχιστον έναν εργαζόμενο στο τρέχον συνεργείο.');
-    const rows = crew.map((worker, index) => `<label class="activity-worker-option"><input class="activity-worker-checkbox" data-index="${index}" type="checkbox" checked><span class="activity-worker-option-copy"><strong>${Utils.escapeHtml(worker.workerName || 'Εργαζόμενος')}</strong>${(worker.workerSpecialty || worker.specialty) ? `<small>${Utils.escapeHtml(worker.workerSpecialty || worker.specialty)}</small>` : ''}</span></label>`).join('');
+    const rows = crew.map((worker, index) => `<label class="activity-worker-option"><input class="activity-worker-checkbox" data-index="${index}" type="checkbox" checked><span class="activity-worker-option-copy"><strong>${Utils.escapeHtml(worker.workerName || worker.worker_name || 'Εργαζόμενος')}</strong>${(worker.workerSpecialty || worker.specialty) ? `<small>${Utils.escapeHtml(worker.workerSpecialty || worker.specialty)}</small>` : ''}</span></label>`).join('');
     const modal = Modal.open({
       title: '<i class="fas fa-users"></i> Επιλογή εργαζομένων', size: 'sm',
       content: `<section class="activity-worker-selection"><p class="activity-worker-selection-label">Τρέχον συνεργείο</p><p class="activity-worker-selection-count" id="activityWorkerCount">Επιλεγμένοι: ${crew.length} / ${crew.length}</p><div class="activity-worker-options">${rows}</div></section>`,
@@ -1254,9 +1378,15 @@ window.JobsView = {
       const workers = selected();
       if (!workers.length) return;
       try {
-        const response = await API.toggleJobActivity(this.currentEdit, { jobId: Number(this.currentEdit), workers, notes: `Συνεργείο ${workers.length} ατόμων` });
-        this.currentActivitySession = response?.data || response;
-        Modal.close(); this.syncJobActivityButtonState(); await this.refreshJobVisits();
+        const response = await API.toggleJobActivity(id, { jobId: id, workers, notes: `Συνεργείο ${workers.length} ατόμων` });
+        const session = response?.data || response;
+        this.setActiveActivityForJob(id, session);
+        if (Number(this.currentEdit) === id) {
+          this.currentActivitySession = session;
+          this.syncJobActivityButtonState();
+          await this.refreshJobVisits();
+        }
+        Modal.close();
         Toast.success('Η δραστηριότητα ξεκίνησε');
       } catch (error) { Toast.error(error?.message || 'Αδυναμία έναρξης δραστηριότητας'); }
     };
@@ -2699,6 +2829,7 @@ window.JobsView = {
   refreshTable() {
     const jobs = State.read('jobs') || [];
     this.renderTableWithLazy(jobs, { reset: true });
+    this.loadActiveJobActivities();
   },
 
   renderTableWithLazy(jobs, { reset = false } = {}) {
@@ -4192,6 +4323,11 @@ window.JobsView = {
     document.getElementById('addWorkerToJobBtn')?.removeEventListener('click', this.addWorkerBtnHandler);
     document.getElementById('addPaintBtn')?.removeEventListener('click', this.addPaintBtnHandler);
     document.getElementById('contentArea')?.removeEventListener('click', this.tableClickHandler);
+
+    if (this.activityTimerId) clearInterval(this.activityTimerId);
+    this.activityTimerId = null;
+    if (this.listActivityTimerId) clearInterval(this.listActivityTimerId);
+    this.listActivityTimerId = null;
 
     Object.entries(this.costFieldHandlers).forEach(([fieldId, handler]) => {
       document.getElementById(fieldId)?.removeEventListener('input', handler);
