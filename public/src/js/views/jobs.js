@@ -18,6 +18,11 @@ window.JobsView = {
   currentStepIndex: 0,
   draftPayments: [],
   formDirty: false,
+  currentActivitySession: null,
+  currentJobVisits: [],
+  assignedWorkersBase: [],
+  activityTimerId: null,
+  jobActivityToggleHandler: null,
 
   isFinancialStep(stepId) {
     return this.financialStepIds.includes(stepId);
@@ -493,7 +498,14 @@ window.JobsView = {
                   <i class="fas fa-user-plus"></i> Προσθήκη
                 </button>
               </div>
+              <div class="cost-panel-header compact" style="margin-top: 0; margin-bottom: 1rem;">
+                <div></div>
+                <button type="button" class="btn btn-success" id="jobActivityToggleBtn" title="Έναρξη/Διακοπή δραστηριότητας">
+                  <i class="fas fa-play"></i> <span class="job-activity-toggle-label">Start</span>
+                </button>
+              </div>
               <div id="assignedWorkersContainer" class="worker-compact-list"></div>
+              <div id="jobVisitsContainer" class="job-visits-list" aria-live="polite"></div>
 
               <!-- Σύνοψη εξόδων (ήταν στο tab Έξοδα) -->
               <div class="cost-metric-list" style="margin-top: var(--spacing-md, 1rem);">
@@ -939,6 +951,15 @@ window.JobsView = {
       addWorkerBtn.addEventListener('click', this.addWorkerBtnHandler);
     }
 
+    const activityToggleBtn = document.getElementById('jobActivityToggleBtn');
+    if (activityToggleBtn) {
+      if (this.jobActivityToggleHandler) {
+        activityToggleBtn.removeEventListener('click', this.jobActivityToggleHandler);
+      }
+      this.jobActivityToggleHandler = () => this.toggleJobActivity();
+      activityToggleBtn.addEventListener('click', this.jobActivityToggleHandler);
+    }
+
     // Add Paint button
     const addPaintBtn = document.getElementById('addPaintBtn');
     if (addPaintBtn) {
@@ -1129,9 +1150,222 @@ window.JobsView = {
     return client ? client.name : 'Άγνωστος';
   },
 
+  syncJobActivityButtonState() {
+    const btn = document.getElementById('jobActivityToggleBtn');
+    if (!btn) return;
+    const isActive = this.isVisitActive(this.currentActivitySession);
+    btn.disabled = false;
+    const icon = btn.querySelector('i');
+    const label = btn.querySelector('.job-activity-toggle-label');
+    if (icon) {
+      icon.className = isActive ? 'fas fa-stop' : 'fas fa-play';
+    }
+    if (label) {
+      label.textContent = isActive ? `Stop ${this.formatActivityElapsed(this.currentActivitySession)}` : 'Start';
+    }
+    btn.classList.toggle('btn-success', !isActive);
+    btn.classList.toggle('btn-danger', isActive);
+    btn.title = isActive ? 'Διακοπή δραστηριότητας' : 'Έναρξη δραστηριότητας';
+    this.syncActivityTimer();
+  },
+
+  parseVisitDateTime(value) {
+    if (!value) return null;
+    const date = new Date(String(value).replace(' ', 'T'));
+    return Number.isNaN(date.getTime()) ? null : date;
+  },
+
+  formatActivityElapsed(session) {
+    const startedAt = this.parseVisitDateTime(session?.sessionStartedAt ?? session?.session_started_at);
+    const seconds = startedAt ? Math.max(0, Math.floor((Date.now() - startedAt.getTime()) / 1000)) : 0;
+    return [Math.floor(seconds / 3600), Math.floor((seconds % 3600) / 60), seconds % 60]
+      .map(value => String(value).padStart(2, '0')).join(':');
+  },
+
+  syncActivityTimer() {
+    if (this.activityTimerId) clearInterval(this.activityTimerId);
+    this.activityTimerId = null;
+    if (!this.isVisitActive(this.currentActivitySession)) return;
+    this.activityTimerId = setInterval(() => {
+      const label = document.querySelector('#jobActivityToggleBtn .job-activity-toggle-label');
+      if (label && this.currentActivitySession) label.textContent = `Stop ${this.formatActivityElapsed(this.currentActivitySession)}`;
+    }, 1000);
+  },
+
+  async refreshJobActivityState() {
+    if (!this.currentEdit) {
+      this.currentActivitySession = null;
+      this.syncJobActivityButtonState();
+      return;
+    }
+    try {
+      const response = await API.getActiveJobActivity(this.currentEdit);
+      const session = response?.data || response;
+      this.currentActivitySession = this.isVisitActive(session) ? session : null;
+    } catch (error) {
+      this.currentActivitySession = null;
+    }
+    this.syncJobActivityButtonState();
+    await this.refreshJobVisits();
+  },
+
+  async toggleJobActivity() {
+    if (!this.currentEdit) {
+      Toast.warning('Αποθηκεύστε πρώτα την εργασία για να ξεκινήσει η δραστηριότητα');
+      return;
+    }
+    if (!this.isVisitActive(this.currentActivitySession)) {
+      this.openActivityWorkerSelection();
+      return;
+    }
+    try {
+      const payload = { jobId: Number(this.currentEdit) };
+      const response = await API.toggleJobActivity(this.currentEdit, payload);
+      const session = response?.data || response;
+      this.currentActivitySession = session || { isActive: false };
+      this.syncJobActivityButtonState();
+      await this.refreshJobVisits();
+      const isActive = this.isVisitActive(this.currentActivitySession);
+      Toast.success(isActive ? 'Η δραστηριότητα ξεκίνησε' : 'Η δραστηριότητα σταμάτησε');
+    } catch (error) {
+      Toast.error(error?.message || 'Αδυναμία αλλαγής δραστηριότητας');
+    }
+  },
+
+  openActivityWorkerSelection() {
+    if (!this.currentEdit) return Toast.warning('Αποθηκεύστε πρώτα την εργασία για να ξεκινήσει η συνεδρία.');
+    const crew = Array.isArray(this.assignedWorkers) ? this.assignedWorkers : [];
+    if (!crew.length) return Toast.warning('Προσθέστε τουλάχιστον έναν εργαζόμενο στο τρέχον συνεργείο.');
+    const rows = crew.map((worker, index) => `<label class="activity-worker-option"><input class="activity-worker-checkbox" data-index="${index}" type="checkbox" checked><span class="activity-worker-option-copy"><strong>${Utils.escapeHtml(worker.workerName || 'Εργαζόμενος')}</strong>${(worker.workerSpecialty || worker.specialty) ? `<small>${Utils.escapeHtml(worker.workerSpecialty || worker.specialty)}</small>` : ''}</span></label>`).join('');
+    const modal = Modal.open({
+      title: '<i class="fas fa-users"></i> Επιλογή εργαζομένων', size: 'sm',
+      content: `<section class="activity-worker-selection"><p class="activity-worker-selection-label">Τρέχον συνεργείο</p><p class="activity-worker-selection-count" id="activityWorkerCount">Επιλεγμένοι: ${crew.length} / ${crew.length}</p><div class="activity-worker-options">${rows}</div></section>`,
+      footer: '<button class="btn-ghost" id="cancelActivityStartBtn">Ακύρωση</button><button class="btn btn-success" id="confirmActivityStartBtn"><i class="fas fa-play"></i> Start</button>'
+    });
+    const selected = () => [...modal.querySelectorAll('.activity-worker-checkbox:checked')].map(input => crew[Number(input.dataset.index)]);
+    const update = () => {
+      const count = selected().length;
+      modal.querySelector('#activityWorkerCount').textContent = `Επιλεγμένοι: ${count} / ${crew.length}`;
+      modal.querySelector('#confirmActivityStartBtn').disabled = count === 0;
+    };
+    modal.querySelectorAll('.activity-worker-checkbox').forEach(input => input.addEventListener('change', update));
+    modal.querySelector('#cancelActivityStartBtn').onclick = () => Modal.close();
+    modal.querySelector('#confirmActivityStartBtn').onclick = async () => {
+      const workers = selected();
+      if (!workers.length) return;
+      try {
+        const response = await API.toggleJobActivity(this.currentEdit, { jobId: Number(this.currentEdit), workers, notes: `Συνεργείο ${workers.length} ατόμων` });
+        this.currentActivitySession = response?.data || response;
+        Modal.close(); this.syncJobActivityButtonState(); await this.refreshJobVisits();
+        Toast.success('Η δραστηριότητα ξεκίνησε');
+      } catch (error) { Toast.error(error?.message || 'Αδυναμία έναρξης δραστηριότητας'); }
+    };
+  },
+
+  async refreshJobVisits() {
+    const container = document.getElementById('jobVisitsContainer');
+    if (!container) return;
+    if (!this.currentEdit) { container.innerHTML = ''; return; }
+    try {
+      const response = await API.getJobVisits(this.currentEdit);
+      this.currentJobVisits = response?.data || response || [];
+      this.applyVisitDurationsToWorkers();
+      this.renderJobVisits();
+    } catch (_) { container.innerHTML = '<p class="text-muted">Δεν ήταν δυνατή η φόρτωση των επισκέψεων.</p>'; }
+  },
+
+  formatVisitTime(value) {
+    const date = this.parseVisitDateTime(value);
+    return date ? date.toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit' }) : '—';
+  },
+
+  isVisitActive(visit) {
+    const value = visit?.isActive ?? visit?.is_active;
+    return value === true || Number(value) === 1;
+  },
+
+  applyVisitDurationsToWorkers() {
+    const baseWorkers = Array.isArray(this.assignedWorkersBase) && this.assignedWorkersBase.length
+      ? this.assignedWorkersBase
+      : this.assignedWorkers;
+    if (!Array.isArray(baseWorkers) || !baseWorkers.length) return;
+
+    const workers = baseWorkers.map(worker => ({ ...worker }));
+    (this.currentJobVisits || []).forEach(visit => {
+      if (this.isVisitActive(visit)) return;
+      const hours = (Number(visit.sessionDurationMinutes ?? visit.session_duration_minutes ?? 0) || 0) / 60;
+      if (!hours) return;
+      const visitWorkers = Array.isArray(visit.workers) && visit.workers.length ? visit.workers : this.assignedWorkersBase;
+      visitWorkers.forEach(visitWorker => {
+        const worker = workers.find(item => Number(item.workerId ?? item.worker_id) === Number(visitWorker.workerId ?? visitWorker.worker_id));
+        if (!worker) return;
+        const currentHours = Number(worker.hoursAllocated ?? worker.hours_allocated ?? 0) || 0;
+        const nextHours = currentHours + hours;
+        worker.hoursAllocated = nextHours;
+        worker.hours_allocated = nextHours;
+        const rate = Number(worker.hourlyRate ?? worker.hourly_rate ?? 0) || 0;
+        worker.laborCost = this.getWorkerType(worker) === 'owner' ? 0 : nextHours * rate;
+      });
+    });
+    this.assignedWorkers = workers;
+    this.renderAssignedWorkers();
+    this.calculateCost();
+  },
+
+  renderJobVisits() {
+    const container = document.getElementById('jobVisitsContainer');
+    if (!container) return;
+    const visits = Array.isArray(this.currentJobVisits) ? this.currentJobVisits : [];
+    if (!visits.length) { container.innerHTML = '<p class="text-muted" style="margin:16px 0 0;">Δεν υπάρχουν καταχωρημένες επισκέψεις.</p>'; return; }
+    container.innerHTML = `<div style="margin-top:16px;"><h5 style="margin:0 0 8px;">Επισκέψεις</h5><div class="text-muted" style="display:grid; grid-template-columns:1fr repeat(3, auto); gap:12px; font-size:.8rem; padding-bottom:4px;"><span>Ημερομηνία</span><span>Έναρξη</span><span>Λήξη</span><span>Διάρκεια</span></div>${visits.map(visit => {
+      const duration = Number(visit.sessionDurationMinutes ?? visit.session_duration_minutes ?? 0);
+      const durationText = duration ? `${Math.floor(duration / 60)}ω ${String(duration % 60).padStart(2, '0')}λ` : (this.isVisitActive(visit) ? this.formatActivityElapsed(visit) : '—');
+      const workerNames = (visit.workers || []).map(worker => worker.workerName || worker.worker_name).filter(Boolean).join(', ') || 'Χωρίς εργαζόμενο';
+      return `<button type="button" class="job-visit-row" data-visit-id="${visit.id}" style="width:100%; text-align:left; border:0; border-top:1px solid var(--border-color, #e5e7eb); background:transparent; padding:10px 0; cursor:pointer; display:grid; grid-template-columns:1fr repeat(3, auto); gap:12px;"><span><strong>${Utils.escapeHtml(Utils.formatDate(visit.visitDate ?? visit.visit_date))}</strong><small style="display:block; color:var(--text-muted); margin-top:3px;">${Utils.escapeHtml(workerNames)}</small></span><span>${this.formatVisitTime(visit.sessionStartedAt ?? visit.session_started_at)}</span><span>${this.formatVisitTime(visit.sessionEndedAt ?? visit.session_ended_at)}</span><span>${durationText}</span></button>`;
+    }).join('')}</div>`;
+    container.querySelectorAll('.job-visit-row').forEach(button => button.onclick = () => {
+      const visit = visits.find(item => Number(item.id) === Number(button.dataset.visitId));
+      if (visit) this.openJobVisitEditor(visit);
+    });
+  },
+
+  openJobVisitEditor(visit) {
+    const start = this.parseVisitDateTime(visit.sessionStartedAt ?? visit.session_started_at);
+    const end = this.parseVisitDateTime(visit.sessionEndedAt ?? visit.session_ended_at);
+    const dateValue = String(visit.visitDate ?? visit.visit_date ?? '').substring(0, 10);
+    const timeValue = date => date ? date.toTimeString().substring(0, 5) : '';
+    const visitWorkers = Array.isArray(visit.workers) && visit.workers.length ? visit.workers : this.assignedWorkersBase;
+    const modal = Modal.open({ title: '<i class="fas fa-edit"></i> Επεξεργασία επίσκεψης', size: 'sm', content: `<div class="form-grid"><div class="form-group"><label>Ημερομηνία</label><input id="editJobVisitDate" type="date" value="${dateValue}"></div><div class="form-group"><label>Έναρξη</label><input id="editJobVisitStart" type="time" value="${timeValue(start)}"></div><div class="form-group"><label>Λήξη</label><input id="editJobVisitEnd" type="time" value="${timeValue(end)}"></div></div>`, footer: '<button class="btn btn-danger" id="deleteJobVisitBtn"><i class="fas fa-trash"></i> Διαγραφή</button><button class="btn-ghost" id="cancelJobVisitEditBtn">Ακύρωση</button><button class="btn-primary" id="saveJobVisitEditBtn"><i class="fas fa-save"></i> Αποθήκευση</button>' });
+    modal.querySelector('#cancelJobVisitEditBtn').onclick = () => Modal.close();
+    modal.querySelector('#deleteJobVisitBtn').onclick = async () => {
+      const confirmed = await Modal.confirm({ title: 'Διαγραφή επίσκεψης', message: 'Θέλετε σίγουρα να διαγράψετε αυτή την επίσκεψη;', confirmText: 'Διαγραφή' });
+      if (!confirmed) return;
+      try {
+        await API.deleteJobVisit(visit.id);
+        await this.refreshJobActivityState();
+        Toast.success('Η επίσκεψη διαγράφηκε');
+      } catch (error) { Toast.error(error?.message || 'Αδυναμία διαγραφής επίσκεψης'); }
+    };
+    modal.querySelector('#saveJobVisitEditBtn').onclick = async () => {
+      const visitDate = modal.querySelector('#editJobVisitDate').value;
+      const startTime = modal.querySelector('#editJobVisitStart').value;
+      const endTime = modal.querySelector('#editJobVisitEnd').value;
+      if (!visitDate || !startTime) return Toast.error('Συμπληρώστε ημερομηνία και ώρα έναρξης.');
+      const startedAt = `${visitDate} ${startTime}:00`, endedAt = endTime ? `${visitDate} ${endTime}:00` : null;
+      if (endedAt && new Date(endedAt.replace(' ', 'T')) < new Date(startedAt.replace(' ', 'T'))) return Toast.error('Η λήξη δεν μπορεί να είναι πριν από την έναρξη.');
+      try {
+        await API.updateJobVisit(visit.id, { jobId: Number(this.currentEdit), visitDate, sessionStartedAt: startedAt, sessionEndedAt: endedAt, isActive: endedAt ? 0 : 1, workers: visitWorkers, notes: visit.notes || '' });
+        Modal.close(); await this.refreshJobActivityState(); Toast.success('Η επίσκεψη ενημερώθηκε');
+      } catch (error) { Toast.error(error?.message || 'Αδυναμία ενημέρωσης επίσκεψης'); }
+    };
+  },
+
   showAddForm() {
     this.resetJobFormSession();
     this.currentEdit = null;
+    this.currentActivitySession = null;
+    this.assignedWorkersBase = [];
+    this.syncJobActivityButtonState();
     const formTitle = document.getElementById('formTitle');
     const jobForm = document.getElementById('jobForm');
     const jobStatus = document.getElementById('jobStatus');
@@ -2257,6 +2491,8 @@ window.JobsView = {
         if (stateJob) Object.assign(stateJob, schedulePatch);
 
         this.currentEdit = Number(savedJobId);
+        this.syncJobActivityButtonState();
+        await this.refreshJobActivityState();
         const formTitle = document.getElementById('formTitle');
         if (formTitle) formTitle.textContent = 'Επεξεργασία Εργασίας';
         if (jobStatus === 'Εξοφλήθηκε') {
@@ -3010,9 +3246,12 @@ window.JobsView = {
       this.assignedWorkers = [];
       this.assignedPaints = [];
     }
+    this.assignedWorkersBase = this.assignedWorkers.map(worker => ({ ...worker }));
     
     this.renderAssignedWorkers();
     this.renderAssignedPaints();
+    this.syncJobActivityButtonState();
+    this.refreshJobActivityState();
 
     const materialTotal = this.getMaterialCostTotal();
     const savedMaterialsCost = parseFloat(job.materialsCost ?? job.materials_cost ?? 0) || 0;
@@ -3051,6 +3290,10 @@ window.JobsView = {
     document.getElementById('jobForm').style.display = 'none';
     document.getElementById('jobFormElement').reset();
     this.currentEdit = null;
+    this.currentActivitySession = null;
+    this.currentJobVisits = [];
+    this.assignedWorkersBase = [];
+    this.syncActivityTimer();
     this.assignedWorkers = [];
     this.assignedPaints = [];
     this.resetJobFormSession();

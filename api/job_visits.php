@@ -62,8 +62,10 @@ function normalize_visit_workers($input) {
     $normalized = [];
     foreach ($workers as $w) {
         if (!is_array($w)) continue;
-        $hours = (float)($w['hours'] ?? $w['hoursAllocated'] ?? 0);
-        if ($hours <= 0) continue;
+        $hours = (float)($w['hours'] ?? $w['hoursAllocated'] ?? $w['hours_allocated'] ?? 0);
+        // Keep a selected worker even when the visit currently has 0 minutes.
+        // Otherwise a quick session / manual edit would erase its crew.
+        $hours = max(0, $hours);
         $rate = (float)($w['hourlyRate'] ?? $w['hourly_rate'] ?? 0);
         $type = ($w['workerType'] ?? $w['worker_type'] ?? 'employee') === 'owner' ? 'owner' : 'employee';
         $normalized[] = [
@@ -78,6 +80,48 @@ function normalize_visit_workers($input) {
     return $normalized;
 }
 
+function normalize_visit_datetime($value) {
+    if ($value === null || $value === '') return null;
+    if ($value instanceof DateTime) return $value->format('Y-m-d H:i:s');
+    if (is_numeric($value)) return date('Y-m-d H:i:s', (int)$value);
+    $text = trim((string)$value);
+    if ($text === '') return null;
+    try {
+        $dt = new DateTime($text);
+        return $dt->format('Y-m-d H:i:s');
+    } catch (Exception $e) {
+        return null;
+    }
+}
+
+function normalize_visit_activity($data, $defaultJobId = null) {
+    $jobId = (int)($data['job_id'] ?? $data['jobId'] ?? $defaultJobId ?? 0);
+    $visitDate = !empty($data['visit_date'] ?? $data['visitDate'])
+        ? substr((string)(normalize_visit_datetime($data['visit_date'] ?? $data['visitDate']) ?? date('Y-m-d H:i:s')), 0, 10)
+        : date('Y-m-d');
+    $startedAt = normalize_visit_datetime($data['session_started_at'] ?? $data['sessionStartedAt'] ?? null);
+    if ($startedAt === null && isset($data['started_at'])) {
+        $startedAt = normalize_visit_datetime($data['started_at']);
+    }
+    $endedAt = normalize_visit_datetime($data['session_ended_at'] ?? $data['sessionEndedAt'] ?? null);
+    if ($endedAt === null && isset($data['ended_at'])) {
+        $endedAt = normalize_visit_datetime($data['ended_at']);
+    }
+    $isActive = isset($data['is_active']) ? (int)$data['is_active'] : (isset($data['isActive']) ? (int)$data['isActive'] : 0);
+    $duration = isset($data['session_duration_minutes']) ? (int)$data['session_duration_minutes'] : (isset($data['sessionDurationMinutes']) ? (int)$data['sessionDurationMinutes'] : 0);
+    if ($startedAt && $endedAt && $duration <= 0) {
+        $duration = max(0, (int)round((strtotime($endedAt) - strtotime($startedAt)) / 60));
+    }
+    return [
+        'jobId' => $jobId,
+        'visitDate' => $visitDate,
+        'startedAt' => $startedAt,
+        'endedAt' => $endedAt,
+        'isActive' => $isActive,
+        'duration' => max(0, $duration),
+    ];
+}
+
 try {
     switch ($method) {
         case 'GET':
@@ -86,6 +130,11 @@ try {
                 $stmt->execute([$_GET['id']]);
                 $visit = $stmt->fetch();
                 $visit ? sendSuccess(format_visit_row($visit)) : sendError('Η επίσκεψη δεν βρέθηκε', 404);
+            } elseif (isset($_GET['job_id']) && isset($_GET['active'])) {
+                $stmt = $db->prepare(visit_select_sql() . " WHERE jv.job_id = ? AND jv.is_active = 1 ORDER BY jv.id DESC LIMIT 1");
+                $stmt->execute([$_GET['job_id']]);
+                $visit = $stmt->fetch();
+                sendSuccess($visit ? format_visit_row($visit) : null);
             } elseif (isset($_GET['job_id'])) {
                 $stmt = $db->prepare(visit_select_sql() . " WHERE jv.job_id = ? ORDER BY jv.visit_date DESC, jv.id DESC");
                 $stmt->execute([$_GET['job_id']]);
@@ -97,6 +146,80 @@ try {
             break;
 
         case 'POST':
+            if (isset($_GET['action']) && $_GET['action'] === 'toggle') {
+                $input = json_decode(file_get_contents('php://input'), true) ?: [];
+                $data = convertToSnakeCase($input);
+                $jobId = (int)($data['job_id'] ?? $data['jobId'] ?? 0);
+                if ($jobId <= 0) sendError('Η εργασία είναι υποχρεωτική');
+
+                $check = $db->prepare("SELECT id FROM jobs WHERE id = ?");
+                $check->execute([$jobId]);
+                if (!$check->fetch()) sendError('Η εργασία δεν βρέθηκε', 404);
+
+                $activity = normalize_visit_activity($data, $jobId);
+                $workers = normalize_visit_workers($input);
+                $activeStmt = $db->prepare("SELECT * FROM job_visits WHERE job_id = ? AND is_active = 1 ORDER BY id DESC LIMIT 1");
+                $activeStmt->execute([$jobId]);
+                $activeVisit = $activeStmt->fetch();
+
+                if ($activeVisit) {
+                    $endedAt = $activity['endedAt'] ?: date('Y-m-d H:i:s');
+                    $startedAt = $activeVisit['session_started_at'] ?: $activeVisit['created_at'];
+                    $duration = max(0, (int)round((strtotime($endedAt) - strtotime($startedAt)) / 60));
+                    // Record actual worked time for every worker selected at Start.
+                    // The selected crew itself remains immutable after the session ends.
+                    $sessionWorkers = json_decode($activeVisit['workers'] ?? '[]', true);
+                    if (!is_array($sessionWorkers)) $sessionWorkers = [];
+                    $workedHours = $duration / 60;
+                    foreach ($sessionWorkers as &$worker) {
+                        if (!is_array($worker)) continue;
+                        $worker['hours'] = $workedHours;
+                        $worker['hoursAllocated'] = $workedHours;
+                        $rate = (float)($worker['hourlyRate'] ?? $worker['hourly_rate'] ?? 0);
+                        $worker['laborCost'] = (($worker['workerType'] ?? $worker['worker_type'] ?? 'employee') === 'owner') ? 0 : $workedHours * $rate;
+                    }
+                    unset($worker);
+                    $stmt = $db->prepare("
+                        UPDATE job_visits
+                        SET session_ended_at = :session_ended_at,
+                            session_duration_minutes = :session_duration_minutes,
+                            workers = :workers,
+                            is_active = 0
+                        WHERE id = :id
+                    ");
+                    $stmt->execute([
+                        ':id' => $activeVisit['id'],
+                        ':session_ended_at' => $endedAt,
+                        ':session_duration_minutes' => $duration,
+                        ':workers' => json_encode($sessionWorkers, JSON_UNESCAPED_UNICODE)
+                    ]);
+                    $stmt = $db->prepare(visit_select_sql() . " WHERE jv.id = ?");
+                    $stmt->execute([$activeVisit['id']]);
+                    $visit = $stmt->fetch();
+                    sendSuccess(format_visit_row($visit), 'Η δραστηριότητα σταμάτησε');
+                }
+
+                $startedAt = $activity['startedAt'] ?: date('Y-m-d H:i:s');
+                $visitDate = $activity['visitDate'] ?: date('Y-m-d');
+                $stmt = $db->prepare("
+                    INSERT INTO job_visits (job_id, visit_date, workers, notes, session_started_at, session_ended_at, session_duration_minutes, is_active)
+                    VALUES (:job_id, :visit_date, :workers, :notes, :session_started_at, :session_ended_at, :session_duration_minutes, :is_active)
+                ");
+                $stmt->execute([
+                    ':job_id' => $jobId,
+                    ':visit_date' => $visitDate,
+                    ':workers' => json_encode($workers, JSON_UNESCAPED_UNICODE),
+                    ':notes' => $data['notes'] ?? null,
+                    ':session_started_at' => $startedAt,
+                    ':session_ended_at' => null,
+                    ':session_duration_minutes' => 0,
+                    ':is_active' => 1
+                ]);
+                $stmt = $db->prepare(visit_select_sql() . " WHERE jv.id = ?");
+                $stmt->execute([$db->lastInsertId()]);
+                sendSuccess(format_visit_row($stmt->fetch()), 'Η δραστηριότητα ξεκίνησε');
+            }
+
             $input = json_decode(file_get_contents('php://input'), true);
             if (!$input) sendError('Δεν υπάρχουν δεδομένα');
 
@@ -108,18 +231,23 @@ try {
             $check->execute([$jobId]);
             if (!$check->fetch()) sendError('Η εργασία δεν βρέθηκε', 404);
 
-            $visitDate = !empty($data['visit_date']) ? $data['visit_date'] : date('Y-m-d');
+            $activity = normalize_visit_activity($data, $jobId);
+            $visitDate = $activity['visitDate'] ?: date('Y-m-d');
             $workers = normalize_visit_workers($input);
 
             $stmt = $db->prepare("
-                INSERT INTO job_visits (job_id, visit_date, workers, notes)
-                VALUES (:job_id, :visit_date, :workers, :notes)
+                INSERT INTO job_visits (job_id, visit_date, workers, notes, session_started_at, session_ended_at, session_duration_minutes, is_active)
+                VALUES (:job_id, :visit_date, :workers, :notes, :session_started_at, :session_ended_at, :session_duration_minutes, :is_active)
             ");
             $stmt->execute([
                 ':job_id' => $jobId,
                 ':visit_date' => $visitDate,
                 ':workers' => json_encode($workers, JSON_UNESCAPED_UNICODE),
-                ':notes' => $data['notes'] ?? null
+                ':notes' => $data['notes'] ?? null,
+                ':session_started_at' => $activity['startedAt'],
+                ':session_ended_at' => $activity['endedAt'],
+                ':session_duration_minutes' => $activity['duration'],
+                ':is_active' => $activity['isActive']
             ]);
 
             $stmt = $db->prepare(visit_select_sql() . " WHERE jv.id = ?");
@@ -133,19 +261,28 @@ try {
             if (!$input) sendError('Δεν υπάρχουν δεδομένα');
 
             $data = convertToSnakeCase($input);
-            $visitDate = !empty($data['visit_date']) ? $data['visit_date'] : date('Y-m-d');
+            $activity = normalize_visit_activity($data);
+            $visitDate = $activity['visitDate'] ?: date('Y-m-d');
             $workers = normalize_visit_workers($input);
 
             $stmt = $db->prepare("
                 UPDATE job_visits
-                SET visit_date = :visit_date, workers = :workers, notes = :notes
+                SET visit_date = :visit_date, workers = :workers, notes = :notes,
+                    session_started_at = :session_started_at,
+                    session_ended_at = :session_ended_at,
+                    session_duration_minutes = :session_duration_minutes,
+                    is_active = :is_active
                 WHERE id = :id
             ");
             $stmt->execute([
                 ':id' => $_GET['id'],
                 ':visit_date' => $visitDate,
                 ':workers' => json_encode($workers, JSON_UNESCAPED_UNICODE),
-                ':notes' => $data['notes'] ?? null
+                ':notes' => $data['notes'] ?? null,
+                ':session_started_at' => $activity['startedAt'],
+                ':session_ended_at' => $activity['endedAt'],
+                ':session_duration_minutes' => $activity['duration'],
+                ':is_active' => $activity['isActive']
             ]);
 
             $stmt = $db->prepare(visit_select_sql() . " WHERE jv.id = ?");

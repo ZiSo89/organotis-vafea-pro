@@ -462,6 +462,29 @@ class APIService {
         return await this.routeRequest('jobs', 'get', null, id);
     }
 
+    async getActiveJobActivity(jobId) {
+        return await this.get(`/job_visits.php?job_id=${encodeURIComponent(jobId)}&active=1`);
+    }
+
+    async getJobVisits(jobId) {
+        return await this.get(`/job_visits.php?job_id=${encodeURIComponent(jobId)}`);
+    }
+
+    async updateJobVisit(visitId, payload) {
+        return await this.put(`/job_visits.php?id=${encodeURIComponent(visitId)}`, payload);
+    }
+
+    async deleteJobVisit(visitId) {
+        return await this.delete(`/job_visits.php?id=${encodeURIComponent(visitId)}`);
+    }
+
+    async toggleJobActivity(jobId, payload = {}) {
+        return await this.post('/job_visits.php?action=toggle', {
+            jobId: Number(jobId),
+            ...payload
+        });
+    }
+
     async createJob(jobData) {
         return await this.routeRequest('jobs', 'create', jobData);
     }

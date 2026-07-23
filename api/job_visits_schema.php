@@ -41,6 +41,23 @@ function ensure_job_visits_schema($db) {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     ");
 
+    try {
+        $visitCols = [
+            'session_started_at' => "ADD COLUMN session_started_at datetime DEFAULT NULL COMMENT 'Χρόνος έναρξης της ενεργής συνεδρίας'",
+            'session_ended_at' => "ADD COLUMN session_ended_at datetime DEFAULT NULL COMMENT 'Χρόνος λήξης της ενεργής συνεδρίας'",
+            'session_duration_minutes' => "ADD COLUMN session_duration_minutes int(11) NOT NULL DEFAULT 0 COMMENT 'Διάρκεια συνεδρίας σε λεπτά'",
+            'is_active' => "ADD COLUMN is_active tinyint(1) NOT NULL DEFAULT 0 COMMENT 'Αν η συνεδρία είναι ενεργή'",
+        ];
+        foreach ($visitCols as $name => $ddl) {
+            $exists = $db->query("SHOW COLUMNS FROM job_visits LIKE '" . $name . "'")->fetch();
+            if (!$exists) {
+                $db->exec("ALTER TABLE job_visits " . $ddl);
+            }
+        }
+    } catch (Exception $e) {
+        error_log('ensure_job_visits_schema (job_visits columns): ' . $e->getMessage());
+    }
+
     // Νέες στήλες τιμολόγησης στα jobs
     try {
         $cols = [

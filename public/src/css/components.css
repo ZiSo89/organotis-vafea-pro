@@ -871,6 +871,90 @@
   min-width: 0;
 }
 
+/* Visit rows look like lightweight list items, not primary action buttons. */
+.job-visit-row {
+  color: var(--text) !important;
+  font-weight: var(--font-weight-normal);
+  box-shadow: none !important;
+}
+
+.job-visit-row:hover:not(:disabled),
+.job-visit-row:focus-visible {
+  color: var(--text) !important;
+  background: var(--bg-secondary, rgba(74, 144, 226, 0.06)) !important;
+  box-shadow: none !important;
+  transform: none !important;
+  outline: none;
+}
+
+.activity-worker-selection {
+  display: grid;
+  gap: var(--spacing-md);
+}
+
+.activity-worker-selection-label {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.activity-worker-selection-count {
+  margin: 0;
+  color: var(--text);
+  font-weight: var(--font-weight-semibold);
+}
+
+.activity-worker-options {
+  display: grid;
+  gap: var(--spacing-sm);
+}
+
+.activity-worker-option {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary, #f8fafc);
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.activity-worker-option:hover {
+  border-color: var(--accent-primary, #4a90e2);
+  background: rgba(74, 144, 226, 0.06);
+}
+
+.activity-worker-option:has(.activity-worker-checkbox:checked) {
+  border-color: var(--accent-primary, #4a90e2);
+  background: rgba(74, 144, 226, 0.1);
+}
+
+.activity-worker-checkbox {
+  display: block;
+  flex: 0 0 auto;
+  width: 18px !important;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--accent-primary, #4a90e2);
+}
+
+.activity-worker-option-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.activity-worker-option-copy strong {
+  color: var(--text);
+}
+
+.activity-worker-option-copy small {
+  color: var(--text-muted);
+}
+
 .cost-side-panel {
   display: grid;
   gap: var(--spacing-md);
