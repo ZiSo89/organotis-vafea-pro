@@ -1,0 +1,279 @@
+- generic [ref=f5e1]:
+  - text:             
+  - main [ref=f5e44]:
+    - banner [ref=f5e45]:
+      - text: 
+      - heading "Εργασίες" [level=1] [ref=f5e101]
+      - generic [ref=f5e51]:
+        - generic: 
+        - searchbox "Καθολική αναζήτηση" [ref=f5e52]
+      - button "Αναζήτηση" [ref=f5e54] [cursor=pointer]:
+        - generic [ref=f5e55]: 
+    - region "Κύριο περιεχόμενο" [ref=f5e102]:
+      - generic [ref=f5e103]:
+        - heading " Εργασίες" [level=1] [ref=f5e104]:
+          - generic [ref=f5e105]: 
+          - text: Εργασίες
+        - button "+ Νέα Εργασία" [ref=f5e106] [cursor=pointer]:
+          - generic [ref=f5e107]: +
+          - text: Νέα Εργασία
+      - generic [ref=f5e108]:
+        - generic [ref=f5e109]:
+          - generic [ref=f5e110]:
+            - generic [ref=f5e111]:
+              - 'heading "Επεξεργασία Εργασίας #5" [level=2] [ref=f5e112]'
+              - generic [ref=f5e113]: Σε εξέλιξη
+            - paragraph [ref=f5e114]: "Βήμα 1/6: Βασικά"
+          - button "" [ref=f5e115] [cursor=pointer]
+        - navigation "Βήματα φόρμας εργασίας" [ref=f5e119]:
+          - button "Βασικά" [ref=f5e120] [cursor=pointer]:
+            - generic [aria-hidden] [ref=f5e122]: 
+          - button "Υλικά" [ref=f5e124] [cursor=pointer]:
+            - generic [aria-hidden] [ref=f5e126]: 
+          - button "Συνεργείο" [ref=f5e128] [cursor=pointer]:
+            - generic [aria-hidden] [ref=f5e130]: 
+          - button "Χρέωση" [ref=f5e132] [cursor=pointer]:
+            - generic [aria-hidden] [ref=f5e134]: 
+          - button "Σύνοψη & Σημειώσεις" [ref=f5e136] [cursor=pointer]:
+            - generic [aria-hidden] [ref=f5e138]: 
+          - button "Πληρωμές" [ref=f5e140] [cursor=pointer]:
+            - generic [aria-hidden] [ref=f5e142]: 
+        - region "Σύνοψη κόστους και χρέωσης" [ref=f5e144]:
+          - generic [ref=f5e145]:
+            - generic [ref=f5e146]:
+              - generic [aria-hidden] [ref=f5e147]: 
+              - text: Χρέωση
+            - strong [ref=f5e148]: 220 €
+          - generic [ref=f5e149]:
+            - generic [ref=f5e150]:
+              - generic [aria-hidden] [ref=f5e151]: 
+              - text: Έξοδα
+            - strong [ref=f5e152]: 20 €
+          - generic [ref=f5e153]:
+            - generic [ref=f5e154]:
+              - generic [aria-hidden] [ref=f5e155]: 
+              - text: Μικτό κέρδος
+            - strong [ref=f5e156]: +200 €
+          - generic [ref=f5e157]:
+            - generic [ref=f5e158]:
+              - generic [aria-hidden] [ref=f5e159]: 
+              - text: Δουλεμένες ώρες
+            - strong [ref=f5e160]: 23.0 ώρες
+          - generic [ref=f5e161]:
+            - generic [ref=f5e162]:
+              - generic [aria-hidden] [ref=f5e163]: 
+              - text: Οικονομικό κέρδος
+            - strong [ref=f5e164]: "-30 €"
+        - generic [ref=f5e165]:
+          - text:      
+          - generic [ref=f5e167]:
+            - generic [ref=f5e168]:
+              - generic [ref=f5e169]: Πελάτης *
+              - combobox [ref=f5e170]:
+                - option "Επιλέξτε πελάτη..."
+                - option "Ζήσογλου Αθανάσιος" [selected]
+            - generic [ref=f5e171]:
+              - generic [ref=f5e172]: Τίτλος εργασίας
+              - textbox "π.χ. Βάψιμο σαλονιού — κενό = όνομα πελάτη" [ref=f5e173]: spiti
+              - text: Εμφανίζεται στο ημερολόγιο και στις λίστες.
+            - generic [ref=f5e174]:
+              - generic [ref=f5e175]: Διεύθυνση
+              - textbox [ref=f5e176]: Αγιου Δημητρίου 9, Αλεξανδρούπολη 68100
+            - generic [ref=f5e177]:
+              - generic [ref=f5e178]: Κατάσταση *
+              - combobox [ref=f5e179]:
+                - option "Υποψήφιος"
+                - option "Προγραμματισμένη"
+                - option "Σε εξέλιξη" [selected]
+                - option "Σε αναμονή"
+                - option "Ολοκληρώθηκε"
+                - option "Εξοφλήθηκε"
+                - option "Ακυρώθηκε"
+            - heading " Πρόγραμμα επίσκεψης" [level=4] [ref=f5e181]:
+              - generic [ref=f5e182]: 
+              - text: Πρόγραμμα επίσκεψης
+            - generic [ref=f5e183]:
+              - generic [ref=f5e184]: Επόμενη Επίσκεψη
+              - textbox "ΗΗ/ΜΜ/ΕΕΕΕ" [ref=f5e185]: 09/09/2026
+            - generic [ref=f5e186]:
+              - generic [ref=f5e187]: Λήξη Επίσκεψης
+              - textbox "ΗΗ/ΜΜ/ΕΕΕΕ (πολυήμερη)" [ref=f5e188]: 13/09/2026
+              - generic [ref=f5e189]:
+                - generic [ref=f5e190]: 
+                - text: Για πολυήμερες επισκέψεις — αφήστε κενό για μία μέρα
+            - generic [ref=f5e192]:
+              - generic [ref=f5e193]: 
+              - text: Οι ημερομηνίες συγχρονίζονται αυτόματα με το ημερολόγιο
+            - generic [ref=f5e195] [cursor=pointer]:
+              - checkbox "Ολοήμερη επίσκεψη" [checked] [ref=f5e196]
+              - text: Ολοήμερη επίσκεψη
+          - text:    +                 +  
+          - generic "Ενέργειες φόρμας" [ref=f5e197]:
+            - generic [ref=f5e198]:
+              - generic [ref=f5e199]:
+                - generic [ref=f5e200]: Χρέωση
+                - strong [ref=f5e201]: 220 €
+              - generic [ref=f5e202]:
+                - generic [ref=f5e203]: Κέρδος
+                - strong [ref=f5e204]: +200 €
+              - generic [ref=f5e205]:
+                - generic [ref=f5e206]: Καθαρό
+                - strong [ref=f5e207]: "-30 €"
+            - generic [ref=f5e208]:
+              - button " Πίσω" [disabled] [ref=f5e209]:
+                - generic [ref=f5e210]: 
+                - text: Πίσω
+              - button "Επόμενο " [ref=f5e211] [cursor=pointer]:
+                - text: Επόμενο
+                - generic [ref=f5e212]: 
+            - generic [ref=f5e213]:
+              - button "" [ref=f5e214] [cursor=pointer]
+              - button " Αποθήκευση" [ref=f5e216] [cursor=pointer]:
+                - generic [ref=f5e217]: 
+                - generic [ref=f5e218]: Αποθήκευση
+      - generic [ref=f5e220]:
+        - generic [ref=f5e221]:
+          - generic: 
+          - textbox "Αναζήτηση εργασιών..." [ref=f5e222]
+        - combobox [ref=f5e223] [cursor=pointer]:
+          - option "Όλες οι καταστάσεις" [selected]
+          - option "Υποψήφιος"
+          - option "Προγραμματισμένη"
+          - option "Σε εξέλιξη"
+          - option "Σε αναμονή"
+          - option "Ολοκληρώθηκε"
+          - option "Εξοφλήθηκε"
+          - option "Ακυρώθηκε"
+      - generic [ref=f5e225]:
+        - text:                
+        - generic "Λίστα εργασιών για κινητό" [ref=f5e226]:
+          - article [ref=f5e227]:
+            - generic [ref=f5e228]:
+              - generic [ref=f5e229]:
+                - strong [ref=f5e230]: Ζήσογλου Αθανάσιος
+                - generic [ref=f5e231]: Σε εξέλιξη
+              - generic [ref=f5e233]:
+                - button "" [ref=f5e234] [cursor=pointer]
+                - button "" [ref=f5e236] [cursor=pointer]
+                - button "" [active] [ref=f5e238] [cursor=pointer]
+                - button "" [ref=f5e240] [cursor=pointer]
+            - generic [ref=f5e242]:
+              - generic [ref=f5e243]:
+                - generic [ref=f5e244]: 
+                - text: 09/09/2026 – 13/09/2026
+              - generic [ref=f5e245]:
+                - generic [ref=f5e246]: 
+                - text: "Χρέωση: 220 €"
+              - generic [ref=f5e247]:
+                - generic [ref=f5e248]: 
+                - text: "Κέρδος: +200 €"
+          - article [ref=f5e249]:
+            - generic [ref=f5e250]:
+              - generic [ref=f5e251]:
+                - strong [ref=f5e252]: Ζήσογλου Αθανάσιος
+                - generic [ref=f5e253]: Υποψήφιος
+              - generic [ref=f5e255]:
+                - button "" [ref=f5e256] [cursor=pointer]
+                - button "" [ref=f5e258] [cursor=pointer]
+                - button "" [ref=f5e260] [cursor=pointer]
+                - button "" [ref=f5e262] [cursor=pointer]
+            - generic [ref=f5e264]:
+              - generic [ref=f5e265]:
+                - generic [ref=f5e266]: 
+                - text: Χωρίς επόμενη επίσκεψη
+              - generic [ref=f5e267]:
+                - generic [ref=f5e268]: 
+                - text: "Χρέωση: 0 €"
+              - generic [ref=f5e269]:
+                - generic [ref=f5e270]: 
+                - text: "Κέρδος: +0 €"
+          - article [ref=f5e271]:
+            - generic [ref=f5e272]:
+              - generic [ref=f5e273]:
+                - strong [ref=f5e274]: Ζήσογλου Αθανάσιος
+                - generic [ref=f5e275]: Υποψήφιος
+              - generic [ref=f5e277]:
+                - button "" [ref=f5e278] [cursor=pointer]
+                - button "" [ref=f5e280] [cursor=pointer]
+                - button "" [ref=f5e282] [cursor=pointer]
+                - button "" [ref=f5e284] [cursor=pointer]
+            - generic [ref=f5e286]:
+              - generic [ref=f5e287]:
+                - generic [ref=f5e288]: 
+                - text: 18/07/2026 – 20/07/2026
+              - generic [ref=f5e289]:
+                - generic [ref=f5e290]: 
+                - text: "Χρέωση: 500 €"
+              - generic [ref=f5e291]:
+                - generic [ref=f5e292]: 
+                - text: "Κέρδος: +425 €"
+          - article [ref=f5e293]:
+            - generic [ref=f5e294]:
+              - generic [ref=f5e295]:
+                - strong [ref=f5e296]: Ζήσογλου Αθανάσιος
+                - generic [ref=f5e297]: Εξοφλήθηκε
+              - generic [ref=f5e299]:
+                - button "" [ref=f5e300] [cursor=pointer]
+                - button "" [ref=f5e302] [cursor=pointer]
+                - button "" [ref=f5e304] [cursor=pointer]
+                - button "" [ref=f5e306] [cursor=pointer]
+            - generic [ref=f5e308]:
+              - generic [ref=f5e309]:
+                - generic [ref=f5e310]: 
+                - text: 15/06/2026 – 24/06/2026
+              - generic [ref=f5e311]:
+                - generic [ref=f5e312]: 
+                - text: "Χρέωση: 170 €"
+              - generic [ref=f5e313]:
+                - generic [ref=f5e314]: 
+                - text: "Κέρδος: +100 €"
+  - status
+  - navigation "Κύρια πλοήγηση" [ref=f5e61]:
+    - button "Αρχική" [ref=f5e62] [cursor=pointer]:
+      - generic [ref=f5e63]: 
+    - button "Εργασίες" [ref=f5e65] [cursor=pointer]:
+      - generic [ref=f5e66]: 
+    - button "Ημερολόγιο" [ref=f5e68] [cursor=pointer]:
+      - generic [ref=f5e69]: 
+    - button "Πελάτες" [ref=f5e71] [cursor=pointer]:
+      - generic [ref=f5e72]: 
+    - button "Περισσότερα" [ref=f5e74] [cursor=pointer]:
+      - generic [ref=f5e75]: 
+  - complementary [aria-hidden] [ref=f5e77]:
+    - generic [ref=f5e78]:
+      - heading [level=2] [ref=f5e79]: Περισσότερα
+      - button [ref=f5e80] [cursor=pointer]:
+        - generic [ref=f5e81]: 
+    - generic [ref=f5e82]:
+      - button [ref=f5e83] [cursor=pointer]:
+        - generic [ref=f5e84]: 
+        - text: Προσωπικό
+      - button [ref=f5e85] [cursor=pointer]:
+        - generic [ref=f5e86]: 
+        - text: Προμηθευτές
+      - button [ref=f5e87] [cursor=pointer]:
+        - generic [ref=f5e88]: 
+        - text: Αποθήκη
+      - button [ref=f5e89] [cursor=pointer]:
+        - generic [ref=f5e90]: 
+        - text: Χάρτης
+      - button [ref=f5e91] [cursor=pointer]:
+        - generic [ref=f5e92]: 
+        - text: Στατιστικά
+      - button [ref=f5e93] [cursor=pointer]:
+        - generic [ref=f5e94]: 
+        - text: Ρυθμίσεις
+      - button [ref=f5e95] [cursor=pointer]:
+        - generic [ref=f5e96]: 
+        - text: Βοήθεια
+  - generic [aria-hidden]:
+    - generic:
+      - generic:
+        - generic: 
+        - searchbox
+      - button:
+        - generic: 
+  - complementary [aria-hidden] [ref=f5e97]:
+    - button [ref=f5e99] [cursor=pointer]:
+      - generic [ref=f5e100]: 
+  - text: 

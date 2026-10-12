@@ -1,0 +1,135 @@
+- generic [active] [ref=f1e1]:
+  - complementary [ref=f1e2]:
+    - generic [ref=f1e3]:
+      - generic [ref=f1e4]:
+        - generic [ref=f1e5]: 
+        - generic [ref=f1e6]: Νικολαΐδη
+      - button "Toggle Sidebar" [ref=f1e8] [cursor=pointer]:
+        - generic [ref=f1e9]: 
+    - navigation "Κύρια πλοήγηση" [ref=f1e10]:
+      - link "Αρχική" [ref=f1e11] [cursor=pointer]:
+        - /url: "#dashboard"
+        - generic [aria-hidden] [ref=f1e12]: 
+      - link "Εργασίες" [ref=f1e14] [cursor=pointer]:
+        - /url: "#jobs"
+        - generic [aria-hidden] [ref=f1e15]: 
+      - link "Πελάτες" [ref=f1e17] [cursor=pointer]:
+        - /url: "#clients"
+        - generic [aria-hidden] [ref=f1e18]: 
+      - link "Προσωπικό" [ref=f1e20] [cursor=pointer]:
+        - /url: "#workers"
+        - generic [aria-hidden] [ref=f1e21]: 
+      - link "Προμηθευτές" [ref=f1e23] [cursor=pointer]:
+        - /url: "#suppliers"
+        - generic [aria-hidden] [ref=f1e24]: 
+      - link "Αποθήκη" [ref=f1e26] [cursor=pointer]:
+        - /url: "#inventory"
+        - generic [aria-hidden] [ref=f1e27]: 
+      - link "Ημερολόγιο" [ref=f1e29] [cursor=pointer]:
+        - /url: "#calendar"
+        - generic [aria-hidden] [ref=f1e30]: 
+      - link "Χάρτης" [ref=f1e32] [cursor=pointer]:
+        - /url: "#map"
+        - generic [aria-hidden] [ref=f1e33]: 
+      - link "Στατιστικά" [ref=f1e35] [cursor=pointer]:
+        - /url: "#statistics"
+        - generic [aria-hidden] [ref=f1e36]: 
+      - link "Ρυθμίσεις" [ref=f1e38] [cursor=pointer]:
+        - /url: "#settings"
+        - generic [aria-hidden] [ref=f1e39]: 
+      - link "Βοήθεια" [ref=f1e41] [cursor=pointer]:
+        - /url: "#help"
+        - generic [aria-hidden] [ref=f1e42]: 
+  - main [ref=f1e44]:
+    - text:   
+    - region "Κύριο περιεχόμενο" [ref=f1e46]:
+      - generic [ref=f1e355]:
+        - heading " Εργασίες" [level=1] [ref=f1e356]:
+          - generic [ref=f1e357]: 
+          - text: Εργασίες
+        - button "+ Νέα Εργασία" [ref=f1e358] [cursor=pointer]:
+          - generic [ref=f1e359]: +
+          - text: Νέα Εργασία
+      - text:              +             +       
+      - generic [ref=f1e361]:
+        - generic [ref=f1e362]:
+          - generic: 
+          - textbox "Αναζήτηση εργασιών..." [ref=f1e363]
+        - combobox [ref=f1e364] [cursor=pointer]:
+          - option "Όλες οι καταστάσεις" [selected]
+          - option "Υποψήφιος"
+          - option "Προγραμματισμένη"
+          - option "Σε εξέλιξη"
+          - option "Σε αναμονή"
+          - option "Ολοκληρώθηκε"
+          - option "Εξοφλήθηκε"
+          - option "Ακυρώθηκε"
+      - generic [ref=f1e366]:
+        - table [ref=f1e368]:
+          - rowgroup [ref=f1e369]:
+            - row [ref=f1e370]:
+              - columnheader "Ενέργειες" [ref=f1e371]
+              - columnheader "Πελάτης" [ref=f1e372]
+              - columnheader "Κατάσταση" [ref=f1e373]
+              - columnheader "Επόμ. Επίσκ." [ref=f1e374]
+              - columnheader "Σύνολο" [ref=f1e375]
+              - columnheader "Μικτό Κέρδος" [ref=f1e376]
+          - rowgroup [ref=f1e377]:
+            - row [ref=f1e378]:
+              - cell [ref=f1e379]:
+                - button "" [ref=f1e380] [cursor=pointer]
+                - button "" [ref=f1e382] [cursor=pointer]
+                - button "" [ref=f1e384] [cursor=pointer]
+                - button "" [ref=f1e386] [cursor=pointer]
+              - cell "Ζήσογλου Αθανάσιος" [ref=f1e388]
+              - cell "Σε εξέλιξη" [ref=f1e389]
+              - cell [ref=f1e391]:
+                - strong [ref=f1e392]: 09/09/2026 – 13/09/2026
+              - cell [ref=f1e393]:
+                - strong [ref=f1e394]: 220 €
+              - cell [ref=f1e395]:
+                - strong [ref=f1e396]: +200 €
+            - row [ref=f1e397]:
+              - cell [ref=f1e398]:
+                - button "" [ref=f1e399] [cursor=pointer]
+                - button "" [ref=f1e401] [cursor=pointer]
+                - button "" [ref=f1e403] [cursor=pointer]
+                - button "" [ref=f1e405] [cursor=pointer]
+              - cell "Ζήσογλου Αθανάσιος" [ref=f1e407]
+              - cell "Υποψήφιος" [ref=f1e408]
+              - cell "-" [ref=f1e410]
+              - cell [ref=f1e411]:
+                - strong [ref=f1e412]: 0 €
+              - cell [ref=f1e413]:
+                - strong [ref=f1e414]: +0 €
+            - row [ref=f1e415]:
+              - cell [ref=f1e416]:
+                - button "" [ref=f1e417] [cursor=pointer]
+                - button "" [ref=f1e419] [cursor=pointer]
+                - button "" [ref=f1e421] [cursor=pointer]
+                - button "" [ref=f1e423] [cursor=pointer]
+              - cell "Ζήσογλου Αθανάσιος" [ref=f1e425]
+              - cell "Υποψήφιος" [ref=f1e426]
+              - cell [ref=f1e428]:
+                - strong [ref=f1e429]: 18/07/2026 – 20/07/2026
+              - cell [ref=f1e430]:
+                - strong [ref=f1e431]: 500 €
+              - cell [ref=f1e432]:
+                - strong [ref=f1e433]: +425 €
+            - row [ref=f1e434]:
+              - cell [ref=f1e435]:
+                - button "" [ref=f1e436] [cursor=pointer]
+                - button "" [ref=f1e438] [cursor=pointer]
+                - button "" [ref=f1e440] [cursor=pointer]
+                - button "" [ref=f1e442] [cursor=pointer]
+              - cell "Ζήσογλου Αθανάσιος" [ref=f1e444]
+              - cell "Εξοφλήθηκε" [ref=f1e445]
+              - cell [ref=f1e447]:
+                - strong [ref=f1e448]: 15/06/2026 – 24/06/2026
+              - cell [ref=f1e449]:
+                - strong [ref=f1e450]: 170 €
+              - cell [ref=f1e451]:
+                - strong [ref=f1e452]: +100 €
+        - text:                            
+  - status
+  - text:                 

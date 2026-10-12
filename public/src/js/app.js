@@ -213,7 +213,17 @@ function setupGlobalEventListeners() {
 
 function showQuickAddModal() {
   const section = State.currentSection;
-  
+
+  if (section === 'jobs') {
+    Router.navigate('jobs');
+    setTimeout(() => {
+      if (typeof JobsView !== 'undefined' && typeof JobsView.showAddForm === 'function') {
+        JobsView.showAddForm();
+      }
+    }, 0);
+    return;
+  }
+
   let fields = [];
   let title = 'Γρήγορη Προσθήκη';
 
@@ -224,14 +234,6 @@ function showQuickAddModal() {
         { name: 'name', label: 'Ονοματεπώνυμο', required: true },
         { name: 'phone', label: 'Τηλέφωνο', type: 'tel' },
         { name: 'email', label: 'Email', type: 'email' }
-      ];
-      break;
-
-    case 'jobs':
-      title = 'Νέα Εργασία';
-      fields = [
-        { name: 'id', label: 'ID Εργασίας', required: true, value: Utils.generateNextId('jobs', 'Ε') },
-        { name: 'client', label: 'Πελάτης', type: 'select', options: State.data.clients.map(c => c.name), required: true }
       ];
       break;
 
@@ -250,13 +252,13 @@ function showQuickAddModal() {
     onSubmit: (data) => {
       // Add ID if not present
       if (!data.id) {
-        const prefix = section === 'clients' ? 'Π' : section === 'jobs' ? 'Ε' : 'I';
+        const prefix = section === 'clients' ? 'Π' : 'I';
         data.id = Utils.generateNextId(section, prefix);
       }
 
       // Create the item
       State.create(section, data);
-      
+
       // Refresh view
       Router.navigate(section);
     }

@@ -185,7 +185,8 @@ window.SuppliersView = {
         }).join('') : UIPrimitives.emptyState({
           icon: 'fas fa-store',
           title: 'Δεν υπάρχουν καταστήματα',
-          description: 'Προσθέστε το πρώτο κατάστημα προμηθευτή.'
+          description: 'Προσθέστε το πρώτο κατάστημα προμηθευτή.',
+          cta: '<button type="button" class="btn btn-primary" onclick="InventoryView.openSupplierEditor()">Νέο Κατάστημα</button>'
         })}
       </div>
       ${Utils.renderInfiniteFooter(this.lazyKeys.suppliers, lazy.visible, lazy.total, this.lazyBatchSize)}

@@ -1,0 +1,304 @@
+- generic [ref=f7e1]:
+  - text:             
+  - main [ref=f7e44]:
+    - banner [ref=f7e45]:
+      - text: 
+      - heading "Εργασίες" [level=1] [ref=f7e101]
+      - generic [ref=f7e51]:
+        - generic: 
+        - searchbox "Καθολική αναζήτηση" [ref=f7e52]
+      - button "Αναζήτηση" [ref=f7e54] [cursor=pointer]:
+        - generic [ref=f7e55]: 
+    - region "Κύριο περιεχόμενο" [ref=f7e102]:
+      - generic [ref=f7e103]:
+        - heading " Εργασίες" [level=1] [ref=f7e104]:
+          - generic [ref=f7e105]: 
+          - text: Εργασίες
+        - button "+ Νέα Εργασία" [ref=f7e106] [cursor=pointer]:
+          - generic [ref=f7e107]: +
+          - text: Νέα Εργασία
+      - generic [ref=f7e108]:
+        - generic [ref=f7e109]:
+          - generic [ref=f7e110]:
+            - generic [ref=f7e111]:
+              - 'heading "Επεξεργασία Εργασίας #5" [level=2] [ref=f7e112]'
+              - generic [ref=f7e113]: Σε εξέλιξη
+            - paragraph [ref=f7e114]: "Βήμα 3/6: Συνεργείο"
+          - button "" [ref=f7e115] [cursor=pointer]
+        - navigation "Βήματα φόρμας εργασίας" [ref=f7e119]:
+          - button "Βασικά" [ref=f7e120] [cursor=pointer]:
+            - generic [aria-hidden] [ref=f7e315]: 
+          - button "Υλικά" [ref=f7e124] [cursor=pointer]:
+            - generic [aria-hidden] [ref=f7e316]: 
+          - button "Συνεργείο" [active] [ref=f7e128] [cursor=pointer]:
+            - generic [aria-hidden] [ref=f7e317]: 
+          - button "Χρέωση" [ref=f7e132] [cursor=pointer]:
+            - generic [aria-hidden] [ref=f7e318]: 
+          - button "Σύνοψη & Σημειώσεις" [ref=f7e136] [cursor=pointer]:
+            - generic [aria-hidden] [ref=f7e319]: 
+          - button "Πληρωμές" [ref=f7e140] [cursor=pointer]:
+            - generic [aria-hidden] [ref=f7e320]: 
+        - region "Σύνοψη κόστους και χρέωσης" [ref=f7e144]:
+          - generic [ref=f7e145]:
+            - generic [ref=f7e146]:
+              - generic [aria-hidden] [ref=f7e147]: 
+              - text: Χρέωση
+            - strong [ref=f7e148]: 220 €
+          - generic [ref=f7e149]:
+            - generic [ref=f7e150]:
+              - generic [aria-hidden] [ref=f7e151]: 
+              - text: Έξοδα
+            - strong [ref=f7e152]: 20 €
+          - generic [ref=f7e153]:
+            - generic [ref=f7e154]:
+              - generic [aria-hidden] [ref=f7e155]: 
+              - text: Μικτό κέρδος
+            - strong [ref=f7e156]: +200 €
+          - generic [ref=f7e157]:
+            - generic [ref=f7e158]:
+              - generic [aria-hidden] [ref=f7e159]: 
+              - text: Δουλεμένες ώρες
+            - strong [ref=f7e160]: 23.0 ώρες
+          - generic [ref=f7e161]:
+            - generic [ref=f7e162]:
+              - generic [aria-hidden] [ref=f7e163]: 
+              - text: Οικονομικό κέρδος
+            - strong [ref=f7e164]: "-30 €"
+        - generic [ref=f7e165]:
+          - text:             +
+          - generic [ref=f7e322]:
+            - generic [ref=f7e323]:
+              - heading " Συνεργείο & Ώρες Εργασίας" [level=4] [ref=f7e325]:
+                - generic [ref=f7e326]: 
+                - text: Συνεργείο & Ώρες Εργασίας
+              - generic [ref=f7e327]:
+                - button "Προσθήκη Μέλους" [ref=f7e328] [cursor=pointer]:
+                  - generic [aria-hidden] [ref=f7e329]: 
+                  - text: Προσθήκη Μέλους
+                - button "Έναρξη Χρονομέτρησης" [ref=f7e330] [cursor=pointer]:
+                  - generic [aria-hidden] [ref=f7e331]: 
+            - generic [ref=f7e333]:
+              - generic [ref=f7e334]:
+                - table [ref=f7e336]:
+                  - rowgroup [ref=f7e337]:
+                    - row [ref=f7e338]:
+                      - columnheader "Μέλος / Ρόλος" [ref=f7e339]
+                      - columnheader "Ώρες" [ref=f7e340]
+                      - columnheader "Ωρομίσθιο" [ref=f7e341]
+                      - columnheader "Αξία Χρόνου" [ref=f7e342]
+                      - columnheader "Ενέργειες" [ref=f7e343]
+                  - rowgroup [ref=f7e344]:
+                    - row [ref=f7e345]:
+                      - cell "Γιάννης Ιδιοκτήτης" [ref=f7e346]:
+                        - generic [ref=f7e347]:
+                          - generic [aria-hidden] [ref=f7e348]: Γ
+                          - generic [ref=f7e349]:
+                            - strong [ref=f7e350]: Γιάννης
+                            - generic [ref=f7e351]: Ιδιοκτήτης
+                      - cell "23.0h" [ref=f7e352]
+                      - cell "10 €" [ref=f7e353]
+                      - cell "230 €" [ref=f7e354]
+                      - cell [ref=f7e355]:
+                        - button "Επεξεργασία Γιάννης" [ref=f7e356] [cursor=pointer]:
+                          - generic [aria-hidden] [ref=f7e357]: 
+                        - button "Διαγραφή Γιάννης" [ref=f7e358] [cursor=pointer]:
+                          - generic [aria-hidden] [ref=f7e359]: 
+                  - rowgroup [ref=f7e360]:
+                    - row [ref=f7e361]:
+                      - rowheader "Σύνολα" [ref=f7e362]
+                      - cell "23.0h" [ref=f7e363]
+                      - cell [ref=f7e364]
+                      - cell "230 €" [ref=f7e365]
+                      - cell [ref=f7e366]
+                - paragraph [ref=f7e367]:
+                  - generic [aria-hidden] [ref=f7e368]: 
+                  - text: "Αξία χρόνου ιδιοκτήτη, εκτός εξόδων:"
+                  - strong [ref=f7e369]: 230 €
+              - complementary "Ανάλυση εξόδων" [ref=f7e370]:
+                - heading "Ανάλυση εξόδων" [level=5] [ref=f7e371]:
+                  - generic [aria-hidden] [ref=f7e372]: 
+                  - text: Ανάλυση εξόδων
+                - generic [ref=f7e373]:
+                  - generic [ref=f7e374]:
+                    - generic [ref=f7e375]: Υπάλληλοι
+                    - strong [ref=f7e376]: 0 €
+                  - generic [ref=f7e377]:
+                    - generic [ref=f7e378]: Υλικά
+                    - strong [ref=f7e379]: 20,00 €
+                  - generic [ref=f7e380]:
+                    - generic [ref=f7e381]: Μετακίνηση
+                    - strong [ref=f7e382]: 0 €
+                  - generic [ref=f7e383]:
+                    - generic [ref=f7e384]: Σύνολο Εξόδων
+                    - strong [ref=f7e385]: 20 €
+            - paragraph [ref=f7e387]: Δεν υπάρχουν καταχωρημένες επισκέψεις.
+          - text:          +  
+          - generic "Ενέργειες φόρμας" [ref=f7e197]:
+            - generic [ref=f7e198]:
+              - generic [ref=f7e199]:
+                - generic [ref=f7e200]: Χρέωση
+                - strong [ref=f7e201]: 220 €
+              - generic [ref=f7e202]:
+                - generic [ref=f7e203]: Κέρδος
+                - strong [ref=f7e204]: +200 €
+              - generic [ref=f7e205]:
+                - generic [ref=f7e206]: Καθαρό
+                - strong [ref=f7e207]: "-30 €"
+            - generic [ref=f7e208]:
+              - button " Πίσω" [ref=f7e209] [cursor=pointer]:
+                - generic [ref=f7e388]: 
+                - text: Πίσω
+              - button "Επόμενο " [ref=f7e211] [cursor=pointer]:
+                - text: Επόμενο
+                - generic [ref=f7e389]: 
+            - generic [ref=f7e213]:
+              - button "" [ref=f7e214] [cursor=pointer]
+              - button " Αποθήκευση" [ref=f7e216] [cursor=pointer]:
+                - generic [ref=f7e217]: 
+                - generic [ref=f7e218]: Αποθήκευση
+      - generic [ref=f7e220]:
+        - generic [ref=f7e221]:
+          - generic: 
+          - textbox "Αναζήτηση εργασιών..." [ref=f7e222]
+        - combobox [ref=f7e223] [cursor=pointer]:
+          - option "Όλες οι καταστάσεις" [selected]
+          - option "Υποψήφιος"
+          - option "Προγραμματισμένη"
+          - option "Σε εξέλιξη"
+          - option "Σε αναμονή"
+          - option "Ολοκληρώθηκε"
+          - option "Εξοφλήθηκε"
+          - option "Ακυρώθηκε"
+      - generic [ref=f7e225]:
+        - text:                
+        - generic "Λίστα εργασιών για κινητό" [ref=f7e226]:
+          - article [ref=f7e227]:
+            - generic [ref=f7e228]:
+              - generic [ref=f7e229]:
+                - strong [ref=f7e230]: Ζήσογλου Αθανάσιος
+                - generic [ref=f7e231]: Σε εξέλιξη
+              - generic [ref=f7e233]:
+                - button "" [ref=f7e234] [cursor=pointer]
+                - button "" [ref=f7e236] [cursor=pointer]
+                - button "" [ref=f7e238] [cursor=pointer]
+                - button "" [ref=f7e240] [cursor=pointer]
+            - generic [ref=f7e242]:
+              - generic [ref=f7e243]:
+                - generic [ref=f7e244]: 
+                - text: 09/09/2026 – 13/09/2026
+              - generic [ref=f7e245]:
+                - generic [ref=f7e246]: 
+                - text: "Χρέωση: 220 €"
+              - generic [ref=f7e247]:
+                - generic [ref=f7e248]: 
+                - text: "Κέρδος: +200 €"
+          - article [ref=f7e249]:
+            - generic [ref=f7e250]:
+              - generic [ref=f7e251]:
+                - strong [ref=f7e252]: Ζήσογλου Αθανάσιος
+                - generic [ref=f7e253]: Υποψήφιος
+              - generic [ref=f7e255]:
+                - button "" [ref=f7e256] [cursor=pointer]
+                - button "" [ref=f7e258] [cursor=pointer]
+                - button "" [ref=f7e260] [cursor=pointer]
+                - button "" [ref=f7e262] [cursor=pointer]
+            - generic [ref=f7e264]:
+              - generic [ref=f7e265]:
+                - generic [ref=f7e266]: 
+                - text: Χωρίς επόμενη επίσκεψη
+              - generic [ref=f7e267]:
+                - generic [ref=f7e268]: 
+                - text: "Χρέωση: 0 €"
+              - generic [ref=f7e269]:
+                - generic [ref=f7e270]: 
+                - text: "Κέρδος: +0 €"
+          - article [ref=f7e271]:
+            - generic [ref=f7e272]:
+              - generic [ref=f7e273]:
+                - strong [ref=f7e274]: Ζήσογλου Αθανάσιος
+                - generic [ref=f7e275]: Υποψήφιος
+              - generic [ref=f7e277]:
+                - button "" [ref=f7e278] [cursor=pointer]
+                - button "" [ref=f7e280] [cursor=pointer]
+                - button "" [ref=f7e282] [cursor=pointer]
+                - button "" [ref=f7e284] [cursor=pointer]
+            - generic [ref=f7e286]:
+              - generic [ref=f7e287]:
+                - generic [ref=f7e288]: 
+                - text: 18/07/2026 – 20/07/2026
+              - generic [ref=f7e289]:
+                - generic [ref=f7e290]: 
+                - text: "Χρέωση: 500 €"
+              - generic [ref=f7e291]:
+                - generic [ref=f7e292]: 
+                - text: "Κέρδος: +425 €"
+          - article [ref=f7e293]:
+            - generic [ref=f7e294]:
+              - generic [ref=f7e295]:
+                - strong [ref=f7e296]: Ζήσογλου Αθανάσιος
+                - generic [ref=f7e297]: Εξοφλήθηκε
+              - generic [ref=f7e299]:
+                - button "" [ref=f7e300] [cursor=pointer]
+                - button "" [ref=f7e302] [cursor=pointer]
+                - button "" [ref=f7e304] [cursor=pointer]
+                - button "" [ref=f7e306] [cursor=pointer]
+            - generic [ref=f7e308]:
+              - generic [ref=f7e309]:
+                - generic [ref=f7e310]: 
+                - text: 15/06/2026 – 24/06/2026
+              - generic [ref=f7e311]:
+                - generic [ref=f7e312]: 
+                - text: "Χρέωση: 170 €"
+              - generic [ref=f7e313]:
+                - generic [ref=f7e314]: 
+                - text: "Κέρδος: +100 €"
+  - status
+  - navigation "Κύρια πλοήγηση" [ref=f7e61]:
+    - button "Αρχική" [ref=f7e62] [cursor=pointer]:
+      - generic [ref=f7e63]: 
+    - button "Εργασίες" [ref=f7e65] [cursor=pointer]:
+      - generic [ref=f7e66]: 
+    - button "Ημερολόγιο" [ref=f7e68] [cursor=pointer]:
+      - generic [ref=f7e69]: 
+    - button "Πελάτες" [ref=f7e71] [cursor=pointer]:
+      - generic [ref=f7e72]: 
+    - button "Περισσότερα" [ref=f7e74] [cursor=pointer]:
+      - generic [ref=f7e75]: 
+  - complementary [aria-hidden] [ref=f7e77]:
+    - generic [ref=f7e78]:
+      - heading [level=2] [ref=f7e79]: Περισσότερα
+      - button [ref=f7e80] [cursor=pointer]:
+        - generic [ref=f7e81]: 
+    - generic [ref=f7e82]:
+      - button [ref=f7e83] [cursor=pointer]:
+        - generic [ref=f7e84]: 
+        - text: Προσωπικό
+      - button [ref=f7e85] [cursor=pointer]:
+        - generic [ref=f7e86]: 
+        - text: Προμηθευτές
+      - button [ref=f7e87] [cursor=pointer]:
+        - generic [ref=f7e88]: 
+        - text: Αποθήκη
+      - button [ref=f7e89] [cursor=pointer]:
+        - generic [ref=f7e90]: 
+        - text: Χάρτης
+      - button [ref=f7e91] [cursor=pointer]:
+        - generic [ref=f7e92]: 
+        - text: Στατιστικά
+      - button [ref=f7e93] [cursor=pointer]:
+        - generic [ref=f7e94]: 
+        - text: Ρυθμίσεις
+      - button [ref=f7e95] [cursor=pointer]:
+        - generic [ref=f7e96]: 
+        - text: Βοήθεια
+  - generic [aria-hidden]:
+    - generic:
+      - generic:
+        - generic: 
+        - searchbox
+      - button:
+        - generic: 
+  - complementary [aria-hidden] [ref=f7e97]:
+    - button [ref=f7e99] [cursor=pointer]:
+      - generic [ref=f7e100]: 
+  - text: 

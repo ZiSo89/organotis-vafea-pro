@@ -75,6 +75,15 @@ window.CalendarView = {
         
         <!-- FullCalendar -->
         <div class="calendar-main">
+          <div class="calendar-legend" role="note" aria-label="Επεξήγηση χρωμάτων ημερολογίου">
+            <div class="calendar-legend-item"><span class="calendar-legend-swatch calendar-legend-pending"></span> Προγραμματισμένη</div>
+            <div class="calendar-legend-item"><span class="calendar-legend-swatch calendar-legend-confirmed"></span> Εγκεκριμένη</div>
+            <div class="calendar-legend-item"><span class="calendar-legend-swatch calendar-legend-in-progress"></span> Σε εξέλιξη</div>
+            <div class="calendar-legend-item"><span class="calendar-legend-swatch calendar-legend-completed"></span> Ολοκληρωμένη</div>
+            <div class="calendar-legend-item"><span class="calendar-legend-icon">🔔</span> Υπενθύμιση</div>
+            <div class="calendar-legend-item"><span class="calendar-legend-icon">🕐</span> Συνεδρία</div>
+            <div class="calendar-legend-item"><span class="calendar-legend-icon">▶️</span> Ενεργή συνεδρία</div>
+          </div>
           <div id="calendar"></div>
         </div>
       </div>
@@ -178,6 +187,15 @@ window.CalendarView = {
         }
       },
       
+      eventContent: (arg) => {
+        const props = arg.event.extendedProps || {};
+        const eventType = props.eventType || props.event_type || this.getEventTypeLabel(arg.event);
+        const icon = this.getEventIcon(eventType);
+        return {
+          html: `<span class="calendar-event-content"><span class="calendar-event-icon">${icon}</span><span class="calendar-event-title">${Utils.escapeHtml(arg.event.title || '')}</span></span>`
+        };
+      },
+
       // Event rendering - log what FullCalendar is about to display
       eventDidMount: (info) => {
         console.log('🎨 FullCalendar rendering event:', {
@@ -371,6 +389,8 @@ window.CalendarView = {
       eventEnd = endDate ? `${endDate}T${endTime || '23:59:59'}` : null;
     }
     
+    const eventType = this.getEventTypeValue(dbEvent);
+
     return {
       id: dbEvent.id,
       title: displayTitle,
@@ -396,9 +416,36 @@ window.CalendarView = {
         startTime: startTime,
         start_time: startTime,
         endTime: endTime,
-        end_time: endTime
+        end_time: endTime,
+        eventType: eventType
       }
     };
+  },
+
+  getEventTypeValue(event) {
+    const value = event?.eventType || event?.event_type || event?.eventTypeValue || '';
+    if (value) return String(value);
+    if (event?.jobVisitId || event?.job_visit_id || event?.jobVisit || event?.sessionId || event?.session_id) {
+      return 'session';
+    }
+    if (event?.isReminder || event?.reminder) {
+      return 'reminder';
+    }
+    return 'visit';
+  },
+
+  getEventTypeLabel(event) {
+    const props = event?.extendedProps || {};
+    const value = props.eventType || props.event_type || '';
+    return value || 'visit';
+  },
+
+  getEventIcon(eventType = 'visit') {
+    const normalized = String(eventType || 'visit').toLowerCase();
+    if (normalized === 'session' || normalized === 'active-session') return '🕐';
+    if (normalized === 'active') return '▶️';
+    if (normalized === 'reminder') return '🔔';
+    return '🗓️';
   },
 
   /* ========================================

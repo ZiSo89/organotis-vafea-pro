@@ -1,0 +1,104 @@
+- generic [active] [ref=f7e1]:
+  - complementary [ref=f7e2]:
+    - generic [ref=f7e3]:
+      - generic [ref=f7e4]:
+        - generic [ref=f7e5]: 
+        - generic [ref=f7e6]: Τέχνη και Χρώμα
+      - button "Toggle Sidebar" [ref=f7e8] [cursor=pointer]:
+        - generic [ref=f7e9]: 
+    - navigation "Κύρια πλοήγηση" [ref=f7e10]:
+      - link "Αρχική" [ref=f7e11] [cursor=pointer]:
+        - /url: "#dashboard"
+        - generic [aria-hidden] [ref=f7e12]: 
+      - link "Εργασίες" [ref=f7e14] [cursor=pointer]:
+        - /url: "#jobs"
+        - generic [aria-hidden] [ref=f7e15]: 
+      - link "Πελάτες" [ref=f7e17] [cursor=pointer]:
+        - /url: "#clients"
+        - generic [aria-hidden] [ref=f7e18]: 
+      - link "Προσωπικό" [ref=f7e20] [cursor=pointer]:
+        - /url: "#workers"
+        - generic [aria-hidden] [ref=f7e21]: 
+      - link "Προμηθευτές" [ref=f7e23] [cursor=pointer]:
+        - /url: "#suppliers"
+        - generic [aria-hidden] [ref=f7e24]: 
+      - link "Αποθήκη" [ref=f7e26] [cursor=pointer]:
+        - /url: "#inventory"
+        - generic [aria-hidden] [ref=f7e27]: 
+      - link "Ημερολόγιο" [ref=f7e29] [cursor=pointer]:
+        - /url: "#calendar"
+        - generic [aria-hidden] [ref=f7e30]: 
+      - link "Χάρτης" [ref=f7e32] [cursor=pointer]:
+        - /url: "#map"
+        - generic [aria-hidden] [ref=f7e33]: 
+      - link "Στατιστικά" [ref=f7e35] [cursor=pointer]:
+        - /url: "#statistics"
+        - generic [aria-hidden] [ref=f7e36]: 
+      - link "Ρυθμίσεις" [ref=f7e38] [cursor=pointer]:
+        - /url: "#settings"
+        - generic [aria-hidden] [ref=f7e39]: 
+      - link "Βοήθεια" [ref=f7e41] [cursor=pointer]:
+        - /url: "#help"
+        - generic [aria-hidden] [ref=f7e42]: 
+  - main [ref=f7e44]:
+    - banner [ref=f7e45]:
+      - button "Άνοιγμα μενού πλοήγησης" [ref=f7e46] [cursor=pointer]:
+        - generic [aria-hidden] [ref=f7e47]: 
+      - heading "Αρχική" [level=1] [ref=f7e49]
+      - generic [ref=f7e51]:
+        - generic: 
+        - searchbox "Καθολική αναζήτηση" [ref=f7e52]
+      - button "Αναζήτηση" [ref=f7e54] [cursor=pointer]:
+        - generic [ref=f7e55]: 
+    - status "Φόρτωση δεδομένων" [ref=f7e57]:
+      - paragraph [ref=f7e60]: Φόρτωση δεδομένων...
+  - status
+  - navigation "Κύρια πλοήγηση" [ref=f7e61]:
+    - button "Αρχική" [ref=f7e62] [cursor=pointer]:
+      - generic [ref=f7e63]: 
+    - button "Εργασίες" [ref=f7e65] [cursor=pointer]:
+      - generic [ref=f7e66]: 
+    - button "Ημερολόγιο" [ref=f7e68] [cursor=pointer]:
+      - generic [ref=f7e69]: 
+    - button "Πελάτες" [ref=f7e71] [cursor=pointer]:
+      - generic [ref=f7e72]: 
+    - button "Περισσότερα" [ref=f7e74] [cursor=pointer]:
+      - generic [ref=f7e75]: 
+  - complementary [aria-hidden] [ref=f7e77]:
+    - generic [ref=f7e78]:
+      - heading [level=2] [ref=f7e79]: Περισσότερα
+      - button [ref=f7e80] [cursor=pointer]:
+        - generic [ref=f7e81]: 
+    - generic [ref=f7e82]:
+      - button [ref=f7e83] [cursor=pointer]:
+        - generic [ref=f7e84]: 
+        - text: Προσωπικό
+      - button [ref=f7e85] [cursor=pointer]:
+        - generic [ref=f7e86]: 
+        - text: Προμηθευτές
+      - button [ref=f7e87] [cursor=pointer]:
+        - generic [ref=f7e88]: 
+        - text: Αποθήκη
+      - button [ref=f7e89] [cursor=pointer]:
+        - generic [ref=f7e90]: 
+        - text: Χάρτης
+      - button [ref=f7e91] [cursor=pointer]:
+        - generic [ref=f7e92]: 
+        - text: Στατιστικά
+      - button [ref=f7e93] [cursor=pointer]:
+        - generic [ref=f7e94]: 
+        - text: Ρυθμίσεις
+      - button [ref=f7e95] [cursor=pointer]:
+        - generic [ref=f7e96]: 
+        - text: Βοήθεια
+  - generic [aria-hidden]:
+    - generic:
+      - generic:
+        - generic: 
+        - searchbox
+      - button:
+        - generic: 
+  - complementary [aria-hidden] [ref=f7e97]:
+    - button [ref=f7e99] [cursor=pointer]:
+      - generic [ref=f7e100]: 
+  - text: +

@@ -1,0 +1,130 @@
+- generic [ref=f1e1]:
+  - complementary [ref=f1e2]:
+    - generic [ref=f1e3]:
+      - generic [ref=f1e4]:
+        - generic [ref=f1e5]: 
+        - generic [ref=f1e6]: Νικολαΐδη
+      - button "Toggle Sidebar" [ref=f1e8] [cursor=pointer]:
+        - generic [ref=f1e9]: 
+    - navigation "Κύρια πλοήγηση" [ref=f1e10]:
+      - link "Αρχική" [ref=f1e11] [cursor=pointer]:
+        - /url: "#dashboard"
+        - generic [aria-hidden] [ref=f1e12]: 
+      - link "Εργασίες" [ref=f1e14] [cursor=pointer]:
+        - /url: "#jobs"
+        - generic [aria-hidden] [ref=f1e15]: 
+      - link "Πελάτες" [ref=f1e17] [cursor=pointer]:
+        - /url: "#clients"
+        - generic [aria-hidden] [ref=f1e18]: 
+      - link "Προσωπικό" [active] [ref=f1e20] [cursor=pointer]:
+        - /url: "#workers"
+        - generic [aria-hidden] [ref=f1e21]: 
+      - link "Προμηθευτές" [ref=f1e23] [cursor=pointer]:
+        - /url: "#suppliers"
+        - generic [aria-hidden] [ref=f1e24]: 
+      - link "Αποθήκη" [ref=f1e26] [cursor=pointer]:
+        - /url: "#inventory"
+        - generic [aria-hidden] [ref=f1e27]: 
+      - link "Ημερολόγιο" [ref=f1e29] [cursor=pointer]:
+        - /url: "#calendar"
+        - generic [aria-hidden] [ref=f1e30]: 
+      - link "Χάρτης" [ref=f1e32] [cursor=pointer]:
+        - /url: "#map"
+        - generic [aria-hidden] [ref=f1e33]: 
+      - link "Στατιστικά" [ref=f1e35] [cursor=pointer]:
+        - /url: "#statistics"
+        - generic [aria-hidden] [ref=f1e36]: 
+      - link "Ρυθμίσεις" [ref=f1e38] [cursor=pointer]:
+        - /url: "#settings"
+        - generic [aria-hidden] [ref=f1e39]: 
+      - link "Βοήθεια" [ref=f1e41] [cursor=pointer]:
+        - /url: "#help"
+        - generic [aria-hidden] [ref=f1e42]: 
+  - main [ref=f1e44]:
+    - text:   
+    - region "Κύριο περιεχόμενο" [ref=f1e46]:
+      - generic [ref=f1e191]:
+        - heading " Προσωπικό" [level=1] [ref=f1e192]:
+          - generic [ref=f1e193]: 
+          - text: Προσωπικό
+        - button "+ Νέος Εργάτης" [ref=f1e194] [cursor=pointer]:
+          - generic [ref=f1e195]: +
+          - text: Νέος Εργάτης
+      - text:    
+      - generic [ref=f1e196]:
+        - generic [ref=f1e197]:
+          - generic [ref=f1e198]:
+            - generic: 
+            - textbox "Αναζήτηση εργατών..." [ref=f1e199]
+          - combobox [ref=f1e200] [cursor=pointer]:
+            - option "Όλες οι καταστάσεις" [selected]
+            - option "Ενεργοί"
+            - option "Ανενεργοί"
+        - tablist "Φίλτρο κατάστασης" [ref=f1e201]:
+          - button "Όλοι" [ref=f1e202] [cursor=pointer]
+          - button "Ενεργοί" [ref=f1e203] [cursor=pointer]
+          - button "Ανενεργοί" [ref=f1e204] [cursor=pointer]
+      - generic [ref=f1e206]:
+        - table [ref=f1e208]:
+          - rowgroup [ref=f1e209]:
+            - row [ref=f1e210]:
+              - columnheader "Ενέργειες" [ref=f1e211]
+              - columnheader "Όνομα" [ref=f1e212]
+              - columnheader "Ωρομίσθιο" [ref=f1e213]
+              - columnheader "Τηλέφωνο" [ref=f1e214]
+              - columnheader "Ώρες Μήνα" [ref=f1e215]
+              - columnheader "Μισθός / Απόδοση" [ref=f1e216]
+              - columnheader "Κατάσταση" [ref=f1e217]
+          - rowgroup [ref=f1e218]:
+            - row [ref=f1e219]:
+              - cell [ref=f1e220]:
+                - button "" [ref=f1e221] [cursor=pointer]
+                - button "" [ref=f1e223] [cursor=pointer]
+                - button "" [ref=f1e225] [cursor=pointer]
+              - cell [ref=f1e227]:
+                - strong [ref=f1e228]: Δημήτρης Βασιλείου
+              - cell "5 €/ώρα" [ref=f1e229]
+              - cell [ref=f1e230]:
+                - link "6978799299" [ref=f1e231] [cursor=pointer]:
+                  - /url: tel:6978799299
+              - cell [ref=f1e232]:
+                - strong [ref=f1e233]: 0.0h
+              - cell [ref=f1e234]:
+                - strong [ref=f1e235]: 0 €
+              - cell "Ενεργός" [ref=f1e236]
+            - row [ref=f1e238]:
+              - cell [ref=f1e239]:
+                - button "" [ref=f1e240] [cursor=pointer]
+                - button "" [ref=f1e242] [cursor=pointer]
+                - button "" [ref=f1e244] [cursor=pointer]
+              - cell [ref=f1e246]:
+                - strong [ref=f1e247]: Αντώνιος Μιχαήλ
+              - cell "5 €/ώρα" [ref=f1e248]
+              - cell [ref=f1e249]:
+                - link "6978799299" [ref=f1e250] [cursor=pointer]:
+                  - /url: tel:6978799299
+              - cell [ref=f1e251]:
+                - strong [ref=f1e252]: 0.0h
+              - cell [ref=f1e253]:
+                - strong [ref=f1e254]: 0 €
+              - cell "Ενεργός" [ref=f1e255]
+            - row [ref=f1e257]:
+              - cell [ref=f1e258]:
+                - button "" [ref=f1e259] [cursor=pointer]
+                - button "" [ref=f1e261] [cursor=pointer]
+                - button "" [ref=f1e263] [cursor=pointer]
+              - cell [ref=f1e265]:
+                - strong [ref=f1e266]: Γιάννης
+              - cell "10 €/ώρα" [ref=f1e267]
+              - cell [ref=f1e268]:
+                - link "6934222333" [ref=f1e269] [cursor=pointer]:
+                  - /url: tel:6934222333
+              - cell [ref=f1e270]:
+                - strong [ref=f1e271]: 0.0h
+              - cell [ref=f1e272]:
+                - strong [ref=f1e273]: "-"
+                - text: Απόδοση/ώρα
+              - cell "Ενεργός" [ref=f1e274]
+        - text:                     
+  - status
+  - text:                 
