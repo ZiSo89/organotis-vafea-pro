@@ -633,7 +633,8 @@ window.ClientsView = {
       return UIPrimitives.emptyState({
         icon: 'fas fa-users',
         title: 'Δεν υπάρχουν πελάτες',
-        description: 'Δημιουργήστε τον πρώτο σας πελάτη!'
+        description: 'Δημιουργήστε τον πρώτο σας πελάτη!',
+        cta: '<button type="button" class="btn btn-primary" onclick="ClientsView.showAddForm()">Νέος Πελάτης</button>'
       });
     }
 

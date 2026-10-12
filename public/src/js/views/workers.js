@@ -368,7 +368,8 @@ window.WorkersView = {
       return UIPrimitives.emptyState({
         icon: 'fas fa-hard-hat',
         title: 'Δεν υπάρχουν εργάτες',
-        description: 'Δημιουργήστε τον πρώτο σας εργάτη!'
+        description: 'Δημιουργήστε τον πρώτο σας εργάτη!',
+        cta: '<button type="button" class="btn btn-primary" onclick="WorkersView.showAddForm()">Νέος Εργάτης</button>'
       });
     }
 
@@ -508,8 +509,7 @@ window.WorkersView = {
       hireDate: Utils.greekToDate(document.getElementById('w_hireDate').value),
       notes: document.getElementById('w_notes').value.trim(),
       totalHours: 0,
-      totalEarnings: 0,
-      currentCheckIn: null
+      totalEarnings: 0
     };
 
     console.log('[Workers] Worker data:', workerData);
@@ -533,7 +533,6 @@ window.WorkersView = {
       if (existing) {
         workerData.totalHours = existing.totalHours || 0;
         workerData.totalEarnings = existing.totalEarnings || 0;
-        workerData.currentCheckIn = existing.currentCheckIn || null;
         console.log('[Workers] Kept existing totals:', { totalHours: workerData.totalHours, totalEarnings: workerData.totalEarnings });
       }
     }
@@ -850,83 +849,6 @@ window.WorkersView = {
     this.renderTableWithLazy(workers, { reset: true });
   },
 
-  // TODO: Future feature - Timesheet Check-in/Check-out
-  // Currently not used in UI, but functions are ready for implementation
-  /*
-  checkIn(id) {
-    const worker = State.data.workers.find(w => w.id === id);
-    if (!worker) return;
-
-    if (worker.currentCheckIn) {
-      Toast.warning('Ο εργάτης έχει ήδη κάνει check-in!');
-      return;
-    }
-
-    const now = new Date().toISOString();
-    
-    // Update worker
-    worker.currentCheckIn = now;
-    State.update('workers', id, worker);
-
-    // Create timesheet entry
-    const timesheets = State.read('timesheets') || [];
-    const timesheet = {
-      id: `TS-${String(timesheets.length + 1).padStart(6, '0')}`,
-      workerId: id,
-      workerName: worker.name,
-      checkIn: now,
-      checkOut: null,
-      hoursWorked: null,
-      hourlyRate: worker.hourlyRate,
-      earnings: null
-    };
-    
-    State.create('timesheets', timesheet);
-    
-    Toast.success(`${worker.name} έκανε check-in!`);
-    this.refreshTable();
-  },
-
-  checkOut(id) {
-    const worker = State.data.workers.find(w => w.id === id);
-    if (!worker) return;
-
-    if (!worker.currentCheckIn) {
-      Toast.warning('Ο εργάτης δεν έχει κάνει check-in!');
-      return;
-    }
-
-    const now = new Date().toISOString();
-    const checkInTime = new Date(worker.currentCheckIn);
-    const checkOutTime = new Date(now);
-    
-    // Calculate hours worked
-    const hoursWorked = (checkOutTime - checkInTime) / (1000 * 60 * 60);
-    const earnings = hoursWorked * worker.hourlyRate;
-
-    // Find and update timesheet
-    const timesheets = State.read('timesheets') || [];
-    const timesheet = timesheets.find(t => 
-      t.workerId === id && t.checkIn === worker.currentCheckIn && !t.checkOut
-    );
-
-    if (timesheet) {
-      timesheet.checkOut = now;
-      timesheet.hoursWorked = hoursWorked;
-      timesheet.earnings = earnings;
-      State.update('timesheets', timesheet.id, timesheet);
-    }
-
-    // Update worker
-    worker.currentCheckIn = null;
-    worker.totalHours = (worker.totalHours || 0) + hoursWorked;
-    worker.totalEarnings = (worker.totalEarnings || 0) + earnings;
-    State.update('workers', id, worker);
-
-    Toast.success(`${worker.name} έκανε check-out! Ώρες: ${hoursWorked.toFixed(2)}, Έσοδα: ${Utils.formatCurrency(earnings)}`);
-    this.refreshTable();
-  },
-  */
 
   showReports() {
     const workers = State.read('workers') || [];

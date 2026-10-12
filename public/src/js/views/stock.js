@@ -274,7 +274,8 @@ window.InventoryView = {
           }).join('') : UIPrimitives.emptyState({
             icon: 'fas fa-box-open',
             title: hasSearch ? 'Δεν βρέθηκαν υλικά' : 'Δεν υπάρχουν υλικά',
-            description: hasSearch ? 'Δοκιμάστε άλλη αναζήτηση.' : 'Προσθέστε υλικά για να παρακολουθείτε την αποθήκη.'
+            description: hasSearch ? 'Δοκιμάστε άλλη αναζήτηση.' : 'Προσθέστε υλικά για να παρακολουθείτε την αποθήκη.',
+            cta: '<button type="button" class="btn btn-primary" onclick="StockView.showAddMaterialForm()">Νέο Υλικό</button>'
           })}
         </div>
         ${Utils.renderInfiniteFooter(this.materialsLazyKey, lazy.visible, lazy.total, this.lazyBatchSize)}
@@ -349,7 +350,8 @@ window.InventoryView = {
           }).join('') : UIPrimitives.emptyState({
             icon: 'fas fa-clock-rotate-left',
             title: 'Δεν υπάρχουν κινήσεις',
-            description: 'Οι αλλαγές αποθήκης θα εμφανίζονται εδώ.'
+            description: 'Οι αλλαγές αποθήκης θα εμφανίζονται εδώ.',
+            cta: '<button type="button" class="btn btn-primary" onclick="StockView.renderMaterialsTableWithLazy(document.querySelector(\'#stockMaterialsTableContainer\')?.closest(\'.card\') || document.body, State.read(\'materials\') || [], { reset: true })">Ανανέωση</button>'
           })}
         </div>
         ${Utils.renderInfiniteFooter(this.movementsLazyKey, lazy.visible, lazy.total, this.lazyBatchSize)}
